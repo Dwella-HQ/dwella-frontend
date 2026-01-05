@@ -840,10 +840,7 @@ const DocumentationPage: NextPageWithLayout = () => {
 };
 
 DocumentationPage.getLayout = (page) => (
-  <DashboardLayout
-    heading="Documentation"
-    byText="API documentation and integration guides"
-  >
+  <DashboardLayout>
     {page}
   </DashboardLayout>
 );
