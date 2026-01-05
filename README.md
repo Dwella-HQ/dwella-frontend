@@ -8,7 +8,6 @@ Create a `.env.local` file in the root directory and add:
 
 ```bash
 # NEXT_PUBLIC_API_BASE_URL=https://ae996252bfce.ngrok-free.app/api/v1
-NEXT_PUBLIC_API_BASE_URL=https://sandbox-api.nesconigeria.com/api/v1
 ```
 
 ### Running the Development Server

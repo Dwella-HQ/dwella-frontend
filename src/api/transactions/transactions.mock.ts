@@ -16,7 +16,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/020",
+    reference: "DWELLA/ABJ/020",
     account: "N1,678,400.50",
     type: "Wallet Funding",
     amount: "N1,678,400.50",
@@ -28,7 +28,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/015",
+    reference: "DWELLA/ABJ/015",
     account: "N1,678,400.50",
     type: "Service Charge",
     amount: "N1,678,400.50",
@@ -40,7 +40,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/011",
+    reference: "DWELLA/ABJ/011",
     account: "N1,678,400.50",
     type: "Adjustment",
     amount: "N1,678,400.50",
@@ -52,7 +52,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/009",
+    reference: "DWELLA/ABJ/009",
     account: "N1,678,400.50",
     type: "Reversal",
     amount: "N1,678,400.50",
@@ -64,7 +64,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/023",
+    reference: "DWELLA/ABJ/023",
     account: "N1,678,400.50",
     type: "Wallet Funding",
     amount: "N1,678,400.50",
@@ -76,7 +76,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/020",
+    reference: "DWELLA/ABJ/020",
     account: "N1,678,400.50",
     type: "Wallet Funding",
     amount: "N1,678,400.50",
@@ -88,7 +88,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/015",
+    reference: "DWELLA/ABJ/015",
     account: "N1,678,400.50",
     type: "Service Charge",
     amount: "N1,678,400.50",
@@ -100,7 +100,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/011",
+    reference: "DWELLA/ABJ/011",
     account: "N1,678,400.50",
     type: "Adjustment",
     amount: "N1,678,400.50",
@@ -112,7 +112,7 @@ export const partnerTransactions: Transaction[] = [
   {
     id: "#IT736573732173",
     name: "Token Purchase",
-    reference: "NESCO/ABJ/009",
+    reference: "DWELLA/ABJ/009",
     account: "N1,678,400.50",
     type: "Reversal",
     amount: "N1,678,400.50",

@@ -64,6 +64,7 @@ export interface Notification {
   fullDescription: string;
   dateTime: string;
   isRead: boolean;
+  type: string;
   // Store original API data for marking as read
   apiId: number;
 }
@@ -79,13 +80,14 @@ export const mapNotification = (notification: NotificationDTO): Notification => 
 
   return {
     id: String(notification.id),
-    sender: "NESCO",
+    sender: "Dwella",
     time: formatTimeAgo(notification.createdAt),
     title: notification.title,
     description: truncatedMessage,
     fullDescription: notification.message,
     dateTime: formatDateTime(notification.createdAt),
     isRead: notification.read,
+    type: notification.type,
     apiId: notification.id,
   };
 };

@@ -37,7 +37,7 @@ const SupportPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>NESCO Partners · Support</title>
+        <title>Dwella · Support</title>
       </Head>
       <div className="w-full">
         <button

@@ -38,7 +38,7 @@ const ResetPasswordPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>NESCO Partners · Reset Password</title>
+        <title>Dwella · Reset Password</title>
       </Head>
       <ResetPasswordForm
         onSubmit={handleResetPassword}

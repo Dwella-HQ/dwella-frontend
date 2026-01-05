@@ -70,7 +70,7 @@ export const ResetPasswordForm = ({
     >
       <header className="flex flex-col items-center justify-center gap-5">
         <h1 className="text-4xl font-bold text-brand-main p-2 rounded-lg lg:text-5xl">
-          NESCO
+          Dwella
         </h1>
         <span className="flex flex-col items-center justify-center text-center">
           <h2 className="text-xl font-bold text-brand-black p-2 rounded-lg lg:text-2xl">

@@ -4,7 +4,7 @@ import type { ChatMessage } from "@/components/SupportChatWindow";
 export const supportTickets: SupportTicket[] = [
   {
     id: "1",
-    title: "NESCO SUPPORT",
+    title: "DWELLA SUPPORT",
     preview:
       "I have a question about the budget for the upcoming project. It seems like there's a disc...",
     timestamp: "Yesterday",
@@ -12,7 +12,7 @@ export const supportTickets: SupportTicket[] = [
   },
   {
     id: "2",
-    title: "NESCO SUPPORT",
+    title: "DWELLA SUPPORT",
     preview:
       "I have a question about the budget for the upcoming project. It seems like there's a disc...",
     timestamp: "1 min ago",
@@ -20,7 +20,7 @@ export const supportTickets: SupportTicket[] = [
   },
   {
     id: "3",
-    title: "NESCO SUPPORT",
+    title: "DWELLA SUPPORT",
     preview:
       "I have a question about the budget for the upcoming project. It seems like there's a disc...",
     timestamp: "21 Oct 2025",
@@ -28,7 +28,7 @@ export const supportTickets: SupportTicket[] = [
   },
   {
     id: "4",
-    title: "NESCO SUPPORT",
+    title: "DWELLA SUPPORT",
     preview:
       "I have a question about the budget for the upcoming project. It seems like there's a disc...",
     timestamp: "12 May 2025",

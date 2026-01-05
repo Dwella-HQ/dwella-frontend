@@ -10,7 +10,7 @@ type DocumentProps = {
   apiBaseUrl?: string;
 };
 
-class NescoDocument extends Document<DocumentProps> {
+class DwellaDocument extends Document<DocumentProps> {
   static async getInitialProps(ctx: DocumentContext) {
     const initialProps = await Document.getInitialProps(ctx);
 
@@ -55,4 +55,4 @@ class NescoDocument extends Document<DocumentProps> {
   }
 }
 
-export default NescoDocument;
+export default DwellaDocument;

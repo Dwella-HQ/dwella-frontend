@@ -72,7 +72,7 @@ export const SupportChatWindow = ({
               </div>
               {message.sender === "support" && (
                 <p className="text-xs font-medium text-brand-main">
-                  Nesco Support
+                  Dwella Support
                 </p>
               )}
             </div>

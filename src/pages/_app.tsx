@@ -15,10 +15,10 @@ type AppPropsWithLayout = AppProps & {
   Component: NextPageWithLayout;
 };
 
-const NescoPartnersApp = ({ Component, pageProps }: AppPropsWithLayout) => {
+const DwellaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
   const getLayout = Component.getLayout ?? ((page) => page);
   
   return getLayout(<Component {...pageProps} />);
 };
 
-export default NescoPartnersApp;
+export default DwellaApp;

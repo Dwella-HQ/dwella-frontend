@@ -159,7 +159,7 @@ const NotificationsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>NESCO Partners · Notifications</title>
+        <title>Dwella · Notifications</title>
       </Head>
 
       <section className="grid gap-6 lg:grid-cols-3">

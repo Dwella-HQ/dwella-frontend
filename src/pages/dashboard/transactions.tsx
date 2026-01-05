@@ -354,7 +354,7 @@ const TransactionsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>NESCO Partners · Transactions</title>
+        <title>Dwella · Transactions</title>
       </Head>
 
       <section className="space-y-6">
