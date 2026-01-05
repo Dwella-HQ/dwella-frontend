@@ -98,10 +98,7 @@ const PartnersPage: NextPageWithLayout = () => {
 };
 
 PartnersPage.getLayout = (page) => (
-  <DashboardLayout
-    heading="Partners"
-    byText="Manage existing partners and add new partners"
-  >
+  <DashboardLayout>
     {page}
   </DashboardLayout>
 );

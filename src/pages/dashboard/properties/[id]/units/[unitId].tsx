@@ -26,7 +26,7 @@ import { mockPaymentHistory } from "@/data/mockPropertyDetails";
 import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
 import type { Unit, Tenant } from "@/data/mockLandlordData";
 
-import type { NextPageWithLayout } from "../../../_app";
+import type { NextPageWithLayout } from "@/pages/_app";
 
 const UnitDetailPage: NextPageWithLayout = () => {
   const router = useRouter();

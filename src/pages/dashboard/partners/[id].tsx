@@ -163,7 +163,7 @@ const PartnersDetailPage: NextPageWithLayout = () => {
 };
 
 PartnersDetailPage.getLayout = (page) => (
-  <DashboardLayout heading="" byText="">
+  <DashboardLayout>
     {page}
   </DashboardLayout>
 );

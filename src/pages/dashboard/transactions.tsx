@@ -601,10 +601,7 @@ const TransactionsPage: NextPageWithLayout = () => {
 };
 
 TransactionsPage.getLayout = (page) => (
-  <DashboardLayout
-    heading="Transactions"
-    byText="Monitor and manage partner and customer activities."
-  >
+  <DashboardLayout>
     {page}
   </DashboardLayout>
 );

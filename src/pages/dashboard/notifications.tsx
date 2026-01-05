@@ -331,10 +331,7 @@ const NotificationsPage: NextPageWithLayout = () => {
 };
 
 NotificationsPage.getLayout = (page) => (
-  <DashboardLayout
-    heading="Notifications"
-    byText="Stay informed with real-time updates and system alerts"
-  >
+  <DashboardLayout>
     {page}
   </DashboardLayout>
 );

@@ -143,13 +143,6 @@ const SupportPage: NextPageWithLayout = () => {
   );
 };
 
-SupportPage.getLayout = (page) => (
-  <DashboardLayout
-    heading="Support"
-    byText="Respond to partner requests and operational issues."
-  >
-    {page}
-  </DashboardLayout>
-);
+SupportPage.getLayout = (page) => <DashboardLayout>{page}</DashboardLayout>;
 
 export default SupportPage;
