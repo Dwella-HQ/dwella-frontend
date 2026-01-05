@@ -1,0 +1,60 @@
+import type { Partner } from "@/components/PartnersTable";
+
+export const partners: Partner[] = [
+  {
+    id: "1",
+    name: "BuyPower",
+    email: "@buypowerpartner.com",
+    vendedTokens: "402,600.40 kWh",
+    dateAdded: "27 Oct 2025",
+    status: "Active",
+  },
+  {
+    id: "2",
+    name: "BuyPower",
+    email: "@buypowerpartner.com",
+    vendedTokens: "402,600.40 kWh",
+    dateAdded: "27 Oct 2025",
+    status: "Active",
+  },
+  {
+    id: "3",
+    name: "BuyPower",
+    email: "@buypowerpartner.com",
+    vendedTokens: "402,600.40 kWh",
+    dateAdded: "27 Oct 2025",
+    status: "Active",
+  },
+  {
+    id: "4",
+    name: "BuyPower",
+    email: "@buypowerpartner.com",
+    vendedTokens: "402,600.40 kWh",
+    dateAdded: "27 Oct 2025",
+    status: "Active",
+  },
+  {
+    id: "5",
+    name: "BuyPower",
+    email: "@buypowerpartner.com",
+    vendedTokens: "402,600.40 kWh",
+    dateAdded: "27 Oct 2025",
+    status: "Active",
+  },
+  {
+    id: "6",
+    name: "BuyPower",
+    email: "@buypowerpartner.com",
+    vendedTokens: "402,600.40 kWh",
+    dateAdded: "27 Oct 2025",
+    status: "Active",
+  },
+  {
+    id: "7",
+    name: "BuyPower",
+    email: "@buypowerpartner.com",
+    vendedTokens: "402,600.40 kWh",
+    dateAdded: "27 Oct 2025",
+    status: "Suspended",
+  },
+];

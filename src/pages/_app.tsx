@@ -1,0 +1,24 @@
+// import "@/styles/tailwind.css";
+// import "@/styles/globals.scss";
+import "@/styles/globals.css";
+import "react-day-picker/dist/style.css";
+
+import type { NextPage } from "next";
+import type { AppProps } from "next/app";
+import * as React from "react";
+
+export type NextPageWithLayout<P = object, IP = P> = NextPage<P, IP> & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+type AppPropsWithLayout = AppProps & {
+  Component: NextPageWithLayout;
+};
+
+const NescoPartnersApp = ({ Component, pageProps }: AppPropsWithLayout) => {
+  const getLayout = Component.getLayout ?? ((page) => page);
+  
+  return getLayout(<Component {...pageProps} />);
+};
+
+export default NescoPartnersApp;

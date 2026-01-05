@@ -1,0 +1,21 @@
+# Lib Directory
+
+Third-party library configurations and setup files.
+
+## Rules
+
+- One file per library/service
+- Named exports for configuration/instances
+- Keep initialization logic here
+
+## Example
+
+```ts
+// lib/axios.ts
+import axios from "axios";
+
+export const apiClient = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  timeout: 10000,
+});
+```
