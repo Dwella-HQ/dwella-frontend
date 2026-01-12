@@ -55,8 +55,7 @@ export const PWAInstallPrompt = () => {
                   <span className="font-medium">"Install app"</span>.
                 </>
               ) : (
-                "Install Dwella for a better experience with quick access and
-                offline support."
+                "Install Dwella for a better experience with quick access and offline support."
               )}
             </p>
           </div>
