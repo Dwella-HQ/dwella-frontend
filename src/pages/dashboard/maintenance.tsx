@@ -123,17 +123,17 @@ const MaintenancePage: NextPageWithLayout = () => {
 
       <section className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Maintenance Requests</h1>
-            <p className="mt-1 text-sm text-gray-600">Track and manage property maintenance requests</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Maintenance Requests</h1>
+            <p className="mt-1 text-xs sm:text-sm text-gray-600">Track and manage property maintenance requests</p>
           </div>
           <motion.button
             type="button"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsModalOpen(true)}
-            className="w-[50%] h-10 sm:w-auto rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center gap-2 whitespace-nowrap"
+            className="w-full lg:w-auto h-10 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2 whitespace-nowrap"
           >
             <Plus className="h-4 w-4" />
             Add Request
@@ -141,8 +141,8 @@ const MaintenancePage: NextPageWithLayout = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative flex-1 sm:max-w-md">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <div className="relative flex-1 lg:max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -155,7 +155,7 @@ const MaintenancePage: NextPageWithLayout = () => {
           <select
             value={selectedPriority}
             onChange={(e) => setSelectedPriority(e.target.value)}
-            className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent sm:w-[160px]"
+            className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent lg:w-[160px]"
           >
             <option>All Priorities</option>
             <option value="low">Low</option>
@@ -165,7 +165,7 @@ const MaintenancePage: NextPageWithLayout = () => {
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent sm:w-[160px]"
+            className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent lg:w-[160px]"
           >
             <option>All Categories</option>
             <option>Plumbing</option>
@@ -175,87 +175,89 @@ const MaintenancePage: NextPageWithLayout = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-gray-200">
-          <button
-            type="button"
-            onClick={() => setActiveTab("all")}
-            className={`px-4 py-2 text-sm font-medium transition flex items-center gap-2 ${
-              activeTab === "all"
-                ? "border-b-2 border-brand-main text-brand-main"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <span>All</span>
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-medium ${
+        <div className="border-b border-gray-200 overflow-x-auto lg:overflow-x-visible scrollbar-hide">
+          <div className="flex gap-2 min-w-max lg:min-w-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab("all")}
+              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${
                 activeTab === "all"
-                  ? "bg-brand-main text-white"
-                  : "bg-gray-200 text-gray-600"
+                  ? "border-b-2 border-brand-main text-brand-main"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              {allCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("new")}
-            className={`px-4 py-2 text-sm font-medium transition flex items-center gap-2 ${
-              activeTab === "new"
-                ? "border-b-2 border-brand-main text-brand-main"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <span>New</span>
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-medium ${
+              <span>All</span>
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-medium ${
+                  activeTab === "all"
+                    ? "bg-brand-main text-white"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                {allCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("new")}
+              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${
                 activeTab === "new"
-                  ? "bg-brand-main text-white"
-                  : "bg-gray-200 text-gray-600"
+                  ? "border-b-2 border-brand-main text-brand-main"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              {newCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("in_progress")}
-            className={`px-4 py-2 text-sm font-medium transition flex items-center gap-2 ${
-              activeTab === "in_progress"
-                ? "border-b-2 border-brand-main text-brand-main"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <span>In Progress</span>
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-medium ${
+              <span>New</span>
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-medium ${
+                  activeTab === "new"
+                    ? "bg-brand-main text-white"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                {newCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("in_progress")}
+              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${
                 activeTab === "in_progress"
-                  ? "bg-brand-main text-white"
-                  : "bg-gray-200 text-gray-600"
+                  ? "border-b-2 border-brand-main text-brand-main"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              {inProgressCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("resolved")}
-            className={`px-4 py-2 text-sm font-medium transition flex items-center gap-2 ${
-              activeTab === "resolved"
-                ? "border-b-2 border-brand-main text-brand-main"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <span>Resolved</span>
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-medium ${
+              <span>In Progress</span>
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-medium ${
+                  activeTab === "in_progress"
+                    ? "bg-brand-main text-white"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                {inProgressCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("resolved")}
+              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${
                 activeTab === "resolved"
-                  ? "bg-brand-main text-white"
-                  : "bg-gray-200 text-gray-600"
+                  ? "border-b-2 border-brand-main text-brand-main"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              {resolvedCount}
-            </span>
-          </button>
+              <span>Resolved</span>
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-medium ${
+                  activeTab === "resolved"
+                    ? "bg-brand-main text-white"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                {resolvedCount}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Request Cards */}
@@ -267,10 +269,10 @@ const MaintenancePage: NextPageWithLayout = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: index * 0.05 }}
-                className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 shadow-sm"
+                className="rounded-lg border border-gray-200 bg-white p-4 lg:p-6 shadow-sm"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                  <p className="text-sm font-medium text-gray-500 flex items-center gap-2 flex-wrap">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+                  <p className="text-xs sm:text-sm font-medium text-gray-500 flex items-center gap-2 flex-wrap">
                     <span>{request.propertyName}</span>
                     <span>•</span>
                     <span>{request.unit}</span>
@@ -282,28 +284,28 @@ const MaintenancePage: NextPageWithLayout = () => {
                     {getStatusBadge(request.status)}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 mb-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-4">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Request ID</p>
-                    <p className="text-sm font-semibold text-gray-900">{request.requestId}</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{request.requestId}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Maintenance Type *</p>
-                    <p className="text-sm font-semibold text-gray-900">{request.type}</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{request.type}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Maintenance Sub-Type *</p>
-                    <p className="text-sm font-semibold text-gray-900">{request.subType}</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{request.subType}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Reported</p>
-                    <p className="text-sm font-semibold text-gray-900">{request.reportedTime}</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{request.reportedTime}</p>
                   </div>
                 </div>
-                <div className="border-t border-gray-200 pt-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                  <p className="text-sm text-gray-700 flex-1">{request.description}</p>
+                <div className="border-t border-gray-200 pt-4 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                  <p className="text-xs sm:text-sm text-gray-700 flex-1">{request.description}</p>
                   {getActionButton(request) && (
-                    <div className="flex-shrink-0 sm:pl-6 sm:border-l sm:border-gray-200 w-full sm:w-auto">
+                    <div className="flex-shrink-0 lg:pl-6 lg:border-l lg:border-gray-200 w-full lg:w-auto">
                       {getActionButton(request)}
                     </div>
                   )}

@@ -91,10 +91,10 @@ const RentPage: NextPageWithLayout = () => {
 
       <section className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Rent</h1>
-            <p className="mt-1 text-sm text-gray-600">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Rent</h1>
+            <p className="mt-1 text-xs sm:text-sm text-gray-600">
               Monitor rent payments and manage collection
             </p>
           </div>
@@ -102,33 +102,33 @@ const RentPage: NextPageWithLayout = () => {
             type="button"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="w-[50%] h-10 sm:w-auto rounded-lg bg-gray-900 px-3 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center gap-2 whitespace-nowrap"
+            className="w-full lg:w-auto h-10 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2 whitespace-nowrap"
           >
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Export Data</span>
-            <span className="sm:hidden">Export</span>
+            <span className="hidden lg:inline">Export Data</span>
+            <span className="lg:hidden">Export</span>
           </motion.button>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="rounded-lg bg-blue-50 p-4 sm:p-6 shadow-sm overflow-hidden"
+            className="rounded-lg bg-blue-50 p-4 lg:p-6 shadow-sm overflow-hidden"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 truncate">
                   Collected This Month
                 </p>
-                <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">
+                <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
                   {formatCurrency(collectedThisMonth)}
                 </p>
               </div>
-              <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-blue-100 flex-shrink-0">
-                <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+              <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-blue-100 flex-shrink-0">
+                <CheckCircle2 className="h-4 w-4 lg:h-5 lg:w-5 text-blue-600" />
               </div>
             </div>
           </motion.div>
@@ -137,22 +137,22 @@ const RentPage: NextPageWithLayout = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.1 }}
-            className="rounded-lg bg-green-50 p-4 sm:p-6 shadow-sm overflow-hidden"
+            className="rounded-lg bg-green-50 p-4 lg:p-6 shadow-sm overflow-hidden"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-green-600 truncate">
                   Pending Payments
                 </p>
-                <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">
+                <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
                   {formatCurrency(pendingAmount)}
                 </p>
                 <p className="mt-1 text-xs text-gray-600">
                   {pendingPayments.length} tenants
                 </p>
               </div>
-              <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-green-100 flex-shrink-0">
-                <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+              <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-green-100 flex-shrink-0">
+                <Clock className="h-4 w-4 lg:h-5 lg:w-5 text-green-600" />
               </div>
             </div>
           </motion.div>
@@ -161,22 +161,22 @@ const RentPage: NextPageWithLayout = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.2 }}
-            className="rounded-lg bg-orange-50 p-4 sm:p-6 shadow-sm overflow-hidden"
+            className="rounded-lg bg-orange-50 p-4 lg:p-6 shadow-sm overflow-hidden"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-orange-600 truncate">
                   Overdue
                 </p>
-                <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">
+                <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
                   {formatCurrency(overdueAmount)}
                 </p>
                 <p className="mt-1 text-xs text-gray-600">
                   {overduePayments.length} tenant
                 </p>
               </div>
-              <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-orange-100 flex-shrink-0">
-                <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+              <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-orange-100 flex-shrink-0">
+                <AlertCircle className="h-4 w-4 lg:h-5 lg:w-5 text-orange-600" />
               </div>
             </div>
           </motion.div>
@@ -184,7 +184,7 @@ const RentPage: NextPageWithLayout = () => {
 
         {/* Filters and Search */}
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="flex items-center gap-2">
               <label
                 htmlFor="period"
@@ -221,28 +221,28 @@ const RentPage: NextPageWithLayout = () => {
           <table className="w-full table-auto min-w-[900px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Tenant
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Property
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Unit
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Rent Amount
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Due Date
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Last Payment
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Balance
                 </th>
               </tr>
@@ -257,7 +257,7 @@ const RentPage: NextPageWithLayout = () => {
                   whileHover={{ x: 4, transition: { duration: 0.2 } }}
                   className="hover:bg-gray-50"
                 >
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                  <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
                         {getInitials(payment.tenantName)}
@@ -267,25 +267,25 @@ const RentPage: NextPageWithLayout = () => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
                     {payment.propertyName}
                   </td>
-                  <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
                     {payment.unit}
                   </td>
-                  <td className="px-3 sm:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                  <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
                     {formatCurrency(payment.rentAmount)}
                   </td>
-                  <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
                     {payment.dueDate}
                   </td>
-                  <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
                     {payment.lastPayment || "—"}
                   </td>
-                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                  <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
                     {getStatusBadge(payment.status)}
                   </td>
-                  <td className="px-3 sm:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                  <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
                     {payment.balance ? formatCurrency(payment.balance) : "—"}
                   </td>
                 </motion.tr>

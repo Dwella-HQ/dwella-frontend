@@ -48,7 +48,7 @@ export const DashboardMobileNav = () => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 sm:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 xl:hidden">
       <div className="flex items-center justify-around px-2 py-2">
         {navigationItems.map((item) => {
           const Icon = item.icon;
@@ -97,7 +97,7 @@ export const DashboardMobileNav = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="fixed top-0 left-0 right-0 bottom-[73px] bg-black/20 backdrop-blur-sm z-[49] sm:hidden"
+                className="fixed top-0 left-0 right-0 bottom-[73px] bg-black/20 backdrop-blur-sm z-[49] xl:hidden"
                 onClick={() => setIsMoreOpen(false)}
               />
             )}

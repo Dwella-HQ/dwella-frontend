@@ -44,10 +44,10 @@ const DashboardPage: NextPageWithLayout = () => {
 
       <section className="space-y-6">
         {/* Welcome Section */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="mt-1 text-base font-normal text-gray-600">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p className="mt-1 text-sm sm:text-base font-normal text-gray-600">
               Welcome back! Here's what's happening with your properties.
             </p>
           </div>

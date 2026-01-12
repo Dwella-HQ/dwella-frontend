@@ -172,8 +172,8 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
             </div>
           </div>
 
-          {/* Navigation Bar - Hidden on mobile, shown on desktop */}
-          <div className="hidden sm:flex sm:flex-1 sm:justify-center">
+          {/* Navigation Bar - Hidden on mobile/tablet, shown on desktop (xl and above) */}
+          <div className="hidden xl:flex xl:flex-1 xl:justify-center">
             <DashboardNavbar />
           </div>
 

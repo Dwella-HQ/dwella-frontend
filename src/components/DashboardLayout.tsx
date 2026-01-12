@@ -48,7 +48,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <div className="flex min-h-screen flex-col">
           <DashboardHeader />
 
-          <main className="flex-1 px-2 sm:px-4 py-8 lg:px-8 pb-20 sm:pb-8">
+          <main className="flex-1 px-2 sm:px-4 py-8 lg:px-8 pb-20 xl:pb-8">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={router.asPath}
@@ -56,7 +56,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
-                className="mx-auto flex w-[97%] sm:w-[85%] flex-col gap-6 lg:gap-8"
+                className="mx-auto flex w-[97%] sm:w-[90%] lg:w-[85%] flex-col gap-6 lg:gap-8"
               >
                 {children}
               </motion.div>

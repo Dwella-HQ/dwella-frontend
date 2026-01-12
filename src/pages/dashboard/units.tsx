@@ -112,10 +112,10 @@ const UnitsPage: NextPageWithLayout = () => {
 
       <section className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-2xl font-bold text-gray-900">All Units</h1>
-            <p className="mt-1 text-sm text-gray-600">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">All Units</h1>
+            <p className="mt-1 text-xs sm:text-sm text-gray-600">
               Manage individual units across all properties.
             </p>
           </div>
@@ -124,11 +124,11 @@ const UnitsPage: NextPageWithLayout = () => {
             onClick={() => setIsAddUnitOpen(true)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="w-[50%] h-10 sm:w-auto inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 whitespace-nowrap"
+            className="w-full lg:w-auto h-10 inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 whitespace-nowrap"
           >
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Unit</span>
-            <span className="sm:hidden">Add</span>
+            <span className="hidden lg:inline">Add Unit</span>
+            <span className="lg:hidden">Add</span>
           </motion.button>
         </div>
 
@@ -138,9 +138,9 @@ const UnitsPage: NextPageWithLayout = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="rounded-lg border border-gray-200 bg-blue-50 p-4 sm:p-6 overflow-hidden"
+            className="rounded-lg border border-gray-200 bg-blue-50 p-4 lg:p-6 overflow-hidden"
           >
-            <div className="flex items-center gap-2 sm:gap-3 mb-2">
+            <div className="flex items-center gap-2 lg:gap-3 mb-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 flex-shrink-0">
                 <Home className="h-4 w-4 text-blue-600" />
               </div>
@@ -148,16 +148,16 @@ const UnitsPage: NextPageWithLayout = () => {
             <p className="text-xs font-medium text-gray-600 uppercase mb-1 truncate">
               Total Units
             </p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">{totalUnits}</p>
+            <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">{totalUnits}</p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-lg border border-gray-200 bg-green-50 p-4 sm:p-6 overflow-hidden"
+            className="rounded-lg border border-gray-200 bg-green-50 p-4 lg:p-6 overflow-hidden"
           >
-            <div className="flex items-center gap-2 sm:gap-3 mb-2">
+            <div className="flex items-center gap-2 lg:gap-3 mb-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 flex-shrink-0">
                 <Users className="h-4 w-4 text-green-600" />
               </div>
@@ -165,16 +165,16 @@ const UnitsPage: NextPageWithLayout = () => {
             <p className="text-xs font-medium text-gray-600 uppercase mb-1 truncate">
               Occupancy
             </p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">{occupancyRate}%</p>
+            <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">{occupancyRate}%</p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="rounded-lg border border-gray-200 bg-purple-50 p-4 sm:p-6 overflow-hidden"
+            className="rounded-lg border border-gray-200 bg-purple-50 p-4 lg:p-6 overflow-hidden"
           >
-            <div className="flex items-center gap-2 sm:gap-3 mb-2">
+            <div className="flex items-center gap-2 lg:gap-3 mb-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 flex-shrink-0">
                 <DollarSign className="h-4 w-4 text-purple-600" />
               </div>
@@ -182,7 +182,7 @@ const UnitsPage: NextPageWithLayout = () => {
             <p className="text-xs font-medium text-gray-600 uppercase mb-1 truncate">
               Total Monthly Rent
             </p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">
+            <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
               {formatCurrency(totalMonthlyRent)}
             </p>
           </motion.div>
@@ -191,9 +191,9 @@ const UnitsPage: NextPageWithLayout = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="rounded-lg border border-gray-200 bg-orange-50 p-4 sm:p-6 overflow-hidden"
+            className="rounded-lg border border-gray-200 bg-orange-50 p-4 lg:p-6 overflow-hidden"
           >
-            <div className="flex items-center gap-2 sm:gap-3 mb-2">
+            <div className="flex items-center gap-2 lg:gap-3 mb-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 flex-shrink-0">
                 <AlertCircle className="h-4 w-4 text-orange-600" />
               </div>
@@ -201,7 +201,7 @@ const UnitsPage: NextPageWithLayout = () => {
             <p className="text-xs font-medium text-gray-600 uppercase mb-1 truncate">
               Outstanding Rent
             </p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">
+            <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
               {formatCurrency(outstandingRent)}
             </p>
           </motion.div>
@@ -210,20 +210,20 @@ const UnitsPage: NextPageWithLayout = () => {
         {/* Units List Table */}
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
           {/* Table Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 px-3 sm:px-6 py-4 gap-3">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Units List</h2>
-              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium text-blue-700 whitespace-nowrap">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between border-b border-gray-200 px-3 lg:px-6 py-4 gap-3">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <h2 className="text-lg lg:text-xl font-bold text-gray-900">Units List</h2>
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 lg:px-3 py-1 text-xs lg:text-sm font-medium text-blue-700 whitespace-nowrap">
                 {totalUnits} Units
               </span>
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-700 hover:text-gray-900 transition whitespace-nowrap"
+              className="inline-flex items-center gap-2 text-xs lg:text-sm font-medium text-gray-700 hover:text-gray-900 transition whitespace-nowrap"
             >
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export CSV</span>
-              <span className="sm:hidden">Export</span>
+              <span className="hidden lg:inline">Export CSV</span>
+              <span className="lg:hidden">Export</span>
             </button>
           </div>
 
@@ -232,25 +232,25 @@ const UnitsPage: NextPageWithLayout = () => {
             <table className="w-full table-auto min-w-[1000px]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     S/N
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Unit ID
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Property
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Tenant
                   </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Rent
                   </th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
