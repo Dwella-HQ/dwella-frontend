@@ -6,6 +6,7 @@ import "react-day-picker/dist/style.css";
 import type { NextPage } from "next";
 import type { AppProps } from "next/app";
 import * as React from "react";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 
 export type NextPageWithLayout<P = object, IP = P> = NextPage<P, IP> & {
   getLayout?: (page: React.ReactElement) => React.ReactNode;
@@ -18,7 +19,12 @@ type AppPropsWithLayout = AppProps & {
 const DwellaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
   const getLayout = Component.getLayout ?? ((page) => page);
   
-  return getLayout(<Component {...pageProps} />);
+  return (
+    <>
+      {getLayout(<Component {...pageProps} />)}
+      <PWAInstallPrompt />
+    </>
+  );
 };
 
 export default DwellaApp;
