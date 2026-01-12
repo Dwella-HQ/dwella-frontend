@@ -37,6 +37,7 @@
     "react-dom": "19.2.0",
     "react-hook-form": "^7.66.0",
     "sass": "^1.93.3",
+    "sharp": "^0.34.5",
     "swr": "^2.3.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",
