@@ -14,6 +14,8 @@ import { useRouter } from "next/router";
 import { motion, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useUser } from "@/contexts/UserContext";
+import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import {
   getNotifications,
   markNotificationsRead,
@@ -21,7 +23,9 @@ import {
 } from "@/api/notifications";
 import type { Notification } from "@/api/notifications";
 import { DashboardNavbar } from "@/components/DashboardNavbar";
+import { LandlordSwitchModal } from "@/components/LandlordSwitchModal";
 import { logout } from "@/utils/auth";
+import { ChevronDown } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 export type DashboardHeaderProps = {};
@@ -29,10 +33,13 @@ export type DashboardHeaderProps = {};
 export const DashboardHeader = ({}: DashboardHeaderProps) => {
   const router = useRouter();
   const { profile, refetchProfile } = useProfile();
+  const { user, logout: logoutUser } = useUser();
+  const { selectedLandlord } = useSelectedLandlord();
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] =
     React.useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
+  const [isLandlordSwitchOpen, setIsLandlordSwitchOpen] = React.useState(false);
 
   const getInitials = (name: string) => {
     return name
@@ -43,9 +50,22 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
       .slice(0, 2);
   };
 
-  const initials = profile ? getInitials(profile.name) : "FL";
-  const displayName = profile?.name || "Favoudoh LandLord";
-  const displayEmail = profile?.email || "landlord@dwella.ng";
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case "manager":
+        return "Manager";
+      case "tenant":
+        return "Tenant";
+      case "landlord":
+      default:
+        return "LandLord";
+    }
+  };
+
+  const initials = profile ? getInitials(profile.name) : user ? getInitials(user.name) : "FL";
+  const displayName = profile?.name || user?.name || "User";
+  const displayEmail = profile?.email || user?.email || "user@dwella.ng";
+  const roleDisplay = user?.role ? getRoleDisplayName(user.role) : "LandLord";
   const hasNotifications = profile && profile.notification_count > 0;
 
   // Fetch recent notifications when dropdown opens
@@ -150,35 +170,37 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
 
   const handleLogout = React.useCallback(() => {
     logout();
+    logoutUser(); // Clear user from context
     router.push("/auth/login");
-  }, [router]);
+  }, [router, logoutUser]);
 
   return (
-    <header className="sticky top-0 z-50 bg-brand-main">
-      <div className="mx-auto w-[97%] sm:w-[85%] px-2 py-3 sm:px-4 sm:py-4 lg:px-8">
-        <div className="flex flex-row items-center justify-between gap-2 sm:gap-6">
-          {/* Logo */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Image
-              src={logo}
-              alt="DWELLA NG logo"
-              width={32}
-              height={32}
-              className="object-contain brightness-0 invert"
-            />
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold text-white">DWELLA</span>
-              <span className="text-lg font-bold text-white">NG</span>
+    <>
+      <header className="sticky top-0 z-50 bg-brand-main">
+        <div className="mx-auto w-[97%] sm:w-[85%] px-2 py-3 sm:px-4 sm:py-4 lg:px-8">
+          <div className="flex flex-row items-center justify-between gap-2 sm:gap-6">
+            {/* Logo */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Image
+                src={logo}
+                alt="DWELLA NG logo"
+                width={32}
+                height={32}
+                className="object-contain brightness-0 invert"
+              />
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-bold text-white">DWELLA</span>
+                <span className="text-lg font-bold text-white">NG</span>
+              </div>
             </div>
-          </div>
 
-          {/* Navigation Bar - Hidden on mobile/tablet, shown on desktop (xl and above) */}
-          <div className="hidden xl:flex xl:flex-1 xl:justify-center">
-            <DashboardNavbar />
-          </div>
+            {/* Navigation Bar - Hidden on mobile/tablet, shown on desktop (xl and above) */}
+            <div className="hidden xl:flex xl:flex-1 xl:justify-center">
+              <DashboardNavbar />
+            </div>
 
-          {/* Right Side: Notifications and User Profile */}
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {/* Right Side: Notifications and User Profile */}
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             {/* Notifications */}
             <DropdownMenu.Root
               open={isDropdownOpen}
@@ -312,7 +334,7 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
                     <p className="text-sm font-medium text-white">
                       {displayName.split(" ")[0]}
                     </p>
-                    <p className="text-xs text-white/80">LandLord</p>
+                    <p className="text-xs text-white/80">{roleDisplay}</p>
                   </div>
                   <LogOut className="hidden lg:block h-4 w-4 text-white" />
                 </motion.button>
@@ -342,5 +364,51 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
         </div>
       </div>
     </header>
+
+    {/* Managing Bar for Managers - Below Header */}
+    {user?.role === "manager" && selectedLandlord && (
+      <div className="sticky top-[73px] z-40 bg-gray-900 border-b border-gray-800">
+        <div className="flex items-center justify-center py-2.5">
+          <button
+            onClick={() => setIsLandlordSwitchOpen(true)}
+            className={`flex items-center gap-2 text-sm transition ${
+              isLandlordSwitchOpen
+                ? "bg-blue-900 px-4 py-2 rounded-lg"
+                : "bg-gray-800/50 px-4 py-2 rounded-lg hover:bg-gray-800"
+            }`}
+          >
+            <span className="text-white">
+              Managing:{" "}
+              <span className="font-semibold">{selectedLandlord.name}</span> (
+              {selectedLandlord.properties.length}{" "}
+              {selectedLandlord.properties.length === 1 ? "Property" : "Properties"})
+            </span>
+            {isLandlordSwitchOpen ? (
+              <span className="bg-white text-gray-900 px-2 py-1 rounded text-xs font-medium">
+                [{selectedLandlord.totalUnits} Total Units]
+              </span>
+            ) : (
+              <span className="text-white">
+                [{selectedLandlord.totalUnits} Total Units]
+              </span>
+            )}
+            <ChevronDown
+              className={`h-4 w-4 text-white transition-transform ${
+                isLandlordSwitchOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Landlord Switch Modal */}
+    {user?.role === "manager" && (
+      <LandlordSwitchModal
+        isOpen={isLandlordSwitchOpen}
+        onClose={() => setIsLandlordSwitchOpen(false)}
+      />
+    )}
+    </>
   );
 };

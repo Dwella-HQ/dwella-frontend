@@ -3,39 +3,30 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { motion, AnimatePresence } from "framer-motion";
 import * as Popover from "@radix-ui/react-popover";
-import {
-  LayoutDashboard,
-  Home,
-  CreditCard,
-  Wrench,
-  Menu,
-  Users,
-  FileText,
-  BarChart3,
-  MessageSquare,
-  Settings,
-  ChevronUp,
-} from "lucide-react";
-
-const navigationItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Properties", href: "/dashboard/properties", icon: Home },
-  { name: "Rent", href: "/dashboard/rent", icon: CreditCard },
-  { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
-];
-
-const moreMenuItems = [
-  { name: "Managers", href: "/dashboard/managers", icon: Users },
-  { name: "Units", href: "/dashboard/units", icon: FileText },
-  { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
-  { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
-];
+import { Menu, ChevronUp } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
+import { getNavigationItems, getMoreMenuItems } from "@/utils/navigation";
 
 export const DashboardMobileNav = () => {
   const router = useRouter();
+  const { user } = useUser();
   const currentPath = router.pathname;
   const [isMoreOpen, setIsMoreOpen] = React.useState(false);
+
+  // Get role-based navigation items for mobile (first 4 items)
+  const navigationItems = React.useMemo(
+    () => {
+      const allItems = getNavigationItems(user?.role || "landlord");
+      // Mobile nav shows first 4 items, Messages goes in More menu
+      return allItems.slice(0, 4);
+    },
+    [user?.role]
+  );
+
+  const moreMenuItems = React.useMemo(
+    () => getMoreMenuItems(user?.role || "landlord"),
+    [user?.role]
+  );
 
   // Check if any "More" menu item is active
   const isMoreActive = moreMenuItems.some((item) => currentPath.startsWith(item.href));

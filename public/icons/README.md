@@ -35,3 +35,5 @@ convert src/assets/logo.png -resize 72x72 public/icons/icon-72x72.png
 
 **Note**: Make sure your icons have a transparent or solid background and are optimized for display on various devices. The 192x192 and 512x512 sizes are the most important for PWA installation.
 
+
+

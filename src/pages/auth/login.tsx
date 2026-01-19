@@ -4,11 +4,13 @@ import { useRouter } from "next/router";
 
 import { LoginForm } from "@/components/LoginForm";
 import { AuthLayout } from "@/components/AuthLayout";
+import { useUser, type UserRole } from "@/contexts/UserContext";
 
 import type { NextPageWithLayout } from "../_app";
 
 const LoginPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { setUser } = useUser();
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -17,30 +19,61 @@ const LoginPage: NextPageWithLayout = () => {
       setError(null);
       setIsLoading(true);
 
-      // Mock login - no API call, just redirect to dashboard
+      // Mock login - determine role based on username
       // TODO: Replace with actual API call when backend is ready
       try {
-        // Set a mock token so dashboard doesn't redirect back to login
-        localStorage.setItem("authToken", "mock-auth-token");
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: 1,
-            name: "Favoudoh LandLord",
-            email: values.username.includes("@") ? values.username : `${values.username}@dwella.ng`,
-            role: "landlord",
-          })
-        );
+        const username = values.username.toLowerCase().trim();
+        let role: UserRole = "landlord";
+        let name = "Favoudoh LandLord";
+        let id = 1;
 
-        // Redirect to landlord dashboard
-        await router.push("/dashboard");
+        // Determine role based on username
+        if (username === "manager" || username.includes("manager")) {
+          role = "manager";
+          name = "Property Manager";
+          id = 2;
+        } else if (username === "tenant" || username.includes("tenant")) {
+          role = "tenant";
+          name = "John Tenant";
+          id = 3;
+        } else {
+          role = "landlord";
+          name = "Favoudoh LandLord";
+          id = 1;
+        }
+
+        const email = values.username.includes("@") 
+          ? values.username 
+          : `${values.username}@dwella.ng`;
+
+        const mockToken = `mock-auth-token-${role}-${id}`;
+
+        const user = {
+          id,
+          name,
+          email,
+          role,
+          token: mockToken,
+        };
+
+        // Set user in context and localStorage
+        setUser(user);
+
+        // Redirect based on role
+        if (role === "manager") {
+          // Managers need to select a landlord first
+          await router.push("/dashboard/select-landlord");
+        } else {
+          // Landlords and tenants go directly to dashboard
+          await router.push("/dashboard");
+        }
       } catch (err) {
         setError("An error occurred. Please try again.");
       } finally {
         setIsLoading(false);
       }
     },
-    [router]
+    [router, setUser]
   );
 
   return (

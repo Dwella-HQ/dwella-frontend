@@ -3,34 +3,9 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { motion, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import {
-  LayoutDashboard,
-  Home,
-  DollarSign,
-  Wrench,
-  MessageSquare,
-  Menu,
-  ChevronDown,
-  Users,
-  FileText,
-  BarChart3,
-  Settings,
-} from "lucide-react";
-
-const navigationItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Properties", href: "/dashboard/properties", icon: Home },
-  { name: "Rent", href: "/dashboard/rent", icon: DollarSign },
-  { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
-  { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
-];
-
-const moreMenuItems = [
-  { name: "Managers", href: "/dashboard/managers", icon: Users },
-  { name: "Units", href: "/dashboard/units", icon: FileText },
-  { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
-];
+import { Menu, ChevronDown } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
+import { getNavigationItems, getMoreMenuItems } from "@/utils/navigation";
 
 export type DashboardNavbarProps = {
   className?: string;
@@ -38,8 +13,20 @@ export type DashboardNavbarProps = {
 
 export const DashboardNavbar = ({ className = "" }: DashboardNavbarProps) => {
   const router = useRouter();
+  const { user } = useUser();
   const currentPath = router.pathname;
   const [isMoreOpen, setIsMoreOpen] = React.useState(false);
+
+  // Get role-based navigation items
+  const navigationItems = React.useMemo(
+    () => getNavigationItems(user?.role || "landlord"),
+    [user?.role]
+  );
+
+  const moreMenuItems = React.useMemo(
+    () => getMoreMenuItems(user?.role || "landlord"),
+    [user?.role]
+  );
 
   // Check if any "More" menu item is active
   const isMoreActive = moreMenuItems.some((item) => currentPath.startsWith(item.href));
