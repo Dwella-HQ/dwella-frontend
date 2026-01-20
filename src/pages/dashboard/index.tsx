@@ -219,8 +219,51 @@ const ManagerDashboard = () => {
   );
 };
 
-// Tenant Dashboard Component (placeholder - will be implemented later)
+// Tenant Dashboard Component
 const TenantDashboard = () => {
+  const { user } = useUser();
+  const router = useRouter();
+
+  // Mock tenant data - in a real app, this would come from an API
+  // For now, we'll use the first tenant as default
+  const tenantData = React.useMemo(() => {
+    return {
+      property: {
+        name: "Harmony Court — 3BR Duplex",
+        address: "12 Iroko Street, Uyo, Akwa Ibom",
+        image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+      },
+      unit: {
+        number: "A101",
+        type: "2BR Apartment",
+      },
+      amenities: ["AC", "Balcony", "Water Heater", "24/7 Power", "Security Gate"],
+      rental: {
+        monthlyRent: 120000,
+        nextPaymentDue: "05 Jan 2026",
+        paymentStatus: "Paid" as const,
+        lastPayment: "05 Dec 2025",
+        leaseStart: "05 Jan 2024",
+        leaseEnd: "05 Jan 2026",
+      },
+      propertyManager: {
+        name: "Musa A.",
+        phone: "+234 800 000 0001",
+        email: "musa@management.com",
+      },
+      landlord: {
+        name: "Property Owner",
+        phone: "+234 800 000 0000",
+        email: "owner@harmonyourt.com",
+      },
+    };
+  }, []);
+
+  const handleSendMessage = (type: "manager" | "landlord") => {
+    // Navigate to messages page with the appropriate contact
+    router.push("/dashboard/messages");
+  };
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -231,10 +274,286 @@ const TenantDashboard = () => {
           </p>
         </div>
       </div>
-      
-      {/* Tenant-specific dashboard content will be added here */}
-      <div className="text-center py-12 text-gray-500">
-        <p>Tenant dashboard content will be implemented later</p>
+
+      {/* Main Content Grid - 4 Cards */}
+      <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
+        {/* Quick Actions Card */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+          <div className="relative h-48 w-full">
+            <img
+              src={tenantData.property.image}
+              alt={tenantData.property.name}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+              <h3 className="text-white font-semibold text-base sm:text-lg">
+                {tenantData.property.name}
+              </h3>
+              <p className="text-white/90 text-xs sm:text-sm mt-1">
+                {tenantData.property.address}
+              </p>
+            </div>
+          </div>
+          <div className="p-4 sm:p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wide">
+                  Unit Number
+                </p>
+                <p className="text-sm sm:text-base font-semibold text-gray-900 mt-1">
+                  {tenantData.unit.number}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wide">
+                  Unit Type
+                </p>
+                <p className="text-sm sm:text-base font-semibold text-gray-900 mt-1">
+                  {tenantData.unit.type}
+                </p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+                Amenities
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {tenantData.amenities.map((amenity, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-2.5 py-1 rounded-md border border-green-200 bg-green-50 text-green-700 text-xs font-medium"
+                  >
+                    {amenity}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Rental Information Card */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+            $ Rental Information
+          </h3>
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm text-gray-600">Monthly Rent</span>
+              <span className="text-sm sm:text-base font-semibold text-gray-900">
+                ₦{tenantData.rental.monthlyRent.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm text-gray-600">Next Payment Due</span>
+              <span className="text-sm sm:text-base font-medium text-gray-900">
+                {tenantData.rental.nextPaymentDue}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm text-gray-600">Payment Status</span>
+              <span className="inline-flex items-center gap-1.5">
+                <svg
+                  className="h-4 w-4 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span className="text-sm sm:text-base font-medium text-green-600">
+                  {tenantData.rental.paymentStatus}
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+              <span className="text-xs sm:text-sm text-gray-600">Last Payment</span>
+              <span className="text-sm sm:text-base font-medium text-gray-900">
+                {tenantData.rental.lastPayment}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm text-gray-600">Lease Start</span>
+              <span className="text-sm sm:text-base font-medium text-gray-900">
+                {tenantData.rental.leaseStart}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm text-gray-600">Lease End</span>
+              <span className="text-sm sm:text-base font-medium text-gray-900">
+                {tenantData.rental.leaseEnd}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Property Manager Card */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+            Property Manager
+          </h3>
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center gap-3">
+              <svg
+                className="h-5 w-5 text-gray-400 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+              <span className="text-sm sm:text-base text-gray-900">
+                {tenantData.propertyManager.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <svg
+                className="h-5 w-5 text-gray-400 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                />
+              </svg>
+              <span className="text-sm sm:text-base text-gray-600">
+                {tenantData.propertyManager.phone}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <svg
+                className="h-5 w-5 text-gray-400 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              <span className="text-sm sm:text-base text-gray-600">
+                {tenantData.propertyManager.email}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => handleSendMessage("manager")}
+            className="mt-4 sm:mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm sm:text-base font-medium text-white transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+          >
+            <svg
+              className="h-4 w-4 sm:h-5 sm:w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              />
+            </svg>
+            Send Message
+          </button>
+        </div>
+
+        {/* Landlord Card */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">
+            Landlord
+          </h3>
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center gap-3">
+              <svg
+                className="h-5 w-5 text-gray-400 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+              <span className="text-sm sm:text-base text-gray-900">
+                {tenantData.landlord.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <svg
+                className="h-5 w-5 text-gray-400 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                />
+              </svg>
+              <span className="text-sm sm:text-base text-gray-600">
+                {tenantData.landlord.phone}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <svg
+                className="h-5 w-5 text-gray-400 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              <span className="text-sm sm:text-base text-gray-600">
+                {tenantData.landlord.email}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => handleSendMessage("landlord")}
+            className="mt-4 sm:mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-main px-4 py-2.5 text-sm sm:text-base font-medium text-white transition hover:bg-brand-main/90 focus:outline-none focus:ring-2 focus:ring-brand-main focus:ring-offset-2"
+          >
+            <svg
+              className="h-4 w-4 sm:h-5 sm:w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              />
+            </svg>
+            Send Message
+          </button>
+        </div>
       </div>
     </section>
   );
