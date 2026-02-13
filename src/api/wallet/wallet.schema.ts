@@ -40,3 +40,25 @@ export type WalletTransactionDTO = z.infer<typeof walletTransactionSchema>;
 export type WalletTransactionsPaginationDTO = z.infer<typeof walletTransactionsPaginationSchema>;
 export type WalletTransactionsResponseDTO = z.infer<typeof walletTransactionsResponseSchema>;
 
+// Wallet Schema
+export const walletSchema = z.object({
+  id: z.string().uuid(),
+  landlordId: z.string().uuid(),
+  bvn: z.string(),
+  currency: z.string().default("NGN"),
+  balance: z.string().optional(),
+  isActive: z.boolean().default(true),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  deletedAt: z.string().nullable(),
+});
+
+export const walletResponseSchema = z.object({
+  success: z.boolean().optional(),
+  data: walletSchema,
+  message: z.string().optional(),
+});
+
+export type WalletDTO = z.infer<typeof walletSchema>;
+export type WalletResponseDTO = z.infer<typeof walletResponseSchema>;
+

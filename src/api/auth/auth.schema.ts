@@ -76,21 +76,39 @@ export const resetPasswordResponseSchema = z.object({
 
 export type ResetPasswordResponseDTO = z.infer<typeof resetPasswordResponseSchema>;
 
-// Partner Profile
-export const profileWalletSchema = z.object({
-  balance: z.string(),
+// Role object from API (defined early so it can be used in other schemas)
+export const roleSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  description: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
+export type RoleDTO = z.infer<typeof roleSchema>;
+
+// Partner Profile (updated to match actual API response)
+export const profileWalletSchema = z.object({
+  balance: z.string(),
+}).optional();
+
 export const profileDataSchema = z.object({
-  id: z.number(),
-  name: z.string(),
+  id: z.string().uuid(),
   email: z.string().email(),
-  phone: z.string(),
-  device_token: z.string().nullable(),
-  role: z.string(),
-  isActive: z.number(),
-  isSuspended: z.number(),
-  notification_count: z.number(),
+  registrationType: z.string().optional(),
+  fullName: z.string().optional(),
+  name: z.string().optional(),
+  phoneNumber: z.string().nullable().optional(),
+  phone: z.string().optional(),
+  isEmailVerified: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  role: roleSchema,
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  // Optional fields that may not be present
+  device_token: z.string().nullable().optional(),
+  isSuspended: z.number().optional(),
+  notification_count: z.number().optional(),
   account_mode: z.preprocess(
     (val) => {
       // Handle null, undefined, or convert to string
@@ -98,12 +116,10 @@ export const profileDataSchema = z.object({
       const str = String(val).toLowerCase().trim();
       return str === "sandbox" || str === "live" ? str : "sandbox";
     },
-    z.union([z.literal("sandbox"), z.literal("live")])
+    z.union([z.literal("sandbox"), z.literal("live")]).optional()
   ),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  deletedAt: z.string().nullable(),
-  wallet: profileWalletSchema,
+  deletedAt: z.string().nullable().optional(),
+  wallet: profileWalletSchema.optional(),
 });
 
 export const profileResponseSchema = z.object({
@@ -145,4 +161,104 @@ export const changePasswordResponseSchema = z.object({
 });
 
 export type ChangePasswordResponseDTO = z.infer<typeof changePasswordResponseSchema>;
+
+// Register Request
+export const registerRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  roleName: z.enum(["tenant", "landlord", "admin", "manager", "property_manager"]),
+  fullName: z.string().min(1, "Full name is required"),
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  registrationType: z.enum(["EMAIL", "GOOGLE", "FACEBOOK"]).default("EMAIL"),
+});
+
+export type RegisterRequestDTO = z.infer<typeof registerRequestSchema>;
+
+// Register Response (different from login - no accessToken, user needs to verify email)
+// Note: API has typo "sucess" instead of "success" - we handle both
+export const registerResponseSchema = z.object({
+  sucess: z.boolean().optional(), // API typo
+  success: z.boolean().optional(), // Correct spelling (for future compatibility)
+  message: z.string(),
+  data: z.object({
+    email: z.string().email(),
+    registrationType: z.string(),
+    fullName: z.string(),
+    phoneNumber: z.string(),
+    role: roleSchema,
+    id: z.string(),
+    isEmailVerified: z.boolean(),
+    isActive: z.boolean(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  }),
+}).refine((data) => data.sucess === true || data.success === true, {
+  message: "Response must have either 'sucess' or 'success' set to true",
+});
+
+export type RegisterResponseDTO = z.infer<typeof registerResponseSchema>;
+
+// Social Login Request
+export const socialLoginRequestSchema = z.object({
+  token: z.string().min(1, "OAuth token is required"),
+  roleName: z.enum(["tenant", "landlord", "admin", "manager", "property_manager"]),
+});
+
+export type SocialLoginRequestDTO = z.infer<typeof socialLoginRequestSchema>;
+
+// Social Login Response (same as new login response format)
+export type SocialLoginResponseDTO = NewLoginResponseDTO;
+
+// Verify Email Request
+export const verifyEmailRequestSchema = z.object({
+  token: z.string(),
+  email: z.string().email(),
+});
+
+export type VerifyEmailRequestDTO = z.infer<typeof verifyEmailRequestSchema>;
+
+export const verifyEmailResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+
+export type VerifyEmailResponseDTO = z.infer<typeof verifyEmailResponseSchema>;
+
+// Logout Response
+export const logoutResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+});
+
+export type LogoutResponseDTO = z.infer<typeof logoutResponseSchema>;
+
+// User object from API
+export const apiUserSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  registrationType: z.string().optional(),
+  fullName: z.string().optional(),
+  name: z.string().optional(),
+  phoneNumber: z.string().nullable(),
+  phone: z.string().optional(),
+  isEmailVerified: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  role: roleSchema,
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+export type ApiUserDTO = z.infer<typeof apiUserSchema>;
+
+// Updated Login Response (based on actual API format)
+export const newLoginResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z.object({
+    accessToken: z.string(),
+    user: apiUserSchema,
+  }),
+});
+
+export type NewLoginResponseDTO = z.infer<typeof newLoginResponseSchema>;
 

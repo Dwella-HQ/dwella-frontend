@@ -1,6 +1,5 @@
-// TODO: Set API base URL when backend is ready
-// const DEFAULT_BASE_URL = "https://api.dwella.ng/api/v1";
-const DEFAULT_BASE_URL = "";
+// API base URL - can be overridden by NEXT_PUBLIC_API_BASE_URL env var
+const DEFAULT_BASE_URL = "http://dwella-dev.us-east-1.elasticbeanstalk.com";
 
 type QueryValue = string | number | boolean | null | undefined;
 

@@ -62,11 +62,12 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
     }
   };
 
-  const initials = profile ? getInitials(profile.name) : user ? getInitials(user.name) : "FL";
-  const displayName = profile?.name || user?.name || "User";
+  const profileName = profile?.fullName || profile?.name || "";
+  const initials = profile ? getInitials(profileName) : user ? getInitials(user.name) : "FL";
+  const displayName = profileName || user?.name || "User";
   const displayEmail = profile?.email || user?.email || "user@dwella.ng";
   const roleDisplay = user?.role ? getRoleDisplayName(user.role) : "LandLord";
-  const hasNotifications = profile && profile.notification_count > 0;
+  const hasNotifications = profile && (profile.notification_count || 0) > 0;
 
   // Fetch recent notifications when dropdown opens
   const fetchNotifications = React.useCallback(async () => {
@@ -366,7 +367,7 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
     </header>
 
     {/* Managing Bar for Managers - Below Header */}
-    {user?.role === "manager" && selectedLandlord && (
+    {user?.role === "property_manager" && selectedLandlord && (
       <div className="sticky top-[73px] z-40 bg-gray-900 border-b border-gray-800">
         <div className="flex items-center justify-center py-2.5">
           <button
@@ -403,7 +404,7 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
     )}
 
     {/* Landlord Switch Modal */}
-    {user?.role === "manager" && (
+    {user?.role === "property_manager" && (
       <LandlordSwitchModal
         isOpen={isLandlordSwitchOpen}
         onClose={() => setIsLandlordSwitchOpen(false)}

@@ -37,16 +37,19 @@ import { AddTenantModal } from "@/components/AddTenantModal";
 import { AssignPropertyManagerModal } from "@/components/AssignPropertyManagerModal";
 import { InviteManagerModal } from "@/components/InviteManagerModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
-import { mockProperties } from "@/data/mockLandlordData";
 import { mockRecentPayments, mockMaintenanceRequests } from "@/data/mockLandlordData";
 import {
-  mockUnits,
   mockTenants,
   mockPaymentHistory,
   mockMaintenanceRequestDetails,
   mockPropertyDocuments,
 } from "@/data/mockPropertyDetails";
-import type { Property } from "@/data/mockLandlordData";
+import { getProperty } from "@/api/properties";
+import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
+import type { PropertyDTO } from "@/api/properties";
+import { getUnitsByProperty } from "@/api/units";
+import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
+import type { Unit } from "@/data/mockLandlordData";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -59,15 +62,78 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   const [isAssignManagerOpen, setIsAssignManagerOpen] = React.useState(false);
   const [isInviteManagerOpen, setIsInviteManagerOpen] = React.useState(false);
   const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] = React.useState(false);
+  const [propertyDTO, setPropertyDTO] = React.useState<PropertyDTO | null>(null);
+  const [units, setUnits] = React.useState<Unit[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoadingUnits, setIsLoadingUnits] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const property = React.useMemo(() => {
-    return mockProperties.find((p) => p.id === id);
+  // Fetch property from API
+  React.useEffect(() => {
+    const fetchProperty = async () => {
+      if (!id || typeof id !== "string") return;
+      
+      setIsLoading(true);
+      setError(null);
+      const result = await getProperty(id);
+      if (result.success) {
+        setPropertyDTO(result.data);
+      } else {
+        setError(result.error);
+      }
+      setIsLoading(false);
+    };
+
+    fetchProperty();
   }, [id]);
 
-  if (!property) {
+  // Fetch units from API
+  React.useEffect(() => {
+    const fetchUnits = async () => {
+      if (!id || typeof id !== "string") return;
+      
+      setIsLoadingUnits(true);
+      const result = await getUnitsByProperty(id);
+      if (result.success) {
+        const mappedUnits = result.data.map((unitDTO) => mapUnitDTOToUnit(unitDTO, id));
+        setUnits(mappedUnits);
+      }
+      setIsLoadingUnits(false);
+    };
+
+    fetchUnits();
+  }, [id]);
+
+  // Map property DTO to Property type for compatibility
+  const property = React.useMemo(() => {
+    if (!propertyDTO) return null;
+    return mapPropertyDTOToProperty(propertyDTO);
+  }, [propertyDTO]);
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-gray-600">Property not found</p>
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
+          <p className="mt-4 text-sm text-gray-600">Loading property...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !property || !propertyDTO) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <p className="text-gray-600">{error || "Property not found"}</p>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mt-4 text-sm text-brand-main hover:underline"
+          >
+            Go back
+          </button>
+        </div>
       </div>
     );
   }
@@ -136,7 +202,11 @@ const PropertyDetailPage: NextPageWithLayout = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{property.name}</h1>
             <div className="mt-1 flex items-center gap-1 text-sm text-gray-600">
               <MapPin className="h-4 w-4" />
-              <span>{property.address}</span>
+              <span>
+                {propertyDTO && propertyDTO.address
+                  ? `${propertyDTO.address.address || propertyDTO.address.street || ""}, ${propertyDTO.address.city}, ${propertyDTO.address.state}`
+                  : property.address}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -286,7 +356,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 </h3>
               </div>
               <div className="flex flex-wrap gap-2">
-                {property.amenities.map((amenity, index) => {
+                {(propertyDTO?.amenities || property.amenities).map((amenity, index) => {
                   const Icon = getAmenityIcon(amenity);
                   return (
                     <div
@@ -354,11 +424,20 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <PropertyUnitsTab 
-                  units={mockUnits.filter((u) => u.propertyId === id)} 
-                  propertyId={id as string}
-                  tenants={mockTenants.filter((t) => t.propertyId === id)}
-                />
+                {isLoadingUnits ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
+                      <p className="mt-4 text-sm text-gray-600">Loading units...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <PropertyUnitsTab 
+                    units={units} 
+                    propertyId={id as string}
+                    tenants={mockTenants.filter((t) => t.propertyId === id)}
+                  />
+                )}
               </motion.div>
             )}
             {activeTab === "tenants" && (
@@ -416,6 +495,18 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         isOpen={isAddUnitOpen}
         onClose={() => setIsAddUnitOpen(false)}
         propertyId={id as string}
+        onSuccess={async () => {
+          // Refresh units after successful creation
+          if (id && typeof id === "string") {
+            setIsLoadingUnits(true);
+            const result = await getUnitsByProperty(id);
+            if (result.success) {
+              const mappedUnits = result.data.map((unitDTO) => mapUnitDTOToUnit(unitDTO, id));
+              setUnits(mappedUnits);
+            }
+            setIsLoadingUnits(false);
+          }
+        }}
       />
 
       <AssignPropertyManagerModal

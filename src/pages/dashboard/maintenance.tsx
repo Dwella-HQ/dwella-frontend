@@ -753,6 +753,7 @@ const MaintenancePage: NextPageWithLayout = () => {
     if (user.role === "tenant") {
       return <TenantMaintenancePage />;
     } else {
+      // Landlord, manager, and super_admin see landlord view
       return <LandlordMaintenancePage />;
     }
   };

@@ -1,14 +1,16 @@
 import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Filter, Grid3x3, List, Plus, ArrowUpDown, Check, Users } from "lucide-react";
+import { Filter, Grid3x3, List, Plus, ArrowUpDown, Check, Users, AlertCircle } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { mockProperties } from "@/data/mockLandlordData";
 import type { Property } from "@/data/mockLandlordData";
 import { PropertyCard } from "@/components/PropertyCard";
 import { PropertyTable } from "@/components/PropertyTable";
+import { getProperties, getPropertiesByLandlord } from "@/api/properties";
+import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
+import { useUser } from "@/contexts/UserContext";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -17,15 +19,39 @@ type FilterStatus = "all" | "active" | "inactive" | "pending" | "occupied" | "co
 
 const PropertiesPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { user } = useUser();
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
   const [activeFilter, setActiveFilter] = React.useState<FilterStatus>("all");
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
   const [sortBy, setSortBy] = React.useState<string>("name-asc");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [occupancyFilter, setOccupancyFilter] = React.useState<string>("all");
+  const [properties, setProperties] = React.useState<Property[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // Fetch properties from API - using same logic as dashboard
+  React.useEffect(() => {
+    const fetchProperties = async () => {
+      setIsLoading(true);
+      const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+      if (landlordId) {
+        const result = await getPropertiesByLandlord(landlordId);
+        if (result.success) {
+          const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+          setProperties(mappedProperties);
+        } else {
+          setError(result.error);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    fetchProperties();
+  }, []);
 
   const filteredProperties = React.useMemo(() => {
-    let filtered = [...mockProperties];
+    let filtered = [...properties];
 
     // Apply status filter
     if (statusFilter === "active") {
@@ -51,10 +77,10 @@ const PropertiesPage: NextPageWithLayout = () => {
         return a.name.localeCompare(b.name);
       } else if (sortBy === "name-desc") {
         return b.name.localeCompare(a.name);
-      } else if (sortBy === "rent-high") {
-        return b.monthlyRent - a.monthlyRent;
-      } else if (sortBy === "rent-low") {
-        return a.monthlyRent - b.monthlyRent;
+      } else if (sortBy === "occupancy-high") {
+        return b.occupancy - a.occupancy;
+      } else if (sortBy === "occupancy-low") {
+        return a.occupancy - b.occupancy;
       } else if (sortBy === "occupancy-high") {
         return b.occupancy - a.occupancy;
       } else if (sortBy === "occupancy-low") {
@@ -66,7 +92,7 @@ const PropertiesPage: NextPageWithLayout = () => {
     });
 
     return filtered;
-  }, [statusFilter, occupancyFilter, sortBy]);
+  }, [properties, statusFilter, occupancyFilter, sortBy]);
 
   const handleClearFilters = React.useCallback(() => {
     setStatusFilter("all");
@@ -246,7 +272,7 @@ const PropertiesPage: NextPageWithLayout = () => {
                   <div className="pt-4 border-t border-gray-200">
                     <p className="text-sm text-gray-600">
                       Showing <span className="font-semibold">{filteredProperties.length}</span> of{" "}
-                      <span className="font-semibold">{mockProperties.length}</span> properties
+                      <span className="font-semibold">{properties.length}</span> properties
                     </p>
                   </div>
                 </div>
@@ -330,32 +356,81 @@ const PropertiesPage: NextPageWithLayout = () => {
           ))}
         </div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
+              <p className="mt-4 text-sm text-gray-600">Loading properties...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !isLoading && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-semibold text-red-900">Error loading properties</h3>
+                <p className="mt-1 text-sm text-red-700">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="mt-3 text-sm font-medium text-red-900 hover:text-red-800 underline"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && !error && filteredProperties.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-600">No properties found</p>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/properties/new")}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+            >
+              <Plus className="h-4 w-4" />
+              Add Your First Property
+            </button>
+          </div>
+        )}
+
         {/* Results Count */}
-        {activeFiltersCount > 0 && (
+        {!isLoading && !error && activeFiltersCount > 0 && (
           <div className="text-sm text-gray-600">
-            Showing {filteredProperties.length} of {mockProperties.length} properties with active filters
+            Showing {filteredProperties.length} of {properties.length} properties with active filters
           </div>
         )}
 
         {/* Properties Display */}
-        {viewMode === "grid" ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredProperties.map((property, index) => (
-              <PropertyCard
-                key={property.id}
-                property={property}
-                index={index}
-                onClick={() => router.push(`/dashboard/properties/${property.id}`)}
+        {!isLoading && !error && filteredProperties.length > 0 && (
+          <>
+            {viewMode === "grid" ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredProperties.map((property, index) => (
+                  <PropertyCard
+                    key={property.id}
+                    property={property}
+                    index={index}
+                    onClick={() => router.push(`/dashboard/properties/${property.id}`)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <PropertyTable
+                properties={filteredProperties}
+                onPropertyClick={(property) =>
+                  router.push(`/dashboard/properties/${property.id}`)
+                }
               />
-            ))}
-          </div>
-        ) : (
-          <PropertyTable
-            properties={filteredProperties}
-            onPropertyClick={(property) =>
-              router.push(`/dashboard/properties/${property.id}`)
-            }
-          />
+            )}
+          </>
         )}
       </section>
     </>

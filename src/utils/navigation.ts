@@ -33,6 +33,8 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
 
   switch (role) {
     case "landlord":
+    case "super_admin":
+      // Super admin has same navigation as landlord
       return [
         ...baseItems,
         { name: "Properties", href: "/dashboard/properties", icon: Home },
@@ -40,8 +42,8 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
         { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
       ];
-    case "manager":
-      // Manager navigation will be updated based on Figma designs
+    case "property_manager":
+      // Property manager navigation will be updated based on Figma designs
       return [
         ...baseItems,
         { name: "Properties", href: "/dashboard/properties", icon: Home },
@@ -74,6 +76,8 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
   
   switch (role) {
     case "landlord":
+    case "super_admin":
+      // Super admin has same menu as landlord
       return [
         { name: "Managers", href: "/dashboard/managers", icon: Users },
         { name: "Units", href: "/dashboard/units", icon: FileText },
@@ -81,8 +85,8 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
-    case "manager":
-      // Manager "More" menu will be updated based on Figma designs
+    case "property_manager":
+      // Property manager "More" menu will be updated based on Figma designs
       return [
         { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },

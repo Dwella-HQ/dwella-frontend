@@ -28,26 +28,29 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import Image from "next/image";
+import { Country, State, City } from "country-state-city";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { AddUnitModal } from "@/components/AddUnitModal";
+import { useToast } from "@/components/Toast";
+import { createProperty } from "@/api/properties";
+import { uploadFile, deleteFile } from "@/api/files";
+import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
+import type { CreatePropertyRequestDTO } from "@/api/properties";
 import type { NextPageWithLayout } from "../../_app";
 
 // Step 1 Schema
 const basicDetailsSchema = z.object({
   propertyName: z.string().min(1, "Property name is required"),
-  propertyType: z.string().min(1, "Property type is required"),
-  yearBuilt: z.string().min(1, "Year built is required"),
+  yearBuilt: z.string().length(4, "Year must be exactly 4 characters (e.g., 2024)"),
   totalUnits: z.string().min(1, "Total units is required"),
   parkingSpace: z.string().min(1, "Parking space is required"),
   description: z.string().optional(),
-  defaultCurrency: z.string().min(1, "Default currency is required"),
-  rent: z.string().min(1, "Rent is required"),
-  securityDeposit: z.string().min(1, "Security deposit is required"),
-  gracePeriod: z.string().min(1, "Grace period is required"),
-  streetAddress: z.string().min(1, "Street address is required"),
+  address: z.string().min(1, "Address is required"),
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
+  postalCode: z.string().min(1, "Postal code is required"),
+  country: z.string().min(1, "Country is required"),
 });
 
 type BasicDetailsFormValues = z.infer<typeof basicDetailsSchema>;
@@ -128,21 +131,50 @@ type Unit = {
 
 const AddPropertyPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { selectedLandlord } = useSelectedLandlord();
+  const { showToast } = useToast();
   const [currentStep, setCurrentStep] = React.useState(1);
   const [selectedAmenities, setSelectedAmenities] = React.useState<PropertyAmenity[]>([]);
-  const [uploadedPhotos, setUploadedPhotos] = React.useState<{ file: File; preview: string }[]>([]);
-  const [uploadedDocuments, setUploadedDocuments] = React.useState<{ file: File; name: string; size: string }[]>([]);
+  const [uploadedPhotos, setUploadedPhotos] = React.useState<{ file: File; preview: string; fileId?: string; isUploading?: boolean; uploadError?: string }[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = React.useState<{ file: File; name: string; size: string; fileId?: string; isUploading?: boolean; uploadError?: string }[]>([]);
+  const [photoUploadProgress, setPhotoUploadProgress] = React.useState<Record<number, number>>({});
+  const [documentUploadProgress, setDocumentUploadProgress] = React.useState<Record<number, number>>({});
   const [units, setUnits] = React.useState<Unit[]>([]);
   const [isAddUnitModalOpen, setIsAddUnitModalOpen] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [createdPropertyId, setCreatedPropertyId] = React.useState<string | null>(null);
+  const [createdPropertyName, setCreatedPropertyName] = React.useState<string>("");
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     trigger,
+    getValues,
+    watch,
+    setValue,
   } = useForm<BasicDetailsFormValues>({
     resolver: zodResolver(basicDetailsSchema),
+    defaultValues: {
+      country: "Nigeria",
+    },
   });
+
+  // Watch state to filter cities
+  const selectedState = watch("state");
+  
+  // Get Nigeria country code
+  const nigeria = Country.getAllCountries().find((c) => c.name === "Nigeria");
+  const nigeriaCode = nigeria?.isoCode || "NG";
+  
+  // Get all Nigerian states
+  const nigerianStates = State.getStatesOfCountry(nigeriaCode);
+  
+  // Get cities for selected state
+  const citiesForState = selectedState
+    ? City.getCitiesOfState(nigeriaCode, selectedState)
+    : [];
 
   const steps = [
     { number: 1, label: "Basic Details" },
@@ -159,37 +191,158 @@ const AddPropertyPage: NextPageWithLayout = () => {
     );
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
+    
+    for (const file of files) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setUploadedPhotos((prev) => [
-          ...prev,
-          { file, preview: reader.result as string },
-        ]);
+        const newPhoto = { 
+          file, 
+          preview: reader.result as string,
+          isUploading: true,
+          uploadError: undefined,
+        };
+        
+        // Add photo immediately with uploading state and get the index
+        let photoIndex: number;
+        setUploadedPhotos((prev) => {
+          photoIndex = prev.length;
+          setPhotoUploadProgress((prevProgress) => ({ ...prevProgress, [photoIndex]: 0 }));
+          return [...prev, newPhoto];
+        });
+        
+        // Upload immediately using the captured index
+        uploadFile({
+          file,
+          folder: "property",
+          label: "property_photo",
+          onProgress: (percent) =>
+            setPhotoUploadProgress((prev) => ({ ...prev, [photoIndex!]: percent })),
+        }).then((result) => {
+          setUploadedPhotos((prev) => {
+            const updated = [...prev];
+            if (updated[photoIndex!]) {
+              updated[photoIndex!] = {
+                ...updated[photoIndex!],
+                isUploading: false,
+                fileId: result.success ? result.data.id : undefined,
+                uploadError: result.success ? undefined : result.error,
+              };
+            }
+            return updated;
+          });
+          
+          if (!result.success) {
+            showToast(
+              result.error || `Failed to upload ${file.name}`,
+              "error"
+            );
+          }
+        });
       };
       reader.readAsDataURL(file);
-    });
+    }
   };
 
-  const removePhoto = (index: number) => {
+  const removePhoto = async (index: number) => {
+    const photo = uploadedPhotos[index];
+    
+    // If photo has been uploaded, delete it from server
+    if (photo?.fileId) {
+      const deleteResult = await deleteFile(photo.fileId);
+      if (!deleteResult.success) {
+        showToast(
+          deleteResult.error || "Failed to delete photo from server",
+          "error"
+        );
+        return;
+      }
+    }
+    
+    // Remove from local state
     setUploadedPhotos((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
-      const sizeKB = (file.size / 1024).toFixed(2);
-      setUploadedDocuments((prev) => [
-        ...prev,
-        { file, name: file.name, size: `${sizeKB} KB` },
-      ]);
+    setPhotoUploadProgress((prev) => {
+      const updated = { ...prev };
+      delete updated[index];
+      return updated;
     });
   };
 
-  const removeDocument = (index: number) => {
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    for (const file of files) {
+      const sizeKB = (file.size / 1024).toFixed(2);
+      const newDoc = {
+        file,
+        name: file.name,
+        size: `${sizeKB} KB`,
+        isUploading: true,
+        uploadError: undefined,
+      };
+      
+      // Add document immediately with uploading state and get the index
+      let docIndex: number;
+      setUploadedDocuments((prev) => {
+        docIndex = prev.length;
+        setDocumentUploadProgress((prevProgress) => ({ ...prevProgress, [docIndex]: 0 }));
+        return [...prev, newDoc];
+      });
+      
+      // Upload immediately using the captured index
+      uploadFile({
+        file,
+        folder: "property",
+        label: "property_document",
+        onProgress: (percent) =>
+          setDocumentUploadProgress((prev) => ({ ...prev, [docIndex!]: percent })),
+      }).then((result) => {
+        setUploadedDocuments((prev) => {
+          const updated = [...prev];
+          if (updated[docIndex!]) {
+            updated[docIndex!] = {
+              ...updated[docIndex!],
+              isUploading: false,
+              fileId: result.success ? result.data.id : undefined,
+              uploadError: result.success ? undefined : result.error,
+            };
+          }
+          return updated;
+        });
+        
+        if (!result.success) {
+          showToast(
+            result.error || `Failed to upload ${file.name}`,
+            "error"
+          );
+        }
+      });
+    }
+  };
+
+  const removeDocument = async (index: number) => {
+    const doc = uploadedDocuments[index];
+    
+    // If document has been uploaded, delete it from server
+    if (doc?.fileId) {
+      const deleteResult = await deleteFile(doc.fileId);
+      if (!deleteResult.success) {
+        showToast(
+          deleteResult.error || "Failed to delete document from server",
+          "error"
+        );
+        return;
+      }
+    }
+    
+    // Remove from local state
     setUploadedDocuments((prev) => prev.filter((_, i) => i !== index));
+    setDocumentUploadProgress((prev) => {
+      const updated = { ...prev };
+      delete updated[index];
+      return updated;
+    });
   };
 
   const formatFileSize = (sizeKB: string) => {
@@ -200,7 +353,11 @@ const AddPropertyPage: NextPageWithLayout = () => {
     return `${sizeKB} KB`;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    if (currentStep === 3) {
+      await handleCreateProperty();
+      return;
+    }
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
@@ -212,16 +369,146 @@ const AddPropertyPage: NextPageWithLayout = () => {
     }
   };
 
+  const handleCreateProperty = async () => {
+    const landlordIdFromStorage =
+      typeof window !== "undefined"
+        ? localStorage.getItem("landlordId")
+        : null;
+    const landlordId = selectedLandlord?.id || landlordIdFromStorage;
+
+    if (!landlordId) {
+      const message = "Please select a landlord account first";
+      setSubmitError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      // Validate form
+      const isValid = await trigger();
+      if (!isValid) {
+        const message = "Please fill in all required fields";
+        setSubmitError(message);
+        showToast(message, "error");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Get form values
+      const formData = getValues();
+      // landlordId already resolved above
+      
+      // Collect photo IDs (already uploaded)
+      const photoIds: string[] = [];
+      for (const photo of uploadedPhotos) {
+        if (photo.fileId) {
+          photoIds.push(photo.fileId);
+        } else if (photo.uploadError) {
+          const message = `Photo "${photo.file.name}" failed to upload: ${photo.uploadError}`;
+          setSubmitError(message);
+          showToast(message, "error");
+          setIsSubmitting(false);
+          return;
+        } else if (photo.isUploading) {
+          const message = "Please wait for all photos to finish uploading";
+          setSubmitError(message);
+          showToast(message, "error");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Collect document IDs (already uploaded)
+      const documentIds: string[] = [];
+      for (const doc of uploadedDocuments) {
+        if (doc.fileId) {
+          documentIds.push(doc.fileId);
+        } else if (doc.uploadError) {
+          const message = `Document "${doc.name}" failed to upload: ${doc.uploadError}`;
+          setSubmitError(message);
+          showToast(message, "error");
+          setIsSubmitting(false);
+          return;
+        } else if (doc.isUploading) {
+          const message = "Please wait for all documents to finish uploading";
+          setSubmitError(message);
+          showToast(message, "error");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Map form data to API format
+      const propertyData: CreatePropertyRequestDTO = {
+        landlordId,
+        name: formData.propertyName,
+        yearBuilt: formData.yearBuilt || undefined,
+        numberOfUnits: parseInt(formData.totalUnits),
+        description: formData.description || undefined,
+        parkingSpace: formData.parkingSpace === "yes",
+        photoIds: photoIds.length > 0 ? photoIds : undefined,
+        documentIds: documentIds.length > 0 ? documentIds : undefined,
+        address: {
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          postalCode: formData.postalCode,
+          country: formData.country,
+        },
+        amenities: selectedAmenities,
+      };
+
+      console.log("Create property payload:", propertyData);
+
+      const result = await createProperty(propertyData);
+      
+      if (result.success) {
+        setCreatedPropertyId(result.data.id);
+        setCreatedPropertyName(formData.propertyName);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("lastCreatedPropertyId", result.data.id);
+        }
+        setCurrentStep(4);
+        showToast("Property created successfully. Add units now.", "success");
+      } else {
+        const message = result.error || "Failed to create property";
+        setSubmitError(message);
+        showToast(message, "error");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "An error occurred";
+      setSubmitError(message);
+      showToast(message, "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleFinish = async () => {
-    // TODO: Submit all form data
-    console.log("Property submitted");
-    router.push("/dashboard/properties");
+    if (!createdPropertyId) {
+      setSubmitError("Please create the property before finishing.");
+      return;
+    }
+    await router.push(`/dashboard/properties/${createdPropertyId}`);
   };
 
   const onSubmit = handleSubmit(async (data) => {
     console.log("Basic details:", { ...data, amenities: selectedAmenities });
     setCurrentStep(2);
   });
+
+  const handleNextStep1 = async () => {
+    const isValid = await trigger();
+    if (isValid) {
+      const formData = getValues();
+      console.log("Basic details:", { ...formData, amenities: selectedAmenities });
+      setCurrentStep(2);
+    }
+  };
 
   const handleUnitAdded = React.useCallback((unitData: any) => {
     // Generate a temporary unit ID
@@ -278,7 +565,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
             {currentStep === 1 ? (
               <button
                 type="button"
-                onClick={onSubmit}
+                onClick={handleNextStep1}
                 className="rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 whitespace-nowrap"
               >
                 Next
@@ -331,7 +618,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <form onSubmit={onSubmit} className="space-y-8">
+                <form id="property-form" onSubmit={onSubmit} className="space-y-8">
                   {/* Property Details */}
                   <div>
                     <h3 className="mb-4 text-sm font-semibold uppercase" style={{ color: '#99A1AF' }}>
@@ -354,24 +641,6 @@ const AddPropertyPage: NextPageWithLayout = () => {
                       </div>
                       <div>
                         <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Property Type
-                        </label>
-                        <select
-                          {...register("propertyType")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        >
-                          <option value="">Placeholder</option>
-                          <option value="apartment">Apartment</option>
-                          <option value="house">House</option>
-                          <option value="duplex">Duplex</option>
-                          <option value="villa">Villa</option>
-                        </select>
-                        {errors.propertyType && (
-                          <p className="mt-1 text-xs text-red-600">{errors.propertyType.message}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
                           Year Built
                         </label>
                         <input
@@ -386,7 +655,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                       </div>
                       <div>
                         <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Total Units
+                          Number of Units
                         </label>
                         <input
                           type="number"
@@ -402,12 +671,14 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         <label className="mb-1 block text-sm font-medium text-gray-700">
                           Parking Space
                         </label>
-                        <input
-                          type="text"
-                          placeholder="Placeholder"
+                        <select
                           {...register("parkingSpace")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        />
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                        >
+                          <option value="">Placeholder</option>
+                          <option value="yes">Yes</option>
+                          <option value="no">No</option>
+                        </select>
                         {errors.parkingSpace && (
                           <p className="mt-1 text-xs text-red-600">{errors.parkingSpace.message}</p>
                         )}
@@ -455,77 +726,6 @@ const AddPropertyPage: NextPageWithLayout = () => {
                     </div>
                   </div>
 
-                  {/* Financial Settings */}
-                  <div>
-                    <h3 className="mb-4 text-sm font-semibold uppercase" style={{ color: '#99A1AF' }}>
-                      Financial Settings
-                    </h3>
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Default Currency
-                        </label>
-                        <select
-                          {...register("defaultCurrency")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        >
-                          <option value="">Placeholder</option>
-                          <option value="NGN">NGN (₦)</option>
-                          <option value="USD">USD ($)</option>
-                        </select>
-                        {errors.defaultCurrency && (
-                          <p className="mt-1 text-xs text-red-600">{errors.defaultCurrency.message}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Rent
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Placeholder"
-                          {...register("rent")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        />
-                        {errors.rent && (
-                          <p className="mt-1 text-xs text-red-600">{errors.rent.message}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Security Deposit (%)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Placeholder"
-                          {...register("securityDeposit")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        />
-                        {errors.securityDeposit && (
-                          <p className="mt-1 text-xs text-red-600">{errors.securityDeposit.message}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Grace Period (Days)
-                        </label>
-                        <select
-                          {...register("gracePeriod")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        >
-                          <option value="">Placeholder</option>
-                          <option value="3">3</option>
-                          <option value="7">7</option>
-                          <option value="14">14</option>
-                          <option value="30">30</option>
-                        </select>
-                        {errors.gracePeriod && (
-                          <p className="mt-1 text-xs text-red-600">{errors.gracePeriod.message}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Location */}
                   <div>
                     <h3 className="mb-4 text-sm font-semibold uppercase" style={{ color: '#99A1AF' }}>
@@ -534,16 +734,40 @@ const AddPropertyPage: NextPageWithLayout = () => {
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div>
                         <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Street Address
+                          Address
                         </label>
                         <input
                           type="text"
-                          placeholder="Placeholder"
-                          {...register("streetAddress")}
+                          placeholder="Street address"
+                          {...register("address")}
                           className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                         />
-                        {errors.streetAddress && (
-                          <p className="mt-1 text-xs text-red-600">{errors.streetAddress.message}</p>
+                        {errors.address && (
+                          <p className="mt-1 text-xs text-red-600">{errors.address.message}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                          State
+                        </label>
+                        <select
+                          {...register("state", {
+                            onChange: () => {
+                              // Clear city when state changes
+                              setValue("city", "");
+                            },
+                          })}
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                        >
+                          <option value="">Select State</option>
+                          {nigerianStates.map((state) => (
+                            <option key={state.isoCode} value={state.isoCode}>
+                              {state.name}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.state && (
+                          <p className="mt-1 text-xs text-red-600">{errors.state.message}</p>
                         )}
                       </div>
                       <div>
@@ -552,13 +776,17 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         </label>
                         <select
                           {...register("city")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          disabled={!selectedState}
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
                         >
-                          <option value="">Placeholder</option>
-                          <option value="lagos">Lagos</option>
-                          <option value="abuja">Abuja</option>
-                          <option value="port-harcourt">Port Harcourt</option>
-                          <option value="kano">Kano</option>
+                          <option value="">
+                            {selectedState ? "Select City" : "Select State First"}
+                          </option>
+                          {citiesForState.map((city) => (
+                            <option key={city.name} value={city.name}>
+                              {city.name}
+                            </option>
+                          ))}
                         </select>
                         {errors.city && (
                           <p className="mt-1 text-xs text-red-600">{errors.city.message}</p>
@@ -566,20 +794,16 @@ const AddPropertyPage: NextPageWithLayout = () => {
                       </div>
                       <div>
                         <label className="mb-1 block text-sm font-medium text-gray-700">
-                          State
+                          Postal Code
                         </label>
-                        <select
-                          {...register("state")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        >
-                          <option value="">Placeholder</option>
-                          <option value="lagos">Lagos</option>
-                          <option value="abuja">FCT</option>
-                          <option value="rivers">Rivers</option>
-                          <option value="kano">Kano</option>
-                        </select>
-                        {errors.state && (
-                          <p className="mt-1 text-xs text-red-600">{errors.state.message}</p>
+                        <input
+                          type="text"
+                          placeholder="Placeholder"
+                          {...register("postalCode")}
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                        />
+                        {errors.postalCode && (
+                          <p className="mt-1 text-xs text-red-600">{errors.postalCode.message}</p>
                         )}
                       </div>
                     </div>
@@ -615,6 +839,31 @@ const AddPropertyPage: NextPageWithLayout = () => {
                             fill
                             className="object-cover"
                           />
+                          {photo.isUploading && photoUploadProgress[index] !== undefined && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-white text-xs">
+                              <span>Uploading...</span>
+                              <div className="mt-2 h-1.5 w-24 rounded-full bg-white/30">
+                                <div
+                                  className="h-1.5 rounded-full bg-white"
+                                  style={{ width: `${photoUploadProgress[index]}%` }}
+                                />
+                              </div>
+                              <span className="mt-1">{photoUploadProgress[index]}%</span>
+                            </div>
+                          )}
+                          {photo.uploadError && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/80 text-white text-xs p-2">
+                              <span className="font-semibold">Upload Failed</span>
+                              <span className="mt-1 text-center text-[10px]">{photo.uploadError}</span>
+                            </div>
+                          )}
+                          {photo.fileId && !photo.isUploading && !photo.uploadError && (
+                            <div className="absolute left-2 top-2 rounded-full bg-green-500 p-1 text-white">
+                              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
                           <button
                             type="button"
                             onClick={() => removePhoto(index)}
@@ -672,13 +921,44 @@ const AddPropertyPage: NextPageWithLayout = () => {
                       {uploadedDocuments.map((doc, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
+                          className={`flex items-center justify-between rounded-lg border p-4 ${
+                            doc.uploadError
+                              ? "border-red-300 bg-red-50"
+                              : doc.fileId
+                              ? "border-green-300 bg-green-50"
+                              : "border-gray-200 bg-white"
+                          }`}
                         >
                           <div className="flex items-center gap-3">
-                            <FileText className="h-5 w-5 text-gray-400" />
-                            <div>
+                            <FileText className={`h-5 w-5 ${
+                              doc.uploadError ? "text-red-400" : doc.fileId ? "text-green-400" : "text-gray-400"
+                            }`} />
+                            <div className="flex-1">
                               <p className="text-sm font-medium text-gray-900">{doc.name}</p>
                               <p className="text-xs text-gray-500">{formatFileSize(doc.size)}</p>
+                              {doc.isUploading && documentUploadProgress[index] !== undefined && (
+                                <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                                  <span>Uploading...</span>
+                                  <div className="h-1.5 w-28 rounded-full bg-gray-200">
+                                    <div
+                                      className="h-1.5 rounded-full bg-brand-main"
+                                      style={{ width: `${documentUploadProgress[index]}%` }}
+                                    />
+                                  </div>
+                                  <span>{documentUploadProgress[index]}%</span>
+                                </div>
+                              )}
+                              {doc.uploadError && (
+                                <p className="mt-1 text-xs text-red-600">{doc.uploadError}</p>
+                              )}
+                              {doc.fileId && !doc.isUploading && !doc.uploadError && (
+                                <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  Uploaded
+                                </p>
+                              )}
                             </div>
                           </div>
                           <button
@@ -737,7 +1017,8 @@ const AddPropertyPage: NextPageWithLayout = () => {
                   <button
                     type="button"
                     onClick={() => setIsAddUnitModalOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-main/90"
+                    disabled={!createdPropertyId}
+                    className="inline-flex items-center gap-2 rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-main/90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     + Add Unit
                   </button>
@@ -864,7 +1145,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
           {currentStep === 1 ? (
             <button
               type="button"
-              onClick={onSubmit}
+              onClick={handleNextStep1}
               className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
             >
               Next
@@ -873,9 +1154,14 @@ const AddPropertyPage: NextPageWithLayout = () => {
             <button
               type="button"
               onClick={currentStep === 4 ? handleFinish : handleNext}
+              disabled={isSubmitting && currentStep === 3}
               className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
             >
-              Next
+              {isSubmitting && currentStep === 3
+                ? "Creating property..."
+                : currentStep === 4
+                  ? "Finish"
+                  : "Next"}
             </button>
           )}
         </div>
@@ -885,7 +1171,8 @@ const AddPropertyPage: NextPageWithLayout = () => {
       <AddUnitModal
         isOpen={isAddUnitModalOpen}
         onClose={() => setIsAddUnitModalOpen(false)}
-        propertyId="temp-property-id"
+        propertyId={createdPropertyId || "temp-property-id"}
+        propertyLabel={createdPropertyName}
         onSuccess={handleUnitAdded}
       />
     </>

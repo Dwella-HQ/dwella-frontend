@@ -533,6 +533,7 @@ const RentPage: NextPageWithLayout = () => {
     if (user.role === "tenant") {
       return <TenantPaymentHistory />;
     } else {
+      // Landlord, manager, and super_admin see landlord view
       return <LandlordRentPage />;
     }
   };

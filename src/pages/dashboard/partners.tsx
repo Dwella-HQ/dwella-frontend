@@ -27,7 +27,7 @@ const PartnersPage: NextPageWithLayout = () => {
 
   // Redirect partners away from this page
   React.useEffect(() => {
-    if (profile && profile.role === "partner") {
+    if (profile && profile.role?.name === "partner") {
       router.replace("/dashboard");
     }
   }, [profile, router]);

@@ -7,6 +7,7 @@ import type { NextPage } from "next";
 import type { AppProps } from "next/app";
 import * as React from "react";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
+import { ToastProvider } from "@/components/Toast";
 import { UserProvider } from "@/contexts/UserContext";
 import { SelectedLandlordProvider } from "@/contexts/SelectedLandlordContext";
 
@@ -22,12 +23,14 @@ const DwellaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
   const getLayout = Component.getLayout ?? ((page) => page);
   
   return (
-    <UserProvider>
-      <SelectedLandlordProvider>
-        {getLayout(<Component {...pageProps} />)}
-        <PWAInstallPrompt />
-      </SelectedLandlordProvider>
-    </UserProvider>
+    <ToastProvider>
+      <UserProvider>
+        <SelectedLandlordProvider>
+          {getLayout(<Component {...pageProps} />)}
+          <PWAInstallPrompt />
+        </SelectedLandlordProvider>
+      </UserProvider>
+    </ToastProvider>
   );
 };
 

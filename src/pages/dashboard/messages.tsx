@@ -529,6 +529,7 @@ const MessagesPage: NextPageWithLayout = () => {
     if (user.role === "tenant") {
       return <TenantMessagesPage />;
     } else {
+      // Landlord, manager, and super_admin see landlord view
       return <LandlordMessagesPage />;
     }
   };

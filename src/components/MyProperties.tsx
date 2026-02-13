@@ -109,15 +109,15 @@ export const MyProperties = ({ properties, onViewAll }: MyPropertiesProps) => {
               </div>
               <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
                 <div className="flex flex-col gap-2">
-                  <p className="text-xs text-gray-500">MONTHLY RENT</p>
+                  <p className="text-xs text-gray-500">UNITS</p>
                   <p className="text-sm font-semibold text-gray-900">
-                    ₦{property.monthlyRent.toLocaleString()}
+                    {property.units} {property.units === 1 ? 'Unit' : 'Units'}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 text-right">
-                  <p className="text-xs text-gray-500">NEXT DUE</p>
+                  <p className="text-xs text-gray-500">OCCUPANCY</p>
                   <p className="text-sm font-semibold text-gray-900">
-                    {property.nextDue}
+                    {property.occupancy}%
                   </p>
                 </div>
               </div>

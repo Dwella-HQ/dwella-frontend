@@ -26,6 +26,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.20",
+    "axios": "^1.13.4",
+    "country-state-city": "^3.2.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.26",
     "jotai": "^2.15.1",

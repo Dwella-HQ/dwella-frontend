@@ -1,6 +1,7 @@
 import Head from "next/head";
 import * as React from "react";
 import { motion } from "framer-motion";
+import Image from "next/image";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useRouter } from "next/router";
 import {
@@ -14,6 +15,8 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
+import { getLandlordByUser } from "@/api/landlord";
 import type { NextPageWithLayout } from "../_app";
 
 type SettingsTab =
@@ -26,10 +29,13 @@ type SettingsTab =
 
 const SettingsPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { user } = useUser();
   const [activeTab, setActiveTab] = React.useState<SettingsTab>("profile");
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
   const [showNewPassword, setShowNewPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
+  const [landlord, setLandlord] = React.useState<any>(null);
+  const [isLoadingLandlord, setIsLoadingLandlord] = React.useState(true);
 
   // Notification preferences state
   const [notifications, setNotifications] = React.useState({
@@ -38,6 +44,34 @@ const SettingsPage: NextPageWithLayout = () => {
     overdue: { email: true, push: false, sms: true },
     reports: { email: true, push: false, sms: false },
   });
+
+  // Fetch landlord profile for landlords
+  React.useEffect(() => {
+    const fetchLandlord = async () => {
+      if (user?.role === "landlord" && user?.id) {
+        setIsLoadingLandlord(true);
+        const result = await getLandlordByUser(user.id as string);
+        if (result.success) {
+          setLandlord(result.data);
+        }
+        setIsLoadingLandlord(false);
+      }
+    };
+
+    fetchLandlord();
+  }, [user]);
+
+  const getInitials = (name: string) => {
+    if (!name) return "JD";
+    const parts = name.trim().split(/\s+/);
+    const first = parts[0]?.[0] || "";
+    const last = parts.length > 1 ? parts[parts.length - 1]?.[0] || "" : "";
+    return `${first}${last}`.toUpperCase() || "JD";
+  };
+
+  const profileName = landlord?.landLordName || user?.name || "";
+  const profilePicture = landlord?.profilePicture?.url;
+  const initials = getInitials(profileName);
 
   const settingsTabs = [
     { id: "profile" as SettingsTab, label: "Profile", icon: User },
@@ -134,18 +168,29 @@ const SettingsPage: NextPageWithLayout = () => {
 
                 {/* Avatar Upload */}
                 <div className="flex items-center gap-4">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-main text-2xl font-semibold text-white">
-                    JD
+                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-brand-main text-2xl font-semibold text-white overflow-hidden">
+                    {profilePicture ? (
+                      <Image
+                        src={profilePicture}
+                        alt={profileName}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      initials
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    className="text-sm font-medium text-brand-main hover:text-brand-main/80"
-                  >
-                    Change Photo
+                  <div>
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-brand-main hover:text-brand-main/80"
+                    >
+                      Change Photo
+                    </button>
                     <p className="text-xs text-gray-500">
                       JPG, PNG up to 2MB
                     </p>
-                  </button>
+                  </div>
                 </div>
 
                 {/* Form Fields */}

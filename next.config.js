@@ -48,6 +48,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'images.unsplash.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'd1y7l3bt2ym2vo.cloudfront.net',
+      },
     ],
   },
   turbopack: {},

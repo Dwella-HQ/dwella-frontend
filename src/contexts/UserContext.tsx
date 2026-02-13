@@ -1,9 +1,9 @@
 import * as React from "react";
 
-export type UserRole = "landlord" | "manager" | "tenant";
+export type UserRole = "landlord" | "property_manager" | "tenant" | "super_admin";
 
 export type User = {
-  id: number;
+  id: string | number;
   name: string;
   email: string;
   role: UserRole;
@@ -67,6 +67,9 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         localStorage.removeItem("user");
         localStorage.removeItem("authToken");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("landlordId");
+        localStorage.removeItem("lastCreatedPropertyId");
       }
     }
   }, []);
@@ -76,6 +79,9 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("user");
       localStorage.removeItem("authToken");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("landlordId");
+      localStorage.removeItem("lastCreatedPropertyId");
     }
   }, [setUser]);
 
@@ -91,5 +97,3 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };
-
-

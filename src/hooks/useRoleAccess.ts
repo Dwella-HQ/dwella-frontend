@@ -16,11 +16,16 @@ export const useRoleAccess = () => {
     return user.role === role;
   };
 
-  const isLandlord = (): boolean => hasRole("landlord");
-  const isManager = (): boolean => hasRole("manager");
+  const isLandlord = (): boolean => hasRole(["landlord", "super_admin"]);
+  const isManager = (): boolean => hasRole(["property_manager", "super_admin"]);
   const isTenant = (): boolean => hasRole("tenant");
+  const isSuperAdmin = (): boolean => hasRole("super_admin");
 
   const canAccess = (allowedRoles: UserRole | UserRole[]): boolean => {
+    // Super admin can access everything
+    if (user?.role === "super_admin") {
+      return true;
+    }
     return hasRole(allowedRoles);
   };
 
@@ -30,8 +35,10 @@ export const useRoleAccess = () => {
     isLandlord,
     isManager,
     isTenant,
+    isSuperAdmin,
     canAccess,
   };
 };
+
 
 

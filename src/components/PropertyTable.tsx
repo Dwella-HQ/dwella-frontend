@@ -54,9 +54,6 @@ export const PropertyTable = ({ properties, onPropertyClick }: PropertyTableProp
                 Occupancy
               </th>
               <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Monthly Rent
-              </th>
-              <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Status
               </th>
             </tr>
@@ -104,9 +101,6 @@ export const PropertyTable = ({ properties, onPropertyClick }: PropertyTableProp
                     </div>
                     <span className="text-sm text-gray-900 whitespace-nowrap">{property.occupancy}%</span>
                   </div>
-                </td>
-                <td className="px-3 sm:px-6 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">
-                  ₦{property.monthlyRent.toLocaleString()}
                 </td>
                 <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                   <span

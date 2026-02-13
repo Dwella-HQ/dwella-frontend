@@ -12,6 +12,9 @@ import { AddTenantModal } from "@/components/AddTenantModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
+import { getPropertiesByLandlord } from "@/api/properties";
+import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
+import type { Property } from "@/data/mockLandlordData";
 import {
   mockDashboardStats,
   mockRecentPayments,
@@ -196,18 +199,18 @@ const ManagerDashboard = () => {
               <div className="pt-3 border-t border-gray-200">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-500 uppercase">
-                    Monthly Rent
+                    Total Units
                   </span>
                   <span className="text-sm font-semibold text-gray-900">
-                    ₦{property.monthlyRent.toLocaleString()}
+                    {property.units} {property.units === 1 ? 'Unit' : 'Units'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-xs font-medium text-gray-500 uppercase">
-                    Next Due
+                    Occupancy
                   </span>
                   <span className="text-sm font-medium text-gray-700">
-                    {property.nextDue}
+                    {property.occupancy}%
                   </span>
                 </div>
               </div>
@@ -564,6 +567,26 @@ const LandlordDashboard = () => {
   const router = useRouter();
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] = React.useState(false);
+  const [properties, setProperties] = React.useState<Property[]>([]);
+  const [isLoadingProperties, setIsLoadingProperties] = React.useState(true);
+
+  // Fetch properties for the landlord
+  React.useEffect(() => {
+    const fetchProperties = async () => {
+      setIsLoadingProperties(true);
+      const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+      if (landlordId) {
+        const result = await getPropertiesByLandlord(landlordId);
+        if (result.success) {
+          const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+          setProperties(mappedProperties);
+        }
+      }
+      setIsLoadingProperties(false);
+    };
+
+    fetchProperties();
+  }, []);
 
   const handleAddProperty = React.useCallback(() => {
     router.push("/dashboard/properties/new");
@@ -614,10 +637,12 @@ const LandlordDashboard = () => {
         </div>
 
         {/* My Properties */}
-        <MyProperties
-          properties={mockProperties.slice(0, 3)}
-          onViewAll={() => router.push("/dashboard/properties")}
-        />
+        {!isLoadingProperties && (
+          <MyProperties
+            properties={properties.slice(0, 3)}
+            onViewAll={() => router.push("/dashboard/properties")}
+          />
+        )}
       </section>
 
       {/* Modals */}
@@ -661,12 +686,14 @@ const DashboardPage: NextPageWithLayout = () => {
     }
 
     switch (user.role) {
-      case "manager":
+      case "property_manager":
         return <ManagerDashboard />;
       case "tenant":
         return <TenantDashboard />;
       case "landlord":
+      case "super_admin":
       default:
+        // Super admin sees landlord dashboard
         return <LandlordDashboard />;
     }
   };

@@ -1,5 +1,6 @@
 import * as React from "react";
 import Head from "next/head";
+import { useRouter } from "next/router";
 
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 import { AuthLayout } from "@/components/AuthLayout";
@@ -8,11 +9,15 @@ import { resetPassword } from "@/api/auth/resetPassword";
 import type { NextPageWithLayout } from "../_app";
 
 const ResetPasswordPage: NextPageWithLayout = () => {
+  const router = useRouter();
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [success, setSuccess] = React.useState(false);
   const [successMessage, setSuccessMessage] = React.useState<string>("");
   const [email, setEmail] = React.useState<string>("");
+
+  // Get token from URL params if present (from email link)
+  const tokenFromUrl = router.query.token as string | undefined;
 
   const handleResetPassword = React.useCallback(
     async (values: { token: string; password: string }) => {
@@ -38,7 +43,7 @@ const ResetPasswordPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Dwella · Reset Password</title>
+        <title>DWELLA NG · Reset Password</title>
       </Head>
       <ResetPasswordForm
         onSubmit={handleResetPassword}
@@ -47,6 +52,7 @@ const ResetPasswordPage: NextPageWithLayout = () => {
         success={success}
         successMessage={successMessage}
         email={email}
+        defaultToken={tokenFromUrl}
       />
     </>
   );

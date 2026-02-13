@@ -5,6 +5,8 @@ import { useRouter } from "next/router";
 import { LoginForm } from "@/components/LoginForm";
 import { AuthLayout } from "@/components/AuthLayout";
 import { useUser, type UserRole } from "@/contexts/UserContext";
+import { login } from "@/api/auth";
+import { getLandlordByUser } from "@/api/landlord";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -19,56 +21,87 @@ const LoginPage: NextPageWithLayout = () => {
       setError(null);
       setIsLoading(true);
 
-      // Mock login - determine role based on username
-      // TODO: Replace with actual API call when backend is ready
       try {
-        const username = values.username.toLowerCase().trim();
-        let role: UserRole = "landlord";
-        let name = "Favoudoh LandLord";
-        let id = 1;
+        // Use email if provided, otherwise use username as email
+        const email = values.email || values.username;
 
-        // Determine role based on username
-        if (username === "manager" || username.includes("manager")) {
-          role = "manager";
-          name = "Property Manager";
-          id = 2;
-        } else if (username === "tenant" || username.includes("tenant")) {
-          role = "tenant";
-          name = "John Tenant";
-          id = 3;
-        } else {
-          role = "landlord";
-          name = "Favoudoh LandLord";
-          id = 1;
+        const result = await login({
+          email,
+          password: values.password,
+        });
+
+        if (!result.success) {
+          setError(result.error);
+          setIsLoading(false);
+          return;
         }
 
-        const email = values.username.includes("@") 
-          ? values.username 
-          : `${values.username}@dwella.ng`;
+        // Map API response to User type
+        const apiUser = result.data.data.user;
+        const roleName = apiUser.role?.name || "";
 
-        const mockToken = `mock-auth-token-${role}-${id}`;
+        // Map API role names to our UserRole type
+        let role: UserRole = "landlord";
+        if (roleName === "super_admin" || roleName === "admin") {
+          role = "super_admin";
+        } else if (roleName === "property_manager") {
+          role = "property_manager";
+        } else if (roleName === "tenant") {
+          role = "tenant";
+        } else {
+          role = "landlord";
+        }
 
         const user = {
-          id,
-          name,
-          email,
+          id: apiUser.id,
+          name: apiUser.fullName || apiUser.name || email.split("@")[0],
+          email: apiUser.email,
           role,
-          token: mockToken,
+          token: result.data.data.accessToken,
         };
 
         // Set user in context and localStorage
         setUser(user);
 
-        // Redirect based on role
-        if (role === "manager") {
-          // Managers need to select a landlord first
-          await router.push("/dashboard/select-landlord");
-        } else {
-          // Landlords and tenants go directly to dashboard
-          await router.push("/dashboard");
+        // Reset any stale onboarding data so new logins don't reuse old IDs
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("landlordOnboardingDetails");
+          sessionStorage.removeItem("landlordOnboardingDocumentIds");
+          sessionStorage.removeItem("landlordOnboardingProfilePictureId");
+          sessionStorage.removeItem("landlordOnboardingStarted");
         }
+
+        // Redirect based on role
+        if (role === "property_manager") {
+          // Property managers need to select a landlord first
+          await router.push("/dashboard/select-landlord");
+          return;
+        }
+
+        if (role === "landlord") {
+          // Check if landlord has been onboarded (lookup by user id)
+          const landlordResult = await getLandlordByUser(apiUser.id);
+          if (landlordResult.success) {
+            if (typeof window !== "undefined" && landlordResult.data?.id) {
+              localStorage.setItem("landlordId", landlordResult.data.id);
+            }
+            await router.push("/dashboard");
+            return;
+          }
+
+          if (landlordResult.statusCode === 404) {
+            await router.push("/onboarding/landlord/details");
+            return;
+          }
+
+          setError(landlordResult.error || "Unable to verify landlord onboarding");
+          return;
+        }
+
+        // Super admins and tenants go directly to dashboard
+        await router.push("/dashboard");
       } catch (err) {
-        setError("An error occurred. Please try again.");
+        setError(err instanceof Error ? err.message : "An error occurred. Please try again.");
       } finally {
         setIsLoading(false);
       }

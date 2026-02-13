@@ -12,7 +12,6 @@ import logo from "@/assets/logo.png";
 const loginFormSchema = z.object({
   username: z.string().min(1, "Username is required."),
   password: z.string().min(1, "Password is required."),
-  keepLoggedIn: z.boolean().optional(),
 });
 
 export type LoginFormValues = z.infer<typeof loginFormSchema>;
@@ -38,16 +37,17 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
     defaultValues: {
       username: "",
       password: "",
-      keepLoggedIn: false,
     },
   });
 
-  const keepLoggedIn = watch("keepLoggedIn");
 
   const handleFormSubmit = handleSubmit(async (values) => {
     try {
       setIsSubmitting(true);
-      // Map username to email for API (backend expects email)
+      // Use username as email (backend expects email)
+      const email = values.username.includes("@") 
+        ? values.username 
+        : values.username;
       await onSubmit?.(values);
     } finally {
       setIsSubmitting(false);
@@ -174,20 +174,14 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
           )}
         </fieldset>
 
-        {/* Keep me logged in checkbox */}
-        <div className="flex items-center gap-2">
-          <input
-            id="keepLoggedIn"
-            type="checkbox"
-            className="w-4 h-4 rounded border-gray-300 text-brand-main focus:ring-2 focus:ring-brand-main"
-            {...register("keepLoggedIn")}
-          />
-          <Label.Root
-            htmlFor="keepLoggedIn"
-            className="text-sm text-gray-700 cursor-pointer"
+        {/* Forgot password link */}
+        <div className="flex items-center justify-end">
+          <Link
+            href="/auth/forgot-password"
+            className="text-sm text-brand-main hover:text-brand-main/80 hover:underline font-medium"
           >
-            Keep me logged in
-          </Label.Root>
+            Forgot password?
+          </Link>
         </div>
 
         {/* Log In Button */}

@@ -1,10 +1,11 @@
 import * as React from "react";
 import { motion } from "framer-motion";
-import { X, Upload, Plus } from "lucide-react";
+import { X, Upload, Plus, AlertCircle } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { createTenant } from "@/api/tenants";
 
 const addTenantSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
@@ -42,6 +43,9 @@ export const AddTenantModal = ({
   propertyId,
   unitId,
 }: AddTenantModalProps) => {
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -57,10 +61,38 @@ export const AddTenantModal = ({
   });
 
   const onSubmit = handleSubmit(async (data) => {
-    // TODO: Submit tenant data
-    console.log("Add tenant:", data);
-    reset();
-    onClose();
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      // Generate a temporary password (in production, you might want to send it via email)
+      const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!`;
+
+      // Map form data to API format
+      const tenantData = {
+        email: data.email,
+        password: tempPassword,
+        roleName: "tenant" as const,
+        fullName: data.fullName,
+        phoneNumber: data.phoneNumber,
+      };
+
+      const result = await createTenant(tenantData);
+
+      if (result.success) {
+        // TODO: Associate tenant with property/unit if needed
+        // TODO: Send welcome email if sendWelcomeEmail is true
+        reset();
+        onClose();
+        // Optionally refresh tenant list or show success message
+      } else {
+        setSubmitError(result.error);
+      }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "An error occurred");
+    } finally {
+      setIsSubmitting(false);
+    }
   });
 
   return (
@@ -106,6 +138,18 @@ export const AddTenantModal = ({
 
           {/* Form */}
           <form onSubmit={onSubmit} className="space-y-6">
+            {/* Error Message */}
+            {submitError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-red-900">Error</h3>
+                    <p className="mt-1 text-sm text-red-700">{submitError}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Tenant Information */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase text-gray-700">
@@ -396,10 +440,20 @@ export const AddTenantModal = ({
                 </Dialog.Close>
                 <button
                   type="submit"
-                  className="flex-1 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Plus className="h-4 w-4" />
-                  Add & Send Login Email
+                  {isSubmitting ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      Add & Send Login Email
+                    </>
+                  )}
                 </button>
               </div>
             </div>

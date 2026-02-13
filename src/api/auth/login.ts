@@ -1,60 +1,41 @@
-import { createUrl } from "@/utils/createUrl";
+import { apiPost } from "@/lib/apiClient";
 
-import type { LoginRequestDTO, LoginResponseDTO } from "./auth.schema";
-import { loginResponseSchema } from "./auth.schema";
+import type { LoginRequestDTO, NewLoginResponseDTO } from "./auth.schema";
+import { newLoginResponseSchema } from "./auth.schema";
 
-const LOGIN_ROUTE = "/partners/auth/login";
+const LOGIN_ROUTE = "/auth/login";
 
 type LoginResult = 
-  | { success: true; data: LoginResponseDTO }
+  | { success: true; data: NewLoginResponseDTO }
   | { success: false; error: string };
 
 export const login = async (credentials: LoginRequestDTO): Promise<LoginResult> => {
+  const result = await apiPost<NewLoginResponseDTO>(LOGIN_ROUTE, credentials, {
+    skipAuth: true,
+  });
+
+  if (!result.success) {
+    return result;
+  }
+
+  // Validate response with Zod
   try {
-    const url = createUrl(LOGIN_ROUTE);
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true",
-      },
-      body: JSON.stringify(credentials),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return {
-        success: false,
-        error: errorData.message || `Login failed: ${response.statusText}`,
-      };
+    const parsed = newLoginResponseSchema.parse(result.data);
+    // Store access token and user id in localStorage
+    if (typeof window !== "undefined" && parsed.data.accessToken) {
+      localStorage.setItem("accessToken", parsed.data.accessToken);
+      localStorage.setItem("authToken", parsed.data.accessToken); // Keep for backward compatibility
+      if (parsed.data.user?.id) {
+        localStorage.setItem("userId", parsed.data.user.id);
+      }
     }
-
-    const payload = await response.json();
-    
-    // Wrap Zod parsing in try-catch to handle schema validation errors
-    try {
-      const parsed = loginResponseSchema.parse(payload);
-      return { success: true, data: parsed };
-    } catch (parseError) {
-      console.error("Login schema validation error:", parseError);
-      return {
-        success: false,
-        error: "Invalid response data format received",
-      };
-    }
-  } catch (error) {
-    // Handle network errors, fetch failures, etc.
-    if (error instanceof TypeError && error.message === "Failed to fetch") {
-      return {
-        success: false,
-        error: "Network error: Unable to connect to server",
-      };
-    }
-    
+    return { success: true, data: parsed };
+  } catch (parseError) {
+    console.error("Login schema validation error:", parseError);
+    console.error("Received data:", JSON.stringify(result.data, null, 2));
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An unexpected error occurred",
+      error: "Invalid response data format received",
     };
   }
 };

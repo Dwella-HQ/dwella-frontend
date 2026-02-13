@@ -17,9 +17,9 @@ const SelectLandlordPage: NextPageWithLayout = () => {
   const { user } = useUser();
   const { setSelectedLandlord } = useSelectedLandlord();
 
-  // Redirect if not a manager
+  // Redirect if not a property manager (super_admin can access everything, so skip this page)
   React.useEffect(() => {
-    if (user && user.role !== "manager") {
+    if (user && user.role !== "property_manager") {
       router.replace("/dashboard");
     }
   }, [user, router]);
@@ -41,7 +41,7 @@ const SelectLandlordPage: NextPageWithLayout = () => {
       .slice(0, 2);
   };
 
-  if (!user || user.role !== "manager") {
+  if (!user || (user.role !== "property_manager" && user.role !== "super_admin")) {
     return null;
   }
 
