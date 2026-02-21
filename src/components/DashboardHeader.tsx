@@ -50,7 +50,7 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
       setLandlord(null);
       return;
     }
-    getLandlordByUser(user.id).then((result) => {
+    getLandlordByUser(String(user.id)).then((result) => {
       if (result.success) setLandlord(result.data);
       else setLandlord(null);
     });

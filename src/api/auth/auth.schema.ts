@@ -200,10 +200,10 @@ export const registerResponseSchema = z.object({
 
 export type RegisterResponseDTO = z.infer<typeof registerResponseSchema>;
 
-// Social Login Request
+// Social Login Request (POST /auth/google-login, POST /auth/facebook-login)
 export const socialLoginRequestSchema = z.object({
   token: z.string().min(1, "OAuth token is required"),
-  roleName: z.enum(["tenant", "landlord", "admin", "manager", "property_manager"]),
+  roleName: z.enum(["tenant", "landlord", "admin", "manager", "property_manager", "super_admin"]),
 });
 
 export type SocialLoginRequestDTO = z.infer<typeof socialLoginRequestSchema>;
