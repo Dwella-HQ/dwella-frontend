@@ -21,6 +21,15 @@ export const createLandlordRequestSchema = z.object({
 
 export type CreateLandlordRequestDTO = z.infer<typeof createLandlordRequestSchema>;
 
+// Profile picture / file reference (from get landlord by user response)
+const profilePictureSchema = z.object({
+  id: z.string().uuid(),
+  url: z.string().url(),
+  label: z.string().optional(),
+  fileName: z.string().optional(),
+  mimeType: z.string().optional(),
+}).optional().nullable();
+
 // Landlord Response
 export const landlordSchema = z.object({
   id: z.string().uuid(),
@@ -28,6 +37,7 @@ export const landlordSchema = z.object({
   landLordName: z.string(),
   bvn: z.string().optional(),
   profilePictureId: z.string().uuid().optional(),
+  profilePicture: profilePictureSchema,
   govermentIdDocumentId: z.string().uuid().optional(),
   landSurveyDocumentId: z.string().uuid().optional(),
   proofOfOwnershipDocumentId: z.string().uuid().optional(),

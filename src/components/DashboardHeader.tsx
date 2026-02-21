@@ -24,6 +24,8 @@ import {
 import type { Notification } from "@/api/notifications";
 import { DashboardNavbar } from "@/components/DashboardNavbar";
 import { LandlordSwitchModal } from "@/components/LandlordSwitchModal";
+import { getLandlordByUser } from "@/api/landlord";
+import type { LandlordDTO } from "@/api/landlord";
 import { logout } from "@/utils/auth";
 import { ChevronDown } from "lucide-react";
 import logo from "@/assets/logo.png";
@@ -40,6 +42,19 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
     React.useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [isLandlordSwitchOpen, setIsLandlordSwitchOpen] = React.useState(false);
+  const [landlord, setLandlord] = React.useState<LandlordDTO | null>(null);
+
+  // Fetch landlord when user is landlord (for profile picture in header)
+  React.useEffect(() => {
+    if (!user?.id || user.role !== "landlord") {
+      setLandlord(null);
+      return;
+    }
+    getLandlordByUser(user.id).then((result) => {
+      if (result.success) setLandlord(result.data);
+      else setLandlord(null);
+    });
+  }, [user?.id, user?.role]);
 
   const getInitials = (name: string) => {
     return name
@@ -52,13 +67,18 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
 
   const getRoleDisplayName = (role: string) => {
     switch (role) {
+      case "property_manager":
+        return "Property Manager";
       case "manager":
         return "Manager";
       case "tenant":
         return "Tenant";
+      case "super_admin":
+        return "Admin";
       case "landlord":
+        return "Landlord";
       default:
-        return "LandLord";
+        return "User";
     }
   };
 
@@ -66,8 +86,10 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
   const initials = profile ? getInitials(profileName) : user ? getInitials(user.name) : "FL";
   const displayName = profileName || user?.name || "User";
   const displayEmail = profile?.email || user?.email || "user@dwella.ng";
-  const roleDisplay = user?.role ? getRoleDisplayName(user.role) : "LandLord";
+  const roleDisplay = user?.role ? getRoleDisplayName(user.role) : "User";
   const hasNotifications = profile && (profile.notification_count || 0) > 0;
+  // Prefer landlord profile picture (landlord role), then profile picture from /user/me
+  const avatarUrl = landlord?.profilePicture?.url ?? (profile as { profilePicture?: { url: string } } | null)?.profilePicture?.url;
 
   // Fetch recent notifications when dropdown opens
   const fetchNotifications = React.useCallback(async () => {
@@ -328,8 +350,18 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
                   whileTap={{ scale: 0.98 }}
                   className="flex items-center gap-2 sm:gap-3 rounded-lg px-1.5 sm:px-2 py-1.5 hover:bg-white/10 transition"
                 >
-                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-white/20 border-2 border-white/30 text-white text-xs sm:text-sm font-semibold">
-                    {initials}
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/30 bg-white/20">
+                    {avatarUrl ? (
+                      <Image
+                        src={avatarUrl}
+                        alt=""
+                        width={40}
+                        height={40}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-white text-xs sm:text-sm font-semibold">{initials}</span>
+                    )}
                   </div>
                   <div className="hidden md:block text-left">
                     <p className="text-sm font-medium text-white">

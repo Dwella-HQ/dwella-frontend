@@ -9,6 +9,7 @@ export type LandlordAccount = {
     name: string;
   }[];
   totalUnits: number;
+  /** Profile picture URL (from landlord.profilePicture.url) */
   avatar?: string;
 };
 

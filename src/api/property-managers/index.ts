@@ -1,4 +1,5 @@
 export { getPropertyManagers } from "./getPropertyManagers";
+export { getPropertyManagerByUser } from "./getPropertyManagerByUser";
 export { createPropertyManager, invitePropertyManager } from "./createPropertyManager";
 export type {
   PropertyManagerDTO,

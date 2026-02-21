@@ -1,25 +1,65 @@
 import { z } from "zod";
 
-// Property Manager Schema
+// User nested in property manager response
+const propertyManagerUserSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email().optional(),
+  fullName: z.string().optional().nullable(),
+  phoneNumber: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+  role: z.object({ id: z.string(), name: z.string() }).optional(),
+});
+
+// Profile picture (landlord card avatar)
+const profilePictureRefSchema = z.object({
+  id: z.string().uuid(),
+  url: z.string().url(),
+}).optional().nullable();
+
+// Landlord nested in property manager response (for select-landlord flow)
+export const propertyManagerLandlordSchema = z.object({
+  id: z.string().uuid(),
+  landLordName: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+  profilePicture: profilePictureRefSchema,
+  user: z
+    .object({
+      id: z.string().uuid(),
+      email: z.string().email().optional(),
+      fullName: z.string().optional().nullable(),
+    })
+    .optional()
+    .nullable(),
+});
+export type PropertyManagerLandlordDTO = z.infer<typeof propertyManagerLandlordSchema>;
+
+// Property Manager Schema (matches API: id, user, landlord, permissions, etc.)
 export const propertyManagerSchema = z.object({
   id: z.string().uuid(),
   fullName: z.string().optional(),
   name: z.string().optional(),
-  email: z.string().email().optional(), // Made optional as API may return undefined
+  email: z.string().email().optional(),
   phone: z.string().optional().nullable(),
   userId: z.string().uuid().optional(),
+  user: propertyManagerUserSchema.optional().nullable(),
+  permissions: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
+  landlord: propertyManagerLandlordSchema.optional().nullable(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
 
 export type PropertyManagerDTO = z.infer<typeof propertyManagerSchema>;
 
-// Property Managers Response
-export const propertyManagersResponseSchema = z.object({
-  success: z.boolean().optional(),
-  message: z.string().optional(),
-  data: z.array(propertyManagerSchema),
-});
+// Property Managers Response (API may return array directly or { data: array })
+export const propertyManagersResponseSchema = z.union([
+  z.array(propertyManagerSchema),
+  z.object({
+    success: z.boolean().optional(),
+    message: z.string().optional(),
+    data: z.array(propertyManagerSchema),
+  }),
+]);
 
 export type PropertyManagersResponseDTO = z.infer<typeof propertyManagersResponseSchema>;
 

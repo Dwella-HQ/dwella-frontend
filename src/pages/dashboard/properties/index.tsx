@@ -107,10 +107,10 @@ const PropertiesPage: NextPageWithLayout = () => {
         return a.name.localeCompare(b.name);
       } else if (sortBy === "name-desc") {
         return b.name.localeCompare(a.name);
-      } else if (sortBy === "occupancy-high") {
-        return b.occupancy - a.occupancy;
-      } else if (sortBy === "occupancy-low") {
-        return a.occupancy - b.occupancy;
+      } else if (sortBy === "rent-high") {
+        return (b.monthlyRent ?? 0) - (a.monthlyRent ?? 0);
+      } else if (sortBy === "rent-low") {
+        return (a.monthlyRent ?? 0) - (b.monthlyRent ?? 0);
       } else if (sortBy === "occupancy-high") {
         return b.occupancy - a.occupancy;
       } else if (sortBy === "occupancy-low") {
@@ -211,9 +211,11 @@ const PropertiesPage: NextPageWithLayout = () => {
                       ].map((option) => {
                         const isSelected = sortBy === option.value;
                         return (
-                          <label
+                          <button
                             key={option.value}
-                            className={`flex items-center justify-between cursor-pointer rounded-md px-3 py-2 transition ${
+                            type="button"
+                            onClick={() => setSortBy(option.value)}
+                            className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
                               isSelected
                                 ? "bg-blue-50"
                                 : "hover:bg-gray-50"
@@ -223,7 +225,7 @@ const PropertiesPage: NextPageWithLayout = () => {
                             {isSelected && (
                               <Check className="h-4 w-4 text-brand-main" />
                             )}
-                          </label>
+                          </button>
                         );
                       })}
                     </div>
@@ -233,9 +235,9 @@ const PropertiesPage: NextPageWithLayout = () => {
                   <div>
                     <div className="mb-3 flex items-center gap-2">
                       <Check className="h-4 w-4 text-gray-600" />
-                      <label className="text-xs font-semibold uppercase text-gray-700">
+                      <span className="text-xs font-semibold uppercase text-gray-700">
                         Status
-                      </label>
+                      </span>
                     </div>
                     <div className="space-y-1">
                       {[
@@ -245,9 +247,11 @@ const PropertiesPage: NextPageWithLayout = () => {
                       ].map((option) => {
                         const isSelected = statusFilter === option.value;
                         return (
-                          <label
+                          <button
                             key={option.value}
-                            className={`flex items-center justify-between cursor-pointer rounded-md px-3 py-2 transition ${
+                            type="button"
+                            onClick={() => setStatusFilter(option.value)}
+                            className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
                               isSelected
                                 ? "bg-blue-50"
                                 : "hover:bg-gray-50"
@@ -257,7 +261,7 @@ const PropertiesPage: NextPageWithLayout = () => {
                             {isSelected && (
                               <Check className="h-4 w-4 text-brand-main" />
                             )}
-                          </label>
+                          </button>
                         );
                       })}
                     </div>
@@ -267,9 +271,9 @@ const PropertiesPage: NextPageWithLayout = () => {
                   <div>
                     <div className="mb-3 flex items-center gap-2">
                       <Users className="h-4 w-4 text-gray-600" />
-                      <label className="text-xs font-semibold uppercase text-gray-700">
+                      <span className="text-xs font-semibold uppercase text-gray-700">
                         Occupancy Rate
-                      </label>
+                      </span>
                     </div>
                     <div className="space-y-1">
                       {[
@@ -280,9 +284,11 @@ const PropertiesPage: NextPageWithLayout = () => {
                       ].map((option) => {
                         const isSelected = occupancyFilter === option.value;
                         return (
-                          <label
+                          <button
                             key={option.value}
-                            className={`flex items-center justify-between cursor-pointer rounded-md px-3 py-2 transition ${
+                            type="button"
+                            onClick={() => setOccupancyFilter(option.value)}
+                            className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
                               isSelected
                                 ? "bg-blue-50"
                                 : "hover:bg-gray-50"
@@ -292,7 +298,7 @@ const PropertiesPage: NextPageWithLayout = () => {
                             {isSelected && (
                               <Check className="h-4 w-4 text-brand-main" />
                             )}
-                          </label>
+                          </button>
                         );
                       })}
                     </div>
@@ -365,14 +371,26 @@ const PropertiesPage: NextPageWithLayout = () => {
               type="button"
               onClick={() => {
                 setActiveFilter(filter.value as FilterStatus);
-                if (filter.value === "all") {
-                  setStatusFilter("all");
-                } else if (filter.value === "active") {
-                  setStatusFilter("active");
-                } else if (filter.value === "pending") {
-                  setStatusFilter("pending");
-                } else if (filter.value === "occupied") {
-                  setOccupancyFilter("high");
+                switch (filter.value) {
+                  case "all":
+                    setStatusFilter("all");
+                    setOccupancyFilter("all");
+                    break;
+                  case "active":
+                  case "inactive":
+                  case "pending":
+                    setStatusFilter(filter.value);
+                    setOccupancyFilter("all");
+                    break;
+                  case "occupied":
+                    setStatusFilter("all");
+                    setOccupancyFilter("high");
+                    break;
+                  case "commercial":
+                  case "residential":
+                    setStatusFilter("all");
+                    setOccupancyFilter("all");
+                    break;
                 }
               }}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${

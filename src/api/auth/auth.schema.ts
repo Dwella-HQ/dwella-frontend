@@ -109,6 +109,7 @@ export const profileDataSchema = z.object({
   device_token: z.string().nullable().optional(),
   isSuspended: z.number().optional(),
   notification_count: z.number().optional(),
+  profilePicture: z.object({ id: z.string(), url: z.string().url() }).optional().nullable(),
   account_mode: z.preprocess(
     (val) => {
       // Handle null, undefined, or convert to string

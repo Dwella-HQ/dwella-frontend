@@ -1,10 +1,29 @@
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, X } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight, X, Building2 } from "lucide-react";
 
+import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
-import { mockLandlordAccounts, type LandlordAccount } from "@/data/mockLandlordAccounts";
+import type { LandlordAccount } from "@/data/mockLandlordAccounts";
+import { getPropertyManagerByUser } from "@/api/property-managers";
+import type { PropertyManagerDTO } from "@/api/property-managers";
+
+function mapManagerToLandlordAccount(manager: PropertyManagerDTO): LandlordAccount | null {
+  const landlord = manager.landlord;
+  if (!landlord?.id) return null;
+  const name = landlord.landLordName ?? landlord.user?.fullName ?? "Landlord";
+  const email = landlord.user?.email ?? "";
+  return {
+    id: landlord.id,
+    name,
+    email,
+    properties: [],
+    totalUnits: 0,
+    avatar: landlord.profilePicture?.url,
+  };
+}
 
 export type LandlordSwitchModalProps = {
   isOpen: boolean;
@@ -15,13 +34,43 @@ export const LandlordSwitchModal = ({
   isOpen,
   onClose,
 }: LandlordSwitchModalProps) => {
+  const { user } = useUser();
   const { selectedLandlord, setSelectedLandlord } = useSelectedLandlord();
+  const [landlordAccounts, setLandlordAccounts] = React.useState<LandlordAccount[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isOpen || !user?.id || user.role !== "property_manager") {
+      setLandlordAccounts([]);
+      setError(null);
+      return;
+    }
+    const fetchManagers = async () => {
+      setIsLoading(true);
+      setError(null);
+      const result = await getPropertyManagerByUser(user.id);
+      if (result.success) {
+        const accounts = result.data
+          .map(mapManagerToLandlordAccount)
+          .filter((a): a is LandlordAccount => a !== null);
+        setLandlordAccounts(accounts);
+      } else {
+        setError(result.error ?? "Failed to load landlord accounts");
+        setLandlordAccounts([]);
+      }
+      setIsLoading(false);
+    };
+    fetchManagers();
+  }, [isOpen, user?.id, user?.role]);
 
   const handleSelectLandlord = React.useCallback(
     (landlord: LandlordAccount) => {
       setSelectedLandlord(landlord);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("landlordId", landlord.id);
+      }
       onClose();
-      // Reload the page to update all data
       if (typeof window !== "undefined") {
         window.location.reload();
       }
@@ -66,7 +115,7 @@ export const LandlordSwitchModal = ({
                     Select Landlord Account
                   </Dialog.Title>
                   <p className="text-sm text-gray-600 mt-1">
-                    Choose which landlord's properties you want to manage
+                    Choose which landlord&apos;s properties you want to manage
                   </p>
                 </div>
                 <Dialog.Close asChild>
@@ -81,8 +130,28 @@ export const LandlordSwitchModal = ({
 
               {/* Landlord Cards */}
               <div className="p-6">
+                {isLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="text-center">
+                      <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-brand-main border-r-transparent" />
+                      <p className="mt-3 text-sm text-gray-600">Loading landlord accounts...</p>
+                    </div>
+                  </div>
+                ) : error ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                ) : landlordAccounts.length === 0 ? (
+                  <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+                    <Building2 className="mx-auto h-12 w-12 text-gray-400" />
+                    <p className="mt-3 text-sm font-medium text-gray-900">No landlord accounts</p>
+                    <p className="mt-1 text-sm text-gray-600">
+                      You are not assigned to any landlord yet.
+                    </p>
+                  </div>
+                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {mockLandlordAccounts.map((landlord, index) => {
+                  {landlordAccounts.map((landlord, index) => {
                     const isSelected = selectedLandlord?.id === landlord.id;
                     return (
                       <motion.div
@@ -99,12 +168,24 @@ export const LandlordSwitchModal = ({
                       >
                         {/* Avatar */}
                         <div className="flex items-center gap-4 mb-6">
-                          <div
-                            className={`h-16 w-16 rounded-full flex items-center justify-center text-white text-xl font-semibold ${
-                              isSelected ? "bg-brand-main" : "bg-gray-400"
-                            }`}
-                          >
-                            {getInitials(landlord.name)}
+                          <div className="h-12 w-12 min-h-12 min-w-12 flex-shrink-0 aspect-square rounded-full overflow-hidden bg-gray-200">
+                            {landlord.avatar ? (
+                              <Image
+                                src={landlord.avatar}
+                                alt=""
+                                width={48}
+                                height={48}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className={`h-full w-full flex items-center justify-center text-white text-base font-semibold ${
+                                  isSelected ? "bg-brand-main" : "bg-gray-400"
+                                }`}
+                              >
+                                {getInitials(landlord.name)}
+                              </div>
+                            )}
                           </div>
                           <div>
                             <h3 className="text-lg font-semibold text-gray-900">
@@ -121,17 +202,21 @@ export const LandlordSwitchModal = ({
                               {landlord.properties.length}{" "}
                               {landlord.properties.length === 1 ? "Property" : "Properties"}
                             </span>
-                            <span className="text-sm font-medium text-gray-900">
-                              {landlord.totalUnits} Units
-                            </span>
+                            {landlord.totalUnits > 0 && (
+                              <span className="text-sm font-medium text-gray-900">
+                                {landlord.totalUnits} Units
+                              </span>
+                            )}
                           </div>
-                          <div className="space-y-1">
-                            {landlord.properties.map((property) => (
-                              <div key={property.id} className="text-sm text-gray-700">
-                                • {property.name}
-                              </div>
-                            ))}
-                          </div>
+                          {landlord.properties.length > 0 && (
+                            <div className="space-y-1">
+                              {landlord.properties.map((property) => (
+                                <div key={property.id} className="text-sm text-gray-700">
+                                  • {property.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {/* Continue Button */}
@@ -150,6 +235,7 @@ export const LandlordSwitchModal = ({
                     );
                   })}
                 </div>
+                )}
               </div>
           </motion.div>
         </Dialog.Content>

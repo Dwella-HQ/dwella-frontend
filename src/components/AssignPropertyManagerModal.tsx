@@ -45,13 +45,18 @@ export const AssignPropertyManagerModal = ({
     }
   }, [isOpen, showToast]);
 
+  const displayName = (manager: PropertyManagerDTO) =>
+    manager.user?.fullName ?? manager.fullName ?? manager.name ?? "Unknown";
+  const displayEmail = (manager: PropertyManagerDTO) =>
+    manager.user?.email ?? manager.email ?? "";
+
   const filteredManagers = React.useMemo(() => {
     if (!searchQuery) return managers;
     const query = searchQuery.toLowerCase();
     return managers.filter(
       (manager) =>
-        (manager.fullName || manager.name || "").toLowerCase().includes(query) ||
-        (manager.email || "").toLowerCase().includes(query)
+        displayName(manager).toLowerCase().includes(query) ||
+        (displayEmail(manager) || "").toLowerCase().includes(query)
     );
   }, [searchQuery, managers]);
 
@@ -146,10 +151,10 @@ export const AssignPropertyManagerModal = ({
                     />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
-                        {manager.fullName || manager.name || "Unknown"}
+                        {displayName(manager)}
                       </p>
-                      {manager.email && (
-                        <p className="text-xs text-gray-500">{manager.email}</p>
+                      {displayEmail(manager) && (
+                        <p className="text-xs text-gray-500">{displayEmail(manager)}</p>
                       )}
                     </div>
                   </label>
