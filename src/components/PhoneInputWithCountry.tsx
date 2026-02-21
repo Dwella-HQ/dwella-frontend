@@ -41,7 +41,7 @@ export const PhoneInputWithCountry = React.forwardRef<
       international
       defaultCountry="NG"
       value={value}
-      onChange={onChange}
+      onChange={onChange ?? (() => {})}
       placeholder={placeholder}
       disabled={disabled}
       className={`PhoneInput--tailwind flex h-11 items-center rounded-lg border border-gray-300 bg-white overflow-hidden ${className ?? ""}`}

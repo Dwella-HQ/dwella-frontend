@@ -49,7 +49,7 @@ export const LandlordSwitchModal = ({
     const fetchManagers = async () => {
       setIsLoading(true);
       setError(null);
-      const result = await getPropertyManagerByUser(user.id);
+      const result = await getPropertyManagerByUser(String(user.id));
       if (result.success) {
         const accounts = result.data
           .map(mapManagerToLandlordAccount)
