@@ -166,20 +166,29 @@ const SettingsPage: NextPageWithLayout = () => {
                   Profile Information
                 </h2>
 
-                {/* Avatar Upload */}
-                <div className="flex items-center gap-4">
-                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-brand-main text-2xl font-semibold text-white overflow-hidden">
-                    {profilePicture ? (
-                      <Image
-                        src={profilePicture}
-                        alt={profileName}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      initials
-                    )}
+                {isLoadingLandlord ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
+                      <p className="mt-4 text-sm text-gray-600">Loading profile...</p>
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    {/* Avatar Upload */}
+                    <div className="flex items-center gap-4">
+                      <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-brand-main text-2xl font-semibold text-white overflow-hidden">
+                        {profilePicture ? (
+                          <Image
+                            src={profilePicture}
+                            alt={profileName}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          initials
+                        )}
+                      </div>
                   <div>
                     <button
                       type="button"
@@ -292,6 +301,8 @@ const SettingsPage: NextPageWithLayout = () => {
                 >
                   Save Changes
                 </motion.button>
+                  </>
+                )}
               </div>
             )}
 

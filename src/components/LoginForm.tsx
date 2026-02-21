@@ -10,7 +10,7 @@ import { motion } from "framer-motion";
 import logo from "@/assets/logo.png";
 
 const loginFormSchema = z.object({
-  username: z.string().min(1, "Username is required."),
+  email: z.string().min(1, "Email is required.").email("Please enter a valid email address."),
   password: z.string().min(1, "Password is required."),
 });
 
@@ -31,11 +31,10 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
     },
   });
@@ -44,10 +43,6 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
   const handleFormSubmit = handleSubmit(async (values) => {
     try {
       setIsSubmitting(true);
-      // Use username as email (backend expects email)
-      const email = values.username.includes("@") 
-        ? values.username 
-        : values.username;
       await onSubmit?.(values);
     } finally {
       setIsSubmitting(false);
@@ -106,28 +101,28 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
           </div>
         )}
 
-        {/* Username Field */}
+        {/* Email Field */}
         <fieldset className="flex flex-col gap-2">
           <Label.Root
             className="text-sm font-medium text-gray-700"
-            htmlFor="username"
+            htmlFor="email"
           >
-            Username
+            Email
           </Label.Root>
           <input
-            id="username"
-            type="text"
-            autoComplete="username"
-            placeholder="Placeholder"
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="e.g. you@example.com"
             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
             aria-required="true"
-            aria-invalid={!!errors.username}
-            aria-describedby={errors.username ? "username-error" : undefined}
-            {...register("username")}
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? "email-error" : undefined}
+            {...register("email")}
           />
-          {errors.username && (
-            <p id="username-error" className="text-xs text-red-600" role="alert">
-              {errors.username.message}
+          {errors.email && (
+            <p id="email-error" className="text-xs text-red-600" role="alert">
+              {errors.email.message}
             </p>
           )}
         </fieldset>

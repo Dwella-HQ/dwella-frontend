@@ -20,8 +20,17 @@ export const createProperty = async (
   try {
     const parsed = createPropertyResponseSchema.parse(result.data);
     // Handle both direct property object and object with data property
-    const property = parsed.data || (parsed as unknown as PropertyDTO);
-    return { success: true, data: property as PropertyDTO };
+    const propertyData = parsed.data || (parsed as unknown as PropertyDTO);
+    
+    // Ensure photos and documents arrays are properly set
+    const property: PropertyDTO = {
+      ...propertyData,
+      photos: Array.isArray(propertyData.photos) ? propertyData.photos : [],
+      documents: Array.isArray(propertyData.documents) ? propertyData.documents : [],
+      units: Array.isArray(propertyData.units) ? propertyData.units : [],
+    } as PropertyDTO;
+    
+    return { success: true, data: property };
   } catch (parseError) {
     console.error("Create property schema validation error:", parseError);
     console.error("Received data:", result.data);

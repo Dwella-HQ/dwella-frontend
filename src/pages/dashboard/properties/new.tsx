@@ -43,7 +43,6 @@ import type { NextPageWithLayout } from "../../_app";
 const basicDetailsSchema = z.object({
   propertyName: z.string().min(1, "Property name is required"),
   yearBuilt: z.string().length(4, "Year must be exactly 4 characters (e.g., 2024)"),
-  totalUnits: z.string().min(1, "Total units is required"),
   parkingSpace: z.string().min(1, "Parking space is required"),
   description: z.string().optional(),
   address: z.string().min(1, "Address is required"),
@@ -139,6 +138,17 @@ const AddPropertyPage: NextPageWithLayout = () => {
   const [uploadedDocuments, setUploadedDocuments] = React.useState<{ file: File; name: string; size: string; fileId?: string; isUploading?: boolean; uploadError?: string }[]>([]);
   const [photoUploadProgress, setPhotoUploadProgress] = React.useState<Record<number, number>>({});
   const [documentUploadProgress, setDocumentUploadProgress] = React.useState<Record<number, number>>({});
+  
+  // Document types state
+  const [landSurveyDoc, setLandSurveyDoc] = React.useState<{ file: File; name: string; size: string; fileId?: string; isUploading?: boolean; uploadError?: string } | null>(null);
+  const [proofOfOwnershipDoc, setProofOfOwnershipDoc] = React.useState<{ file: File; name: string; size: string; fileId?: string; isUploading?: boolean; uploadError?: string } | null>(null);
+  const [powerOfAttorneyDoc, setPowerOfAttorneyDoc] = React.useState<{ file: File; name: string; size: string; fileId?: string; isUploading?: boolean; uploadError?: string } | null>(null);
+  const [otherDoc, setOtherDoc] = React.useState<{ file: File; name: string; size: string; fileId?: string; isUploading?: boolean; uploadError?: string } | null>(null);
+  
+  const [landSurveyProgress, setLandSurveyProgress] = React.useState(0);
+  const [proofOfOwnershipProgress, setProofOfOwnershipProgress] = React.useState(0);
+  const [powerOfAttorneyProgress, setPowerOfAttorneyProgress] = React.useState(0);
+  const [otherDocProgress, setOtherDocProgress] = React.useState(0);
   const [units, setUnits] = React.useState<Unit[]>([]);
   const [isAddUnitModalOpen, setIsAddUnitModalOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -345,6 +355,103 @@ const AddPropertyPage: NextPageWithLayout = () => {
     });
   };
 
+  const handleDocumentTypeUpload = async (
+    file: File,
+    type: "landSurvey" | "proofOfOwnership" | "powerOfAttorney" | "other"
+  ) => {
+    const sizeKB = (file.size / 1024).toFixed(2);
+    const newDoc = {
+      file,
+      name: file.name,
+      size: `${sizeKB} KB`,
+      isUploading: true,
+      uploadError: undefined,
+    };
+
+    // Set the document state based on type
+    const setterMap = {
+      landSurvey: setLandSurveyDoc,
+      proofOfOwnership: setProofOfOwnershipDoc,
+      powerOfAttorney: setPowerOfAttorneyDoc,
+      other: setOtherDoc,
+    };
+    const progressSetterMap = {
+      landSurvey: setLandSurveyProgress,
+      proofOfOwnership: setProofOfOwnershipProgress,
+      powerOfAttorney: setPowerOfAttorneyProgress,
+      other: setOtherDocProgress,
+    };
+
+    setterMap[type](newDoc);
+    progressSetterMap[type](0);
+
+    // Upload immediately
+    uploadFile({
+      file,
+      folder: "property",
+      label: `property_${type}`,
+      onProgress: (percent) => progressSetterMap[type](percent),
+    }).then((result) => {
+      setterMap[type]((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          isUploading: false,
+          fileId: result.success ? result.data.id : undefined,
+          uploadError: result.success ? undefined : result.error,
+        };
+      });
+
+      if (!result.success) {
+        showToast(
+          result.error || `Failed to upload ${file.name}`,
+          "error"
+        );
+      }
+    });
+  };
+
+  const removeDocumentType = async (
+    type: "landSurvey" | "proofOfOwnership" | "powerOfAttorney" | "other"
+  ) => {
+    const getterMap = {
+      landSurvey: () => landSurveyDoc,
+      proofOfOwnership: () => proofOfOwnershipDoc,
+      powerOfAttorney: () => powerOfAttorneyDoc,
+      other: () => otherDoc,
+    };
+    const setterMap = {
+      landSurvey: setLandSurveyDoc,
+      proofOfOwnership: setProofOfOwnershipDoc,
+      powerOfAttorney: setPowerOfAttorneyDoc,
+      other: setOtherDoc,
+    };
+
+    const doc = getterMap[type]();
+
+    // If document has been uploaded, delete it from server
+    if (doc?.fileId) {
+      const deleteResult = await deleteFile(doc.fileId);
+      if (!deleteResult.success) {
+        showToast(
+          deleteResult.error || "Failed to delete document from server",
+          "error"
+        );
+        return;
+      }
+    }
+
+    // Remove from local state
+    setterMap[type](null);
+    const progressSetterMap = {
+      landSurvey: setLandSurveyProgress,
+      proofOfOwnership: setProofOfOwnershipProgress,
+      powerOfAttorney: setPowerOfAttorneyProgress,
+      other: setOtherDocProgress,
+    };
+    progressSetterMap[type](0);
+  };
+
   const formatFileSize = (sizeKB: string) => {
     const size = parseFloat(sizeKB);
     if (size >= 1024) {
@@ -421,23 +528,94 @@ const AddPropertyPage: NextPageWithLayout = () => {
         }
       }
 
-      // Collect document IDs (already uploaded)
+      // Collect document IDs (already uploaded) from individual document types
       const documentIds: string[] = [];
-      for (const doc of uploadedDocuments) {
-        if (doc.fileId) {
-          documentIds.push(doc.fileId);
-        } else if (doc.uploadError) {
-          const message = `Document "${doc.name}" failed to upload: ${doc.uploadError}`;
-          setSubmitError(message);
-          showToast(message, "error");
+      
+      // Check Land Survey Document
+      if (!landSurveyDoc) {
+        setSubmitError("Land Survey Document is required");
+        showToast("Land Survey Document is required", "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (landSurveyDoc.uploadError) {
+        setSubmitError(`Land Survey Document failed to upload: ${landSurveyDoc.uploadError}`);
+        showToast(`Land Survey Document failed to upload: ${landSurveyDoc.uploadError}`, "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (landSurveyDoc.isUploading) {
+        setSubmitError("Please wait for Land Survey Document to finish uploading");
+        showToast("Please wait for Land Survey Document to finish uploading", "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (landSurveyDoc.fileId) {
+        documentIds.push(landSurveyDoc.fileId);
+      }
+      
+      // Check Proof of Ownership
+      if (!proofOfOwnershipDoc) {
+        setSubmitError("Proof of Ownership is required");
+        showToast("Proof of Ownership is required", "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (proofOfOwnershipDoc.uploadError) {
+        setSubmitError(`Proof of Ownership failed to upload: ${proofOfOwnershipDoc.uploadError}`);
+        showToast(`Proof of Ownership failed to upload: ${proofOfOwnershipDoc.uploadError}`, "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (proofOfOwnershipDoc.isUploading) {
+        setSubmitError("Please wait for Proof of Ownership to finish uploading");
+        showToast("Please wait for Proof of Ownership to finish uploading", "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (proofOfOwnershipDoc.fileId) {
+        documentIds.push(proofOfOwnershipDoc.fileId);
+      }
+      
+      // Check Power of Attorney
+      if (!powerOfAttorneyDoc) {
+        setSubmitError("Power of Attorney is required");
+        showToast("Power of Attorney is required", "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (powerOfAttorneyDoc.uploadError) {
+        setSubmitError(`Power of Attorney failed to upload: ${powerOfAttorneyDoc.uploadError}`);
+        showToast(`Power of Attorney failed to upload: ${powerOfAttorneyDoc.uploadError}`, "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (powerOfAttorneyDoc.isUploading) {
+        setSubmitError("Please wait for Power of Attorney to finish uploading");
+        showToast("Please wait for Power of Attorney to finish uploading", "error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (powerOfAttorneyDoc.fileId) {
+        documentIds.push(powerOfAttorneyDoc.fileId);
+      }
+      
+      // Check Other Document (optional)
+      if (otherDoc) {
+        if (otherDoc.uploadError) {
+          setSubmitError(`Other Document failed to upload: ${otherDoc.uploadError}`);
+          showToast(`Other Document failed to upload: ${otherDoc.uploadError}`, "error");
           setIsSubmitting(false);
           return;
-        } else if (doc.isUploading) {
-          const message = "Please wait for all documents to finish uploading";
-          setSubmitError(message);
-          showToast(message, "error");
+        }
+        if (otherDoc.isUploading) {
+          setSubmitError("Please wait for Other Document to finish uploading");
+          showToast("Please wait for Other Document to finish uploading", "error");
           setIsSubmitting(false);
           return;
+        }
+        if (otherDoc.fileId) {
+          documentIds.push(otherDoc.fileId);
         }
       }
 
@@ -446,7 +624,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
         landlordId,
         name: formData.propertyName,
         yearBuilt: formData.yearBuilt || undefined,
-        numberOfUnits: parseInt(formData.totalUnits),
+        numberOfUnits: Math.max(1, units.length), // At least 1 unit (will be updated when units are added)
         description: formData.description || undefined,
         parkingSpace: formData.parkingSpace === "yes",
         photoIds: photoIds.length > 0 ? photoIds : undefined,
@@ -651,20 +829,6 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         />
                         {errors.yearBuilt && (
                           <p className="mt-1 text-xs text-red-600">{errors.yearBuilt.message}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Number of Units
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="Placeholder"
-                          {...register("totalUnits")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        />
-                        {errors.totalUnits && (
-                          <p className="mt-1 text-xs text-red-600">{errors.totalUnits.message}</p>
                         )}
                       </div>
                       <div>
@@ -916,82 +1080,211 @@ const AddPropertyPage: NextPageWithLayout = () => {
                     Upload important property documents (deed, registration, permits, etc.)
                   </p>
 
-                  {uploadedDocuments.length > 0 && (
-                    <div className="mb-6 space-y-3">
-                      {uploadedDocuments.map((doc, index) => (
-                        <div
-                          key={index}
-                          className={`flex items-center justify-between rounded-lg border p-4 ${
-                            doc.uploadError
-                              ? "border-red-300 bg-red-50"
-                              : doc.fileId
-                              ? "border-green-300 bg-green-50"
-                              : "border-gray-200 bg-white"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <FileText className={`h-5 w-5 ${
-                              doc.uploadError ? "text-red-400" : doc.fileId ? "text-green-400" : "text-gray-400"
-                            }`} />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-900">{doc.name}</p>
-                              <p className="text-xs text-gray-500">{formatFileSize(doc.size)}</p>
-                              {doc.isUploading && documentUploadProgress[index] !== undefined && (
-                                <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-                                  <span>Uploading...</span>
-                                  <div className="h-1.5 w-28 rounded-full bg-gray-200">
-                                    <div
-                                      className="h-1.5 rounded-full bg-brand-main"
-                                      style={{ width: `${documentUploadProgress[index]}%` }}
-                                    />
-                                  </div>
-                                  <span>{documentUploadProgress[index]}%</span>
-                                </div>
-                              )}
-                              {doc.uploadError && (
-                                <p className="mt-1 text-xs text-red-600">{doc.uploadError}</p>
-                              )}
-                              {doc.fileId && !doc.isUploading && !doc.uploadError && (
-                                <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
-                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  Uploaded
-                                </p>
-                              )}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {/* Land Survey Document */}
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <h4 className="mb-1 text-sm font-medium text-gray-900">Land Survey Document</h4>
+                      <p className="mb-3 text-xs text-gray-500">Property map, title deed, or official record</p>
+                      {landSurveyDoc ? (
+                        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                          <span className="flex-1 truncate text-sm text-gray-900">{landSurveyDoc.name}</span>
+                          {landSurveyDoc.isUploading && (
+                            <div className="ml-2 flex items-center gap-2 text-xs text-gray-500">
+                              <div className="h-1.5 w-20 rounded-full bg-gray-200">
+                                <div
+                                  className="h-1.5 rounded-full bg-brand-main"
+                                  style={{ width: `${landSurveyProgress}%` }}
+                                />
+                              </div>
+                              <span>{landSurveyProgress}%</span>
                             </div>
-                          </div>
+                          )}
+                          {landSurveyDoc.fileId && !landSurveyDoc.isUploading && !landSurveyDoc.uploadError && (
+                            <span className="ml-2 text-xs text-green-600">Uploaded</span>
+                          )}
+                          {landSurveyDoc.uploadError && (
+                            <span className="ml-2 text-xs text-red-600">Failed</span>
+                          )}
                           <button
                             type="button"
-                            onClick={() => removeDocument(index)}
-                            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600 transition"
+                            onClick={() => removeDocumentType("landSurvey")}
+                            className="ml-2 rounded-full bg-red-500 p-1 text-white hover:bg-red-600"
                           >
-                            <X className="h-5 w-5" />
+                            <X className="h-3 w-3" />
                           </button>
                         </div>
-                      ))}
+                      ) : (
+                        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
+                          <Upload className="h-4 w-4" />
+                          Choose File
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleDocumentTypeUpload(file, "landSurvey");
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
                     </div>
-                  )}
 
-                  <label className="flex h-48 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 transition hover:border-gray-400 hover:bg-gray-100">
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.png"
-                      multiple
-                      onChange={handleDocumentUpload}
-                      className="hidden"
-                    />
-                    <Upload className="mb-2 h-8 w-8 text-gray-400" />
-                    <p className="text-sm text-gray-600">Click to upload documents</p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      PDF, DOC, DOCX, JPG, PNG up to 10MB Multiple files allowed
-                    </p>
-                    {uploadedDocuments.length > 0 && (
-                      <p className="mt-2 text-sm font-medium text-brand-main">
-                        {uploadedDocuments.length} documents uploaded
-                      </p>
-                    )}
-                  </label>
+                    {/* Proof of Ownership */}
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <h4 className="mb-1 text-sm font-medium text-gray-900">Proof of Ownership</h4>
+                      <p className="mb-3 text-xs text-gray-500">Document, receipt of purchase, or transfer agreement</p>
+                      {proofOfOwnershipDoc ? (
+                        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                          <span className="flex-1 truncate text-sm text-gray-900">{proofOfOwnershipDoc.name}</span>
+                          {proofOfOwnershipDoc.isUploading && (
+                            <div className="ml-2 flex items-center gap-2 text-xs text-gray-500">
+                              <div className="h-1.5 w-20 rounded-full bg-gray-200">
+                                <div
+                                  className="h-1.5 rounded-full bg-brand-main"
+                                  style={{ width: `${proofOfOwnershipProgress}%` }}
+                                />
+                              </div>
+                              <span>{proofOfOwnershipProgress}%</span>
+                            </div>
+                          )}
+                          {proofOfOwnershipDoc.fileId && !proofOfOwnershipDoc.isUploading && !proofOfOwnershipDoc.uploadError && (
+                            <span className="ml-2 text-xs text-green-600">Uploaded</span>
+                          )}
+                          {proofOfOwnershipDoc.uploadError && (
+                            <span className="ml-2 text-xs text-red-600">Failed</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeDocumentType("proofOfOwnership")}
+                            className="ml-2 rounded-full bg-red-500 p-1 text-white hover:bg-red-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
+                          <Upload className="h-4 w-4" />
+                          Choose File
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleDocumentTypeUpload(file, "proofOfOwnership");
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* Power of Attorney */}
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <h4 className="mb-1 text-sm font-medium text-gray-900">Power of attorney</h4>
+                      <p className="mb-3 text-xs text-gray-500">Property map, title deed, or official record</p>
+                      {powerOfAttorneyDoc ? (
+                        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                          <span className="flex-1 truncate text-sm text-gray-900">{powerOfAttorneyDoc.name}</span>
+                          {powerOfAttorneyDoc.isUploading && (
+                            <div className="ml-2 flex items-center gap-2 text-xs text-gray-500">
+                              <div className="h-1.5 w-20 rounded-full bg-gray-200">
+                                <div
+                                  className="h-1.5 rounded-full bg-brand-main"
+                                  style={{ width: `${powerOfAttorneyProgress}%` }}
+                                />
+                              </div>
+                              <span>{powerOfAttorneyProgress}%</span>
+                            </div>
+                          )}
+                          {powerOfAttorneyDoc.fileId && !powerOfAttorneyDoc.isUploading && !powerOfAttorneyDoc.uploadError && (
+                            <span className="ml-2 text-xs text-green-600">Uploaded</span>
+                          )}
+                          {powerOfAttorneyDoc.uploadError && (
+                            <span className="ml-2 text-xs text-red-600">Failed</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeDocumentType("powerOfAttorney")}
+                            className="ml-2 rounded-full bg-red-500 p-1 text-white hover:bg-red-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
+                          <Upload className="h-4 w-4" />
+                          Choose File
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleDocumentTypeUpload(file, "powerOfAttorney");
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* Other Document */}
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <h4 className="mb-1 text-sm font-medium text-gray-900">Other Document</h4>
+                      <p className="mb-3 text-xs text-gray-500">Document, receipt of purchase, or transfer agreement (Optional)</p>
+                      {otherDoc ? (
+                        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                          <span className="flex-1 truncate text-sm text-gray-900">{otherDoc.name}</span>
+                          {otherDoc.isUploading && (
+                            <div className="ml-2 flex items-center gap-2 text-xs text-gray-500">
+                              <div className="h-1.5 w-20 rounded-full bg-gray-200">
+                                <div
+                                  className="h-1.5 rounded-full bg-brand-main"
+                                  style={{ width: `${otherDocProgress}%` }}
+                                />
+                              </div>
+                              <span>{otherDocProgress}%</span>
+                            </div>
+                          )}
+                          {otherDoc.fileId && !otherDoc.isUploading && !otherDoc.uploadError && (
+                            <span className="ml-2 text-xs text-green-600">Uploaded</span>
+                          )}
+                          {otherDoc.uploadError && (
+                            <span className="ml-2 text-xs text-red-600">Failed</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeDocumentType("other")}
+                            className="ml-2 rounded-full bg-red-500 p-1 text-white hover:bg-red-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
+                          <Upload className="h-4 w-4" />
+                          Choose File
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleDocumentTypeUpload(file, "other");
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}

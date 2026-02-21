@@ -67,6 +67,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingUnits, setIsLoadingUnits] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = React.useState(0);
 
   // Fetch property from API
   React.useEffect(() => {
@@ -234,29 +235,67 @@ const PropertyDetailPage: NextPageWithLayout = () => {
           <div className="lg:col-span-2 flex">
             <div className="flex flex-col lg:flex-row gap-4 w-full">
               {/* Main Image */}
-              <div className="relative w-full lg:flex-1 h-[400px] lg:h-[500px] overflow-hidden rounded-lg bg-gray-200">
-                <Image
-                  src={property.image}
-                  alt={property.name}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              {/* Thumbnails - Horizontal on mobile, vertical on desktop */}
-              <div className="flex flex-row lg:flex-col gap-4">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="relative h-[100px] flex-1 lg:flex-none lg:h-[156px] lg:w-[156px] overflow-hidden rounded-lg bg-gray-200 flex-shrink-0"
-                  >
+              {(() => {
+                const photos = propertyDTO?.photos || [];
+                const mainPhoto = photos[selectedPhotoIndex];
+                const mainImageUrl = mainPhoto?.url || property.image;
+                
+                return (
+                  <div className="relative w-full lg:flex-1 h-[400px] lg:h-[500px] overflow-hidden rounded-lg bg-gray-200">
                     <Image
-                      src={property.image}
-                      alt={`${property.name} ${i}`}
+                      src={mainImageUrl}
+                      alt={property.name}
                       fill
                       className="object-cover"
                     />
                   </div>
-                ))}
+                );
+              })()}
+              {/* Thumbnails - Horizontal on mobile, vertical on desktop */}
+              <div className="flex flex-row lg:flex-col gap-4">
+                {(() => {
+                  const photos = propertyDTO?.photos || [];
+                  // Get up to 4 photos total (1 main + 3 thumbnails)
+                  const displayPhotos = photos.slice(0, 4);
+                  
+                  if (displayPhotos.length === 0) {
+                    // No photos, show placeholder thumbnails
+                    return [1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="relative h-[100px] flex-1 lg:flex-none lg:h-[156px] lg:w-[156px] overflow-hidden rounded-lg bg-gray-200 flex-shrink-0"
+                      >
+                        <Image
+                          src={property.image}
+                          alt={`${property.name} ${i}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ));
+                  }
+                  
+                  // Show thumbnails for all photos except the currently selected one
+                  return displayPhotos
+                    .map((photo, originalIndex) => ({ photo, originalIndex }))
+                    .filter(({ originalIndex }) => originalIndex !== selectedPhotoIndex)
+                    .slice(0, 3)
+                    .map(({ photo, originalIndex }) => (
+                      <button
+                        key={photo.id}
+                        type="button"
+                        onClick={() => setSelectedPhotoIndex(originalIndex)}
+                        className="relative h-[100px] flex-1 lg:flex-none lg:h-[156px] lg:w-[156px] overflow-hidden rounded-lg bg-gray-200 flex-shrink-0 hover:opacity-80 transition cursor-pointer border-2 border-transparent hover:border-gray-300"
+                      >
+                        <Image
+                          src={photo.url || property.image}
+                          alt={`${property.name} thumbnail ${originalIndex + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </button>
+                    ));
+                })()}
               </div>
             </div>
           </div>
@@ -337,12 +376,16 @@ const PropertyDetailPage: NextPageWithLayout = () => {
               <div className="flex items-center gap-4">
                 <div>
                   <p className="text-xs text-gray-500 uppercase">BUILT</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">2018</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">
+                    {propertyDTO?.yearBuilt || "N/A"}
+                  </p>
                 </div>
                 <div className="h-12 w-px bg-gray-300"></div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase">PARKING SPACE</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">300SQM</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">
+                    {propertyDTO?.parkingSpace ? "Yes" : "No"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -484,7 +527,11 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <PropertyDocumentsTab documents={mockPropertyDocuments.filter((d) => d.propertyId === id)} propertyId={id as string} />
+                <PropertyDocumentsTab 
+                  documents={propertyDTO?.documents || []} 
+                  propertyId={id as string} 
+                  propertyDTO={propertyDTO}
+                />
               </motion.div>
             )}
           </AnimatePresence>

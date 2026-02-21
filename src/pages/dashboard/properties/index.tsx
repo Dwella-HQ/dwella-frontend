@@ -34,9 +34,26 @@ const PropertiesPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     const fetchProperties = async () => {
       setIsLoading(true);
-      const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
-      if (landlordId) {
-        const result = await getPropertiesByLandlord(landlordId);
+      setError(null);
+      
+      // For landlords, fetch by landlordId
+      if (user?.role === "landlord") {
+        const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+        if (landlordId) {
+          const result = await getPropertiesByLandlord(landlordId);
+          if (result.success) {
+            const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+            setProperties(mappedProperties);
+          } else {
+            setError(result.error);
+          }
+        } else {
+          setError("Landlord ID not found");
+        }
+      } 
+      // For property managers, fetch all properties (they'll see only properties they manage)
+      else if (user?.role === "property_manager") {
+        const result = await getProperties();
         if (result.success) {
           const mappedProperties = result.data.map(mapPropertyDTOToProperty);
           setProperties(mappedProperties);
@@ -44,11 +61,24 @@ const PropertiesPage: NextPageWithLayout = () => {
           setError(result.error);
         }
       }
+      // For other roles, fetch all properties
+      else {
+        const result = await getProperties();
+        if (result.success) {
+          const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+          setProperties(mappedProperties);
+        } else {
+          setError(result.error);
+        }
+      }
+      
       setIsLoading(false);
     };
 
-    fetchProperties();
-  }, []);
+    if (user) {
+      fetchProperties();
+    }
+  }, [user]);
 
   const filteredProperties = React.useMemo(() => {
     let filtered = [...properties];

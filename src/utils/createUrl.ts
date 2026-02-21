@@ -1,5 +1,7 @@
 // API base URL - can be overridden by NEXT_PUBLIC_API_BASE_URL env var
-const DEFAULT_BASE_URL = "http://dwella-dev.us-east-1.elasticbeanstalk.com";
+// const DEFAULT_BASE_URL = "http://dwella-dev.us-east-1.elasticbeanstalk.com";
+// const DEFAULT_BASE_URL = "https://dwella-dev-3041b654dfb0581b.elb.us-east-1.amazonaws.com";
+const DEFAULT_BASE_URL = "https://api-dev.dwella-ng.com";
 
 type QueryValue = string | number | boolean | null | undefined;
 

@@ -17,16 +17,13 @@ const LoginPage: NextPageWithLayout = () => {
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleLogin = React.useCallback(
-    async (values: { username: string; password: string; email?: string }) => {
+    async (values: { email: string; password: string }) => {
       setError(null);
       setIsLoading(true);
 
       try {
-        // Use email if provided, otherwise use username as email
-        const email = values.email || values.username;
-
         const result = await login({
-          email,
+          email: values.email,
           password: values.password,
         });
 
@@ -54,7 +51,7 @@ const LoginPage: NextPageWithLayout = () => {
 
         const user = {
           id: apiUser.id,
-          name: apiUser.fullName || apiUser.name || email.split("@")[0],
+          name: apiUser.fullName || apiUser.name || values.email.split("@")[0],
           email: apiUser.email,
           role,
           token: result.data.data.accessToken,

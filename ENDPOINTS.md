@@ -3,7 +3,9 @@
 This document tracks all API endpoints needed for the Dwella NG application, organized by role and feature.
 
 ## Base URL
-`http://dwella-dev.us-east-1.elasticbeanstalk.com`
+<!-- `http://dwella-dev.us-east-1.elasticbeanstalk.com` -->
+<!-- `https://dwella-dev-3041b654dfb0581b.elb.us-east-1.amazonaws.com` -->
+`https://api-dev.dwella-ng.com`
 
 ---
 

@@ -2,6 +2,9 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { X, Search, UserPlus } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { getPropertyManagers } from "@/api/property-managers";
+import type { PropertyManagerDTO } from "@/api/property-managers";
+import { useToast } from "@/components/Toast";
 
 export type AssignPropertyManagerModalProps = {
   isOpen: boolean;
@@ -11,18 +14,6 @@ export type AssignPropertyManagerModalProps = {
   onInviteNew?: () => void;
 };
 
-// Mock managers data
-const mockManagers = [
-  { id: "1", name: "John Doe", email: "john.doe@example.com" },
-  { id: "2", name: "John Doe", email: "john.doe2@example.com" },
-  { id: "3", name: "John Doe", email: "john.doe3@example.com" },
-  { id: "4", name: "John Doe", email: "john.doe4@example.com" },
-  { id: "5", name: "John Doe", email: "john.doe5@example.com" },
-  { id: "6", name: "John Doe", email: "john.doe6@example.com" },
-  { id: "7", name: "John Doe", email: "john.doe7@example.com" },
-  { id: "8", name: "John Doe", email: "john.doe8@example.com" },
-];
-
 export const AssignPropertyManagerModal = ({
   isOpen,
   onClose,
@@ -30,18 +21,39 @@ export const AssignPropertyManagerModal = ({
   onAssign,
   onInviteNew,
 }: AssignPropertyManagerModalProps) => {
+  const { showToast } = useToast();
   const [selectedManager, setSelectedManager] = React.useState<string>("");
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [managers, setManagers] = React.useState<PropertyManagerDTO[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  // Fetch property managers when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      const fetchManagers = async () => {
+        setIsLoading(true);
+        const result = await getPropertyManagers();
+        if (result.success) {
+          setManagers(result.data);
+        } else {
+          showToast(result.error || "Failed to fetch property managers", "error");
+          setManagers([]);
+        }
+        setIsLoading(false);
+      };
+      fetchManagers();
+    }
+  }, [isOpen, showToast]);
 
   const filteredManagers = React.useMemo(() => {
-    if (!searchQuery) return mockManagers;
+    if (!searchQuery) return managers;
     const query = searchQuery.toLowerCase();
-    return mockManagers.filter(
+    return managers.filter(
       (manager) =>
-        manager.name.toLowerCase().includes(query) ||
-        manager.email.toLowerCase().includes(query)
+        (manager.fullName || manager.name || "").toLowerCase().includes(query) ||
+        (manager.email || "").toLowerCase().includes(query)
     );
-  }, [searchQuery]);
+  }, [searchQuery, managers]);
 
   const handleAssign = () => {
     if (selectedManager && onAssign) {
@@ -111,25 +123,50 @@ export const AssignPropertyManagerModal = ({
 
             {/* Managers List */}
             <div className="mb-6 max-h-64 space-y-2 overflow-y-auto">
-              {filteredManagers.map((manager) => (
-                <label
-                  key={manager.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
-                >
-                  <input
-                    type="radio"
-                    name="manager"
-                    value={manager.id}
-                    checked={selectedManager === manager.id}
-                    onChange={(e) => setSelectedManager(e.target.value)}
-                    className="h-4 w-4 text-brand-main focus:ring-2 focus:ring-brand-main focus:ring-offset-2"
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{manager.name}</p>
-                    <p className="text-xs text-gray-500">{manager.email}</p>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-brand-main border-r-transparent"></div>
+                    <p className="mt-2 text-sm text-gray-600">Loading managers...</p>
                   </div>
-                </label>
-              ))}
+                </div>
+              ) : filteredManagers.length > 0 ? (
+                filteredManagers.map((manager) => (
+                  <label
+                    key={manager.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
+                  >
+                    <input
+                      type="radio"
+                      name="manager"
+                      value={manager.id}
+                      checked={selectedManager === manager.id}
+                      onChange={(e) => setSelectedManager(e.target.value)}
+                      className="h-4 w-4 text-brand-main focus:ring-2 focus:ring-brand-main focus:ring-offset-2"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {manager.fullName || manager.name || "Unknown"}
+                      </p>
+                      {manager.email && (
+                        <p className="text-xs text-gray-500">{manager.email}</p>
+                      )}
+                    </div>
+                  </label>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 px-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 mb-3">
+                    <UserPlus className="h-6 w-6 text-gray-400" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 mb-1">No Property Managers</p>
+                  <p className="text-xs text-gray-500 text-center">
+                    {searchQuery
+                      ? "No managers found matching your search."
+                      : "No property managers available. Invite a new manager to get started."}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Actions */}

@@ -100,6 +100,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Phone input with country: align with form field styling */
+.PhoneInput--tailwind.PhoneInput .PhoneInputCountry {
+  padding-left: 0.5rem;
+}
+.PhoneInput--tailwind.PhoneInput .PhoneInputInput {
+  border: none;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
 /* misc styles */
 .glass-fx {
   -webkit-backdrop-filter: blur(10px); /* Safari support */

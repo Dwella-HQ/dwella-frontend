@@ -170,6 +170,7 @@ export const registerRequestSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   phoneNumber: z.string().min(1, "Phone number is required"),
   registrationType: z.enum(["EMAIL", "GOOGLE", "FACEBOOK"]).default("EMAIL"),
+  propertyManagerId: z.string().uuid().optional(), // For property manager invitations
 });
 
 export type RegisterRequestDTO = z.infer<typeof registerRequestSchema>;

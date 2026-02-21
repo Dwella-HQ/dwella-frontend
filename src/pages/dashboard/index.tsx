@@ -637,7 +637,17 @@ const LandlordDashboard = () => {
         </div>
 
         {/* My Properties */}
-        {!isLoadingProperties && (
+        {isLoadingProperties ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">My Properties</h2>
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
+                <p className="mt-4 text-sm text-gray-600">Loading properties...</p>
+              </div>
+            </div>
+          </div>
+        ) : (
           <MyProperties
             properties={properties.slice(0, 3)}
             onViewAll={() => router.push("/dashboard/properties")}

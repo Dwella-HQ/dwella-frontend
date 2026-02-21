@@ -11,7 +11,12 @@ const IndexPage = () => {
 
   const handleContinue = () => {
     if (selectedRole) {
-      router.push(`/auth/signup?role=${selectedRole}`);
+      // Redirect property managers to their dedicated signup page
+      if (selectedRole === "manager") {
+        router.push("/auth/signup/manager");
+      } else {
+        router.push(`/auth/signup?role=${selectedRole}`);
+      }
     }
   };
 
@@ -76,7 +81,7 @@ const IndexPage = () => {
                     className="mt-1 h-5 w-5 text-brand-main focus:ring-brand-main border-gray-300"
                   />
                   <div className="flex-1">
-                    <div className="font-semibold text-gray-900 mb-1">Landlord</div>
+                    <div className="font-semibold text-gray-900 mb-1">Landlord / Realtor</div>
                     <div className="text-sm text-gray-500">
                       Manage properties, rent, and tenants.
                     </div>

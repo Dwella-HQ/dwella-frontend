@@ -94,7 +94,14 @@ export const propertySchema = z.object({
   isActive: z.boolean().optional(),
   propertyType: z.string().nullable().optional(),
   yearBuilt: z.union([z.number().int().positive(), z.string()]).nullable().optional(), // Accept both number and string
-  numberOfUnits: z.number().int().positive(),
+  numberOfUnits: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined) return 0;
+      const num = typeof val === 'string' ? parseInt(val, 10) : Number(val);
+      return isNaN(num) ? 0 : Math.max(0, Math.floor(num));
+    },
+    z.number().int().nonnegative()
+  ), // Allow 0 for properties without units yet, handle null/undefined/string
   description: z.string().optional().nullable(),
   parkingSpace: z.boolean().optional(),
   photoIds: z.array(z.string().uuid()).optional(),
@@ -138,7 +145,7 @@ export const createPropertyResponseSchema = z.object({
     id: z.string().uuid(),
     name: z.string(),
     yearBuilt: z.union([z.number().int().positive(), z.string()]).nullable().optional(),
-    numberOfUnits: z.number().int().positive(),
+    numberOfUnits: z.number().int().min(0).optional(), // Allow 0 for initial creation
     description: z.string().optional().nullable(),
     parkingSpace: z.boolean().optional(),
     photoIds: z.array(z.string().uuid()).optional(),
@@ -146,10 +153,16 @@ export const createPropertyResponseSchema = z.object({
     address: propertyAddressSchema.optional(),
     amenities: z.array(z.string()).optional(),
     isApproved: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+    propertyType: z.string().nullable().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
     landlordId: z.string().uuid().optional(),
     deletedAt: z.string().nullable().optional(),
+    landlord: landlordSchema.optional(),
+    photos: z.array(fileSchema).optional().default([]), // Array of photo files
+    documents: z.array(fileSchema).optional().default([]), // Array of document files
+    units: z.array(z.unknown()).optional().default([]), // Array of units
   }).partial(), // Allow partial data for the 'data' object
 });
 

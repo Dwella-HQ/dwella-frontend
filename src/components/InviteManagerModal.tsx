@@ -5,7 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import * as Dialog from "@radix-ui/react-dialog";
-import { mockProperties } from "@/data/mockLandlordData";
+import { getPropertiesByLandlord } from "@/api/properties";
+import type { PropertyDTO } from "@/api/properties";
+import { invitePropertyManager } from "@/api/property-managers";
+import { useToast } from "@/components/Toast";
 
 const inviteManagerSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
@@ -26,8 +29,12 @@ export const InviteManagerModal = ({
   onClose,
   onInvite,
 }: InviteManagerModalProps) => {
+  const { showToast } = useToast();
   const [selectedProperties, setSelectedProperties] = React.useState<string[]>([]);
   const [selectedPermissions, setSelectedPermissions] = React.useState<string[]>([]);
+  const [properties, setProperties] = React.useState<PropertyDTO[]>([]);
+  const [isLoadingProperties, setIsLoadingProperties] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const {
     register,
@@ -38,19 +45,40 @@ export const InviteManagerModal = ({
     resolver: zodResolver(inviteManagerSchema),
   });
 
+  // Fetch landlord's properties when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      const fetchProperties = async () => {
+        setIsLoadingProperties(true);
+        const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+        if (landlordId) {
+          const result = await getPropertiesByLandlord(landlordId);
+          if (result.success) {
+            setProperties(result.data);
+          } else {
+            showToast(result.error || "Failed to fetch properties", "error");
+            setProperties([]);
+          }
+        }
+        setIsLoadingProperties(false);
+      };
+      fetchProperties();
+    }
+  }, [isOpen, showToast]);
+
   const permissions = [
     {
-      id: "maintenance",
+      id: "manage_maintenance_requests",
       label: "Manage Maintenance",
       description: "Can view and manage maintenance requests",
     },
     {
-      id: "chat",
+      id: "manage_chat",
       label: "Chat with Tenants",
       description: "Can communicate with tenants via chat",
     },
     {
-      id: "payments",
+      id: "read_payment",
       label: "View Payments (Read-only)",
       description: "Can view payment information but cannot modify",
     },
@@ -73,17 +101,52 @@ export const InviteManagerModal = ({
   };
 
   const onSubmit = handleSubmit(async (data) => {
-    if (onInvite) {
-      onInvite({
-        ...data,
-        properties: selectedProperties,
-        permissions: selectedPermissions,
+    setIsSubmitting(true);
+    
+    try {
+      const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+      
+      if (!landlordId) {
+        showToast("Landlord ID not found. Please log in again.", "error");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Invite property manager via API
+      const result = await invitePropertyManager(landlordId, {
+        fullName: data.fullName,
+        email: data.email,
+        phoneNumber: data.phone,
+        propertyIds: selectedProperties.length > 0 ? selectedProperties : undefined,
+        permissions: selectedPermissions.length > 0 ? selectedPermissions : undefined,
       });
+
+      if (result.success) {
+        // Show success message from API or default message
+        const successMessage = result.message || "Property manager invited successfully";
+        showToast(successMessage, "success");
+        if (onInvite) {
+          onInvite({
+            ...data,
+            properties: selectedProperties,
+            permissions: selectedPermissions,
+          });
+        }
+        reset();
+        setSelectedProperties([]);
+        setSelectedPermissions([]);
+        onClose();
+      } else {
+        showToast(result.error || "Failed to invite property manager", "error");
+      }
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "An error occurred",
+        "error"
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-    reset();
-    setSelectedProperties([]);
-    setSelectedPermissions([]);
-    onClose();
   });
 
   return (
@@ -163,7 +226,7 @@ export const InviteManagerModal = ({
                     </label>
                     <input
                       type="tel"
-                      placeholder="Placeholder"
+                      placeholder="+2348000000000"
                       {...register("phone")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />
@@ -179,22 +242,38 @@ export const InviteManagerModal = ({
                 <h3 className="mb-4 text-sm font-semibold uppercase" style={{ color: '#99A1AF' }}>
                   Assign Properties
                 </h3>
-                <div className="space-y-2">
-                  {mockProperties.map((property) => (
-                    <label
-                      key={property.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedProperties.includes(property.id)}
-                        onChange={() => toggleProperty(property.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-2 focus:ring-brand-main focus:ring-offset-2"
-                      />
-                      <span className="text-sm font-medium text-gray-900">{property.name}</span>
-                    </label>
-                  ))}
-                </div>
+                {isLoadingProperties ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-brand-main border-r-transparent"></div>
+                      <p className="mt-2 text-sm text-gray-600">Loading properties...</p>
+                    </div>
+                  </div>
+                ) : properties.length > 0 ? (
+                  <div className="max-h-64 space-y-2 overflow-y-auto">
+                    {properties.map((property) => (
+                      <label
+                        key={property.id}
+                        className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedProperties.includes(property.id)}
+                          onChange={() => toggleProperty(property.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-2 focus:ring-brand-main focus:ring-offset-2"
+                        />
+                        <span className="text-sm font-medium text-gray-900">{property.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 px-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <p className="text-sm font-medium text-gray-900 mb-1">No Properties</p>
+                    <p className="text-xs text-gray-500 text-center">
+                      You don't have any properties yet. Create a property first to assign it to a manager.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Permissions */}
@@ -234,9 +313,14 @@ export const InviteManagerModal = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                  disabled={isSubmitting}
+                  className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition ${
+                    isSubmitting
+                      ? "cursor-not-allowed bg-gray-400"
+                      : "bg-gray-900 hover:bg-gray-800"
+                  }`}
                 >
-                  Send Invite
+                  {isSubmitting ? "Sending..." : "Send Invite"}
                 </button>
               </div>
             </form>
