@@ -10,10 +10,12 @@ import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import type { LandlordAccount } from "@/data/mockLandlordAccounts";
 import { getPropertyManagerByUser } from "@/api/property-managers";
 import type { PropertyManagerDTO } from "@/api/property-managers";
+import { getPropertiesByLandlord } from "@/api/properties";
 import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../_app";
 
+/** Maps API response to LandlordAccount. Uses landlord.id (landlord ID) for id — this is what we pass to GET /property/landlord/:landlordId. */
 function mapManagerToLandlordAccount(manager: PropertyManagerDTO): LandlordAccount | null {
   const landlord = manager.landlord;
   if (!landlord?.id) return null;
@@ -21,7 +23,7 @@ function mapManagerToLandlordAccount(manager: PropertyManagerDTO): LandlordAccou
     landlord.landLordName ?? landlord.user?.fullName ?? "Landlord";
   const email = landlord.user?.email ?? "";
   return {
-    id: landlord.id,
+    id: landlord.id, // landlord ID (not manager.id = property-manager record id)
     name,
     email,
     properties: [],
@@ -45,7 +47,7 @@ const SelectLandlordPage: NextPageWithLayout = () => {
     }
   }, [user, router]);
 
-  // Fetch property manager record(s) for this user (each has a landlord)
+  // Fetch property manager record(s) for this user and enrich each landlord with property counts
   React.useEffect(() => {
     if (!user?.id || user.role !== "property_manager") {
       setIsLoading(false);
@@ -55,25 +57,56 @@ const SelectLandlordPage: NextPageWithLayout = () => {
       setIsLoading(true);
       setError(null);
       const result = await getPropertyManagerByUser(String(user.id));
-      if (result.success) {
-        const accounts = result.data
-          .map(mapManagerToLandlordAccount)
-          .filter((a): a is LandlordAccount => a !== null);
-        setLandlordAccounts(accounts);
-      } else {
+      if (!result.success) {
         setError(result.error ?? "Failed to load landlord accounts");
         setLandlordAccounts([]);
+        setIsLoading(false);
+        return;
       }
+      const accounts = result.data
+        .map(mapManagerToLandlordAccount)
+        .filter((a): a is LandlordAccount => a !== null);
+      // Fetch properties per landlord so cards show real counts
+      const enriched = await Promise.all(
+        accounts.map(async (a) => {
+          const res = await getPropertiesByLandlord(a.id);
+          if (!res.success) return a;
+          const data = res.data;
+          const properties = data.map((p) => ({ id: p.id, name: p.name }));
+          const totalUnits = data.reduce(
+            (sum, p) => sum + (p.numberOfUnits ?? (Array.isArray(p.units) ? p.units.length : 0)),
+            0
+          );
+          return { ...a, properties, totalUnits };
+        })
+      );
+      setLandlordAccounts(enriched);
       setIsLoading(false);
     };
     fetchManagers();
   }, [user?.id, user?.role]);
 
   const handleSelectLandlord = React.useCallback(
-    (landlord: LandlordAccount) => {
-      setSelectedLandlord(landlord);
+    async (landlord: LandlordAccount) => {
+      // If we already have properties/totalUnits from card enrichment, use them
+      let enriched = landlord;
+      if (landlord.properties.length === 0 && landlord.totalUnits === 0) {
+        const result = await getPropertiesByLandlord(landlord.id);
+        if (result.success) {
+          const data = result.data;
+          enriched = {
+            ...landlord,
+            properties: data.map((p) => ({ id: p.id, name: p.name })),
+            totalUnits: data.reduce(
+              (sum, p) => sum + (p.numberOfUnits ?? (Array.isArray(p.units) ? p.units.length : 0)),
+              0
+            ),
+          };
+        }
+      }
+      setSelectedLandlord(enriched);
       if (typeof window !== "undefined") {
-        localStorage.setItem("landlordId", landlord.id);
+        localStorage.setItem("landlordId", enriched.id);
       }
       router.push("/dashboard");
     },

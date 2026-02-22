@@ -11,6 +11,7 @@ import { PropertyTable } from "@/components/PropertyTable";
 import { getProperties, getPropertiesByLandlord } from "@/api/properties";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import { useUser } from "@/contexts/UserContext";
+import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -20,6 +21,7 @@ type FilterStatus = "all" | "active" | "inactive" | "pending" | "occupied" | "co
 const PropertiesPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { user } = useUser();
+  const { selectedLandlord } = useSelectedLandlord();
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
   const [activeFilter, setActiveFilter] = React.useState<FilterStatus>("all");
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
@@ -51,14 +53,19 @@ const PropertiesPage: NextPageWithLayout = () => {
           setError("Landlord ID not found");
         }
       } 
-      // For property managers, fetch all properties (they'll see only properties they manage)
+      // For property managers, fetch properties for the selected landlord
       else if (user?.role === "property_manager") {
-        const result = await getProperties();
-        if (result.success) {
-          const mappedProperties = result.data.map(mapPropertyDTOToProperty);
-          setProperties(mappedProperties);
+        const landlordId = selectedLandlord?.id ?? (typeof window !== "undefined" ? localStorage.getItem("landlordId") : null);
+        if (landlordId) {
+          const result = await getPropertiesByLandlord(landlordId);
+          if (result.success) {
+            const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+            setProperties(mappedProperties);
+          } else {
+            setError(result.error);
+          }
         } else {
-          setError(result.error);
+          setError("No landlord selected. Please select a landlord account first.");
         }
       }
       // For other roles, fetch all properties
@@ -76,9 +83,14 @@ const PropertiesPage: NextPageWithLayout = () => {
     };
 
     if (user) {
+      if (user.role === "property_manager" && !selectedLandlord?.id && typeof window !== "undefined" && !localStorage.getItem("landlordId")) {
+        router.replace("/dashboard/select-landlord");
+        setIsLoading(false);
+        return;
+      }
       fetchProperties();
     }
-  }, [user]);
+  }, [user, selectedLandlord?.id, router]);
 
   const filteredProperties = React.useMemo(() => {
     let filtered = [...properties];

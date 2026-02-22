@@ -8,8 +8,9 @@ type GetPropertyManagerByUserResult =
 
 /**
  * GET /property-manager/user/:userId
- * Returns property manager record(s) for the given user ID (e.g. logged-in property manager).
- * A user can be linked to multiple landlords, so response is an array.
+ * Returns property manager record(s) for the given user ID (the logged-in property manager's user id).
+ * Response: each item has .id (property-manager record id), .landlord (with .id = landlord ID).
+ * Use landlord.id from the response when calling GET /property/landlord/:landlordId.
  */
 export const getPropertyManagerByUser = async (
   userId: string

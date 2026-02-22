@@ -9,14 +9,16 @@ import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import type { LandlordAccount } from "@/data/mockLandlordAccounts";
 import { getPropertyManagerByUser } from "@/api/property-managers";
 import type { PropertyManagerDTO } from "@/api/property-managers";
+import { getPropertiesByLandlord } from "@/api/properties";
 
+/** Uses landlord.id (landlord ID) for id — this is what we pass to GET /property/landlord/:landlordId. */
 function mapManagerToLandlordAccount(manager: PropertyManagerDTO): LandlordAccount | null {
   const landlord = manager.landlord;
   if (!landlord?.id) return null;
   const name = landlord.landLordName ?? landlord.user?.fullName ?? "Landlord";
   const email = landlord.user?.email ?? "";
   return {
-    id: landlord.id,
+    id: landlord.id, // landlord ID (not manager.id = property-manager record id)
     name,
     email,
     properties: [],
@@ -50,25 +52,56 @@ export const LandlordSwitchModal = ({
       setIsLoading(true);
       setError(null);
       const result = await getPropertyManagerByUser(String(user.id));
-      if (result.success) {
-        const accounts = result.data
-          .map(mapManagerToLandlordAccount)
-          .filter((a): a is LandlordAccount => a !== null);
-        setLandlordAccounts(accounts);
-      } else {
+      if (!result.success) {
         setError(result.error ?? "Failed to load landlord accounts");
         setLandlordAccounts([]);
+        setIsLoading(false);
+        return;
       }
+      const accounts = result.data
+        .map(mapManagerToLandlordAccount)
+        .filter((a): a is LandlordAccount => a !== null);
+      const enriched = await Promise.all(
+        accounts.map(async (a) => {
+          const res = await getPropertiesByLandlord(a.id);
+          if (!res.success) return a;
+          const data = res.data;
+          return {
+            ...a,
+            properties: data.map((p) => ({ id: p.id, name: p.name })),
+            totalUnits: data.reduce(
+              (sum, p) => sum + (p.numberOfUnits ?? (Array.isArray(p.units) ? p.units.length : 0)),
+              0
+            ),
+          };
+        })
+      );
+      setLandlordAccounts(enriched);
       setIsLoading(false);
     };
     fetchManagers();
   }, [isOpen, user?.id, user?.role]);
 
   const handleSelectLandlord = React.useCallback(
-    (landlord: LandlordAccount) => {
-      setSelectedLandlord(landlord);
+    async (landlord: LandlordAccount) => {
+      let enriched = landlord;
+      if (landlord.properties.length === 0 && landlord.totalUnits === 0) {
+        const result = await getPropertiesByLandlord(landlord.id);
+        if (result.success) {
+          const data = result.data;
+          enriched = {
+            ...landlord,
+            properties: data.map((p) => ({ id: p.id, name: p.name })),
+            totalUnits: data.reduce(
+              (sum, p) => sum + (p.numberOfUnits ?? (Array.isArray(p.units) ? p.units.length : 0)),
+              0
+            ),
+          };
+        }
+      }
+      setSelectedLandlord(enriched);
       if (typeof window !== "undefined") {
-        localStorage.setItem("landlordId", landlord.id);
+        localStorage.setItem("landlordId", enriched.id);
       }
       onClose();
       if (typeof window !== "undefined") {

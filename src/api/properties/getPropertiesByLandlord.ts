@@ -3,10 +3,15 @@ import { apiGet } from "@/lib/apiClient";
 import type { PropertiesResponseDTO, PropertyDTO } from "./properties.schema";
 import { propertiesResponseSchema } from "./properties.schema";
 
-type GetPropertiesByLandlordResult = 
+type GetPropertiesByLandlordResult =
   | { success: true; data: PropertyDTO[] }
   | { success: false; error: string };
 
+/**
+ * GET /property/landlord/:landlordId
+ * Returns properties for the given landlord.
+ * @param landlordId - The landlord's ID (from property-manager/user response landlord.id), not the property-manager record id.
+ */
 export const getPropertiesByLandlord = async (
   landlordId: string
 ): Promise<GetPropertiesByLandlordResult> => {

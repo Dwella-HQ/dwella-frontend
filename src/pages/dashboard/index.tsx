@@ -19,7 +19,6 @@ import {
   mockDashboardStats,
   mockRecentPayments,
   mockMaintenanceRequests,
-  mockProperties,
 } from "@/data/mockLandlordData";
 
 import type { NextPageWithLayout } from "../_app";
@@ -28,6 +27,8 @@ import type { NextPageWithLayout } from "../_app";
 const ManagerDashboard = () => {
   const router = useRouter();
   const { selectedLandlord } = useSelectedLandlord();
+  const [landlordProperties, setLandlordProperties] = React.useState<Property[]>([]);
+  const [propertiesLoading, setPropertiesLoading] = React.useState(true);
 
   // Redirect to landlord selection if no landlord is selected
   React.useEffect(() => {
@@ -36,24 +37,39 @@ const ManagerDashboard = () => {
     }
   }, [selectedLandlord, router]);
 
+  // Fetch real properties for the selected landlord
+  React.useEffect(() => {
+    if (!selectedLandlord?.id) {
+      setLandlordProperties([]);
+      setPropertiesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPropertiesLoading(true);
+    getPropertiesByLandlord(selectedLandlord.id).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setLandlordProperties(result.data.map(mapPropertyDTOToProperty));
+      } else {
+        setLandlordProperties([]);
+      }
+      setPropertiesLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedLandlord?.id]);
+
   if (!selectedLandlord) {
     return null;
   }
 
-  // Filter properties for the selected landlord
-  const landlordProperties = React.useMemo(() => {
-    return mockProperties.filter((p) =>
-      selectedLandlord.properties.some((lp) => lp.id === p.id)
-    );
-  }, [selectedLandlord]);
-
-  // Filter payments for the selected landlord's properties
+  // Filter payments for the selected landlord's properties (by property name)
   const landlordPayments = React.useMemo(() => {
-    const propertyIds = selectedLandlord.properties.map((p) => p.id);
     return mockRecentPayments.filter((payment) =>
       landlordProperties.some((prop) => prop.name === payment.propertyName)
     );
-  }, [selectedLandlord, landlordProperties]);
+  }, [landlordProperties]);
 
   // Filter maintenance requests for the selected landlord's properties
   const landlordMaintenanceRequests = React.useMemo(() => {
@@ -151,7 +167,14 @@ const ManagerDashboard = () => {
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {landlordProperties.slice(0, 3).map((property, index) => (
+        {propertiesLoading ? (
+          <div className="col-span-full flex justify-center py-8">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-brand-main border-r-transparent" />
+          </div>
+        ) : landlordProperties.length === 0 ? (
+          <p className="col-span-full text-sm text-gray-500 py-4">No properties for this landlord yet.</p>
+        ) : (
+        landlordProperties.slice(0, 3).map((property) => (
           <div
             key={property.id}
             onClick={() => router.push(`/dashboard/properties/${property.id}`)}
@@ -165,8 +188,20 @@ const ManagerDashboard = () => {
                 className="w-full h-full object-cover"
               />
               <div className="absolute top-3 left-3">
-                <span className="bg-green-500 text-white text-xs font-medium px-2 py-1 rounded">
-                  Active
+                <span
+                  className={`text-xs font-medium px-2 py-1 rounded ${
+                    property.status === "active"
+                      ? "bg-brand-green text-white"
+                      : property.status === "pending"
+                        ? "bg-yellow-500 text-white"
+                        : "bg-gray-700 text-white"
+                  }`}
+                >
+                  {property.status === "active"
+                    ? "Active"
+                    : property.status === "pending"
+                      ? "Pending Verification"
+                      : "Inactive"}
                 </span>
               </div>
               <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1">
@@ -216,7 +251,8 @@ const ManagerDashboard = () => {
               </div>
             </div>
           </div>
-        ))}
+        ))
+        )}
       </div>
     </section>
   );
