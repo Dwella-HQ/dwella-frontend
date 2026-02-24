@@ -17,8 +17,9 @@ import {
   Upload,
   Info,
 } from "lucide-react";
-import { mockMaintenanceRequestsWithDetails, mockProperties } from "@/data/mockLandlordData";
+import { mockProperties } from "@/data/mockLandlordData";
 import type { MaintenanceRequestWithDetails } from "@/data/mockLandlordData";
+import { getMaintenanceRequests } from "@/api/maintenance";
 import {
   mockTenantMaintenanceRequests,
   type TenantMaintenanceRequest,
@@ -401,9 +402,23 @@ const LandlordMaintenancePage = () => {
   const [selectedCategory, setSelectedCategory] = React.useState("All Categories");
   const [activeTab, setActiveTab] = React.useState<"all" | "new" | "in_progress" | "resolved">("all");
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [requests, setRequests] = React.useState<MaintenanceRequestWithDetails[]>([]);
+  const [isLoadingRequests, setIsLoadingRequests] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchRequests = async () => {
+      setIsLoadingRequests(true);
+      const result = await getMaintenanceRequests();
+      if (result.success) {
+        setRequests(result.data);
+      }
+      setIsLoadingRequests(false);
+    };
+    fetchRequests();
+  }, []);
 
   // Filter requests based on search, filters, and active tab
-  const filteredRequests = mockMaintenanceRequestsWithDetails.filter((request) => {
+  const filteredRequests = requests.filter((request) => {
     const matchesSearch =
       request.propertyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.unit.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -426,12 +441,12 @@ const LandlordMaintenancePage = () => {
   });
 
   // Count requests by status
-  const allCount = mockMaintenanceRequestsWithDetails.length;
-  const newCount = mockMaintenanceRequestsWithDetails.filter((r) => r.status === "new").length;
-  const inProgressCount = mockMaintenanceRequestsWithDetails.filter(
+  const allCount = requests.length;
+  const newCount = requests.filter((r) => r.status === "new").length;
+  const inProgressCount = requests.filter(
     (r) => r.status === "in_progress"
   ).length;
-  const resolvedCount = mockMaintenanceRequestsWithDetails.filter(
+  const resolvedCount = requests.filter(
     (r) => r.status === "resolved"
   ).length;
 
@@ -645,7 +660,12 @@ const LandlordMaintenancePage = () => {
 
         {/* Request Cards */}
         <div className="space-y-4">
-          {filteredRequests.length > 0 ? (
+          {isLoadingRequests ? (
+            <div className="flex flex-col items-center justify-center py-12 px-6 rounded-lg border border-gray-200 bg-white">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent" />
+              <p className="mt-4 text-sm text-gray-600">Loading maintenance requests...</p>
+            </div>
+          ) : filteredRequests.length > 0 ? (
             filteredRequests.map((request, index) => (
               <motion.div
                 key={request.id}

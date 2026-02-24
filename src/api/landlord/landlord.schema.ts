@@ -4,7 +4,7 @@ import { z } from "zod";
 export const createLandlordRequestSchema = z.object({
   userId: z.string().uuid(),
   landLordName: z.string().min(1, "Landlord name is required"),
-  bvn: z.string().min(1, "BVN is required"),
+  bvn: z.string().optional(),
   profilePictureId: z.string().uuid().optional(),
   govermentIdDocumentId: z.string().uuid().optional(),
   landSurveyDocumentId: z.string().uuid().optional(),

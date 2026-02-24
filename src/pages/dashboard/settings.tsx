@@ -14,6 +14,7 @@ import {
   Upload,
   Eye,
   EyeOff,
+  Heart,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { getLandlordByUser } from "@/api/landlord";
@@ -25,6 +26,7 @@ type SettingsTab =
   | "notifications"
   | "payment-details"
   | "preferences"
+  | "grace-period"
   | "change-password";
 
 const SettingsPage: NextPageWithLayout = () => {
@@ -86,6 +88,11 @@ const SettingsPage: NextPageWithLayout = () => {
       id: "preferences" as SettingsTab,
       label: "Preferences",
       icon: SettingsIcon,
+    },
+    {
+      id: "grace-period" as SettingsTab,
+      label: "Grace Period",
+      icon: Heart,
     },
     {
       id: "change-password" as SettingsTab,
@@ -683,6 +690,72 @@ const SettingsPage: NextPageWithLayout = () => {
                       placeholder="Placeholder"
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
                     />
+                  </div>
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  type="button"
+                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                >
+                  Save Preferences
+                </motion.button>
+              </div>
+            )}
+
+            {/* Grace Period Tab */}
+            {activeTab === "grace-period" && (
+              <div className="space-y-6">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Rent Grace Periods
+                </h2>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Monthly Rent Grace Period
+                    </label>
+                    <select
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      defaultValue=""
+                    >
+                      <option value="">Placeholder</option>
+                      <option value="0">0 days</option>
+                      <option value="3">3 days</option>
+                      <option value="5">5 days</option>
+                      <option value="7">7 days</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Quarterly Rent Grace Period
+                    </label>
+                    <select
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      defaultValue=""
+                    >
+                      <option value="">Placeholder</option>
+                      <option value="0">0 days</option>
+                      <option value="5">5 days</option>
+                      <option value="7">7 days</option>
+                      <option value="14">14 days</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Yearly Rent Grace Period
+                    </label>
+                    <select
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      defaultValue=""
+                    >
+                      <option value="">Placeholder</option>
+                      <option value="0">0 days</option>
+                      <option value="7">7 days</option>
+                      <option value="14">14 days</option>
+                      <option value="30">30 days</option>
+                    </select>
                   </div>
                 </div>
 

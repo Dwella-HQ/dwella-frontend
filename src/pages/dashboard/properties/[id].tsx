@@ -50,11 +50,13 @@ import type { PropertyDTO } from "@/api/properties";
 import { getUnitsByProperty } from "@/api/units";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
 import type { Unit } from "@/data/mockLandlordData";
+import { useUser } from "@/contexts/UserContext";
 
 import type { NextPageWithLayout } from "../../_app";
 
 const PropertyDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { user } = useUser();
   const { id } = router.query;
   const [activeTab, setActiveTab] = React.useState("overview");
   const [isAddUnitOpen, setIsAddUnitOpen] = React.useState(false);
@@ -146,6 +148,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     { id: "payments", label: "Payments" },
     { id: "maintenance", label: "Maintenance" },
     { id: "documents", label: "Documents" },
+    { id: "grace-period", label: "Grace Period Preference" },
   ];
 
   // Filter payments and maintenance for this property
@@ -345,22 +348,26 @@ const PropertyDetailPage: NextPageWithLayout = () => {
 
             {/* Management Actions */}
             <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setIsAddTenantOpen(true)}
-                className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2"
-              >
-                <UserPlus className="h-4 w-4" />
-                Assign Tenant
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsAssignManagerOpen(true)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 flex items-center justify-center gap-2"
-              >
-                <Users className="h-4 w-4" />
-                Assign Property Manager
-              </button>
+              {user?.role !== "property_manager" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddTenantOpen(true)}
+                    className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Assign Tenant
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAssignManagerOpen(true)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 flex items-center justify-center gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    Assign Property Manager
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => setIsSendAnnouncementOpen(true)}
@@ -532,6 +539,73 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   propertyId={id as string} 
                   propertyDTO={propertyDTO}
                 />
+              </motion.div>
+            )}
+            {activeTab === "grace-period" && (
+              <motion.div
+                key="grace-period"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+                className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+              >
+                <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                  Rent Grace Periods
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Monthly Rent Grace Period
+                    </label>
+                    <select
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      defaultValue=""
+                    >
+                      <option value="">Placeholder</option>
+                      <option value="0">0 days</option>
+                      <option value="3">3 days</option>
+                      <option value="5">5 days</option>
+                      <option value="7">7 days</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Quarterly Rent Grace Period
+                    </label>
+                    <select
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      defaultValue=""
+                    >
+                      <option value="">Placeholder</option>
+                      <option value="0">0 days</option>
+                      <option value="5">5 days</option>
+                      <option value="7">7 days</option>
+                      <option value="14">14 days</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Yearly Rent Grace Period
+                    </label>
+                    <select
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      defaultValue=""
+                    >
+                      <option value="">Placeholder</option>
+                      <option value="0">0 days</option>
+                      <option value="7">7 days</option>
+                      <option value="14">14 days</option>
+                      <option value="30">30 days</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="mt-6 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                >
+                  Save Preferences
+                </button>
               </motion.div>
             )}
           </AnimatePresence>

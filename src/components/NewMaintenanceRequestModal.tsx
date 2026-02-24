@@ -13,7 +13,7 @@ const maintenanceRequestSchema = z.object({
   maintenanceType: z.string().min(1, "Maintenance type is required"),
   maintenanceSubType: z.string().min(1, "Maintenance sub-type is required"),
   priority: z.enum(["low", "medium", "high"]),
-  additionalDetails: z.string().optional(),
+  additionalDetails: z.string().min(1, "Additional details are required"),
 });
 
 export type MaintenanceRequestFormValues = z.infer<typeof maintenanceRequestSchema>;
@@ -203,7 +203,7 @@ export const NewMaintenanceRequestModal = ({
             {/* Additional Details */}
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
-                Additional Details (Optional)
+                Additional Details <span className="text-red-500">*</span>
               </label>
               <textarea
                 {...register("additionalDetails")}
@@ -211,6 +211,9 @@ export const NewMaintenanceRequestModal = ({
                 placeholder="Provide any additional information about the maintenance request..."
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
               />
+              {errors.additionalDetails && (
+                <p className="mt-1 text-xs text-red-600">{errors.additionalDetails.message}</p>
+              )}
             </div>
 
             {/* Actions */}

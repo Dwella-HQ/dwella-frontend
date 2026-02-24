@@ -16,7 +16,6 @@ type LandlordDetails = {
   businessName: string;
   address: string;
   phoneNumber: string;
-  bvn: string;
   country: string;
   state: string;
   city: string;
@@ -27,7 +26,6 @@ const emptyDetails: LandlordDetails = {
   businessName: "",
   address: "",
   phoneNumber: "",
-  bvn: "",
   country: "",
   state: "",
   city: "",
@@ -277,18 +275,6 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  BVN
-                </label>
-                <input
-                  name="bvn"
-                  value={details.bvn}
-                  onChange={handleChange}
-                  placeholder="Placeholder"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                />
-              </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Country

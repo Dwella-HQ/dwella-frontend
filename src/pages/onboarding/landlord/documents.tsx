@@ -139,7 +139,6 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
       businessName: string;
       address: string;
       phoneNumber: string;
-      bvn: string;
       country: string;
       state: string;
       city: string;
@@ -149,7 +148,6 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     if (
       !details.businessName ||
       !details.address ||
-      !details.bvn ||
       !details.city ||
       !details.state ||
       !details.postalCode ||
@@ -168,7 +166,6 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     const payload = {
       userId: String(user.id),
       landLordName: details.businessName,
-      bvn: details.bvn,
       profilePictureId: profilePictureId || undefined,
       govermentIdDocumentId: docIds.governmentId,
       taxIdentificationNumberDocumentId: docIds.tin,
