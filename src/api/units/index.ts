@@ -1,5 +1,6 @@
 export { createUnit } from "./createUnit";
 export { getUnitsByProperty } from "./getUnitsByProperty";
+export { getUnit } from "./getUnit";
 export { mapUnitDTOToUnit } from "./mapUnit";
 export type {
   UnitDTO,

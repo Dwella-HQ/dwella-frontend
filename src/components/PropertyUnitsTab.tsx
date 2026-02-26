@@ -123,7 +123,7 @@ export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUn
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2, delay: index * 0.05 }}
                     whileHover={{ x: 4, transition: { duration: 0.2 } }}
-                    onClick={() => handleRowClick(unit.unitId)}
+                    onClick={() => handleRowClick(unit.id)}
                     className="hover:bg-gray-50 cursor-pointer"
                   >
                     <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
@@ -193,7 +193,7 @@ export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUn
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <Link
-                        href={`/dashboard/properties/${propertyId}/units/${unit.unitId}`}
+                        href={`/dashboard/properties/${propertyId}/units/${unit.id}`}
                         className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
                       >
                         View Details

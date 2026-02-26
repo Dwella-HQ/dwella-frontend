@@ -20,7 +20,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { AddTenantModal } from "@/components/AddTenantModal";
 import { NewMaintenanceRequestModal } from "@/components/NewMaintenanceRequestModal";
-import { mockUnits } from "@/data/mockPropertyDetails";
+import { getUnit } from "@/api/units";
+import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
 import { mockTenants } from "@/data/mockPropertyDetails";
 import { mockPaymentHistory } from "@/data/mockPropertyDetails";
 import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
@@ -28,15 +29,37 @@ import type { Unit, Tenant } from "@/data/mockLandlordData";
 
 import type { NextPageWithLayout } from "@/pages/_app";
 
+type NestedProperty = { id?: string; name?: string };
+
 const UnitDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { id, unitId } = router.query;
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [isNewRequestOpen, setIsNewRequestOpen] = React.useState(false);
+  const [unit, setUnit] = React.useState<Unit | null>(null);
+  const [propertyName, setPropertyName] = React.useState<string>("");
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const unit = React.useMemo(() => {
-    return mockUnits.find((u) => u.unitId === unitId && u.propertyId === id);
-  }, [id, unitId]);
+  React.useEffect(() => {
+    const fetchUnit = async () => {
+      if (!unitId || typeof unitId !== "string") return;
+      setIsLoading(true);
+      setError(null);
+      const result = await getUnit(unitId);
+      if (result.success) {
+        const data = result.data;
+        const property = data.property as NestedProperty | undefined;
+        const propertyId = property?.id ?? data.propertyId ?? (id as string) ?? "";
+        setPropertyName(property?.name ?? "Property");
+        setUnit(mapUnitDTOToUnit(data, propertyId));
+      } else {
+        setError(result.error);
+      }
+      setIsLoading(false);
+    };
+    fetchUnit();
+  }, [unitId, id]);
 
   const tenant = React.useMemo(() => {
     if (!unit?.tenantId) return null;
@@ -55,13 +78,35 @@ const UnitDetailPage: NextPageWithLayout = () => {
     );
   }, [unit]);
 
-  if (!unit) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-gray-600">Unit not found</p>
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent" />
+          <p className="mt-4 text-sm text-gray-600">Loading unit...</p>
+        </div>
       </div>
     );
   }
+
+  if (error || !unit) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <p className="text-gray-600">{error ?? "Unit not found"}</p>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mt-4 text-sm text-brand-main hover:underline"
+          >
+            Go back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const propertyIdForLinks = unit.propertyId || (id as string);
 
   const getInitials = (name: string) => {
     return name
@@ -89,10 +134,10 @@ const UnitDetailPage: NextPageWithLayout = () => {
           </Link>
           <ChevronRight className="h-4 w-4" />
           <Link
-            href={`/dashboard/properties/${id}`}
+            href={`/dashboard/properties/${propertyIdForLinks}`}
             className="hover:text-gray-900 transition"
           >
-            Harmony Court - 3BR Duplex
+            {propertyName}
           </Link>
           <ChevronRight className="h-4 w-4" />
           <span className="text-gray-900">Unit {unit.unitId}</span>
@@ -394,13 +439,17 @@ const UnitDetailPage: NextPageWithLayout = () => {
       <AddTenantModal
         isOpen={isAddTenantOpen}
         onClose={() => setIsAddTenantOpen(false)}
-        propertyId={id as string}
-        unitId={unitId as string}
+        propertyId={propertyIdForLinks}
+        unitId={unit.id}
+        unitLabel={`${unit.unitId} • ${unit.type}`}
+        onSuccess={() => {
+          // Optionally refresh tenant or unit data
+        }}
       />
       <NewMaintenanceRequestModal
         isOpen={isNewRequestOpen}
         onClose={() => setIsNewRequestOpen(false)}
-        propertyId={id as string}
+        propertyId={propertyIdForLinks}
       />
     </>
   );

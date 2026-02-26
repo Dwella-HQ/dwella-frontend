@@ -38,16 +38,16 @@ const SignUpPage: NextPageWithLayout = () => {
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [selectedRole, setSelectedRole] = React.useState<"tenant" | "landlord" | "manager" | null>(null);
 
-  // Get role from query params
+  // Get role from query params (wait for router to be ready – query is empty on first paint)
   React.useEffect(() => {
+    if (!router.isReady) return;
     const role = router.query.role as string;
     if (role && ["tenant", "landlord", "manager"].includes(role)) {
       setSelectedRole(role as "tenant" | "landlord" | "manager");
     } else {
-      // If no role, redirect to home
       router.push("/");
     }
-  }, [router.query.role, router]);
+  }, [router.isReady, router.query.role, router]);
 
   const {
     register: registerField,
@@ -82,14 +82,22 @@ const SignUpPage: NextPageWithLayout = () => {
         manager: "property_manager",
       };
 
-      const result = await register({
+      const tenantIdFromQuery = router.query["tenant-id"] as string | undefined;
+
+      const payload: Parameters<typeof register>[0] = {
         email: data.email,
         password: data.password,
         roleName: roleNameMap[selectedRole],
         fullName: data.fullName,
         phoneNumber: data.phoneNumber,
         registrationType: "EMAIL",
-      });
+      };
+
+      if (selectedRole === "tenant" && tenantIdFromQuery) {
+        payload.tenantId = tenantIdFromQuery;
+      }
+
+      const result = await register(payload);
 
       if (!result.success) {
         setError(result.error);

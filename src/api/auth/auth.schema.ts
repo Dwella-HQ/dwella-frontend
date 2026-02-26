@@ -172,6 +172,7 @@ export const registerRequestSchema = z.object({
   phoneNumber: z.string().min(1, "Phone number is required"),
   registrationType: z.enum(["EMAIL", "GOOGLE", "FACEBOOK"]).default("EMAIL"),
   propertyManagerId: z.string().uuid().optional(), // For property manager invitations
+  tenantId: z.string().uuid().optional(), // For tenant invitations (signup link with tenant-id)
 });
 
 export type RegisterRequestDTO = z.infer<typeof registerRequestSchema>;

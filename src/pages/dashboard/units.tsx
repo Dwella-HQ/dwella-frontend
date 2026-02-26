@@ -271,7 +271,7 @@ const UnitsPage: NextPageWithLayout = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: index * 0.05 }}
-                    onClick={() => router.push(`/dashboard/properties/${unit.propertyId}/units/${unit.unitId}`)}
+                    onClick={() => router.push(`/dashboard/properties/${unit.propertyId}/units/${unit.id}`)}
                     className="hover:bg-gray-50 transition cursor-pointer"
                   >
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -315,7 +315,7 @@ const UnitsPage: NextPageWithLayout = () => {
                         type="button"
                         onClick={() =>
                           router.push(
-                            `/dashboard/properties/${unit.propertyId}/units/${unit.unitId}`
+                            `/dashboard/properties/${unit.propertyId}/units/${unit.id}`
                           )
                         }
                         className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"

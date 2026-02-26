@@ -665,6 +665,18 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         isOpen={isAddTenantOpen}
         onClose={() => setIsAddTenantOpen(false)}
         propertyId={id as string}
+        units={units.map((u) => ({ id: u.id, unitId: u.unitId, type: u.type }))}
+        onSuccess={() => {
+          if (id && typeof id === "string") {
+            setIsLoadingUnits(true);
+            getUnitsByProperty(id).then((result) => {
+              if (result.success) {
+                setUnits(result.data.map((unitDTO) => mapUnitDTOToUnit(unitDTO, id)));
+              }
+              setIsLoadingUnits(false);
+            });
+          }
+        }}
       />
     </>
   );
