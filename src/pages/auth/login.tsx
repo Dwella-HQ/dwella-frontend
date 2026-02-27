@@ -7,6 +7,7 @@ import { AuthLayout } from "@/components/AuthLayout";
 import { useUser, type UserRole } from "@/contexts/UserContext";
 import { login } from "@/api/auth";
 import { getLandlordByUser } from "@/api/landlord";
+import { getTenantByUser } from "@/api/tenants";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -91,19 +92,37 @@ const LoginPage: NextPageWithLayout = () => {
             return;
           }
 
-          setError(landlordResult.error || "Unable to verify landlord onboarding");
+          setError(
+            landlordResult.error || "Unable to verify landlord onboarding",
+          );
           return;
+        }
+
+        // Tenants: fetch tenant record by user id and store tenant id for API use
+        if (role === "tenant") {
+          const tenantResult = await getTenantByUser(apiUser.id);
+          if (
+            tenantResult.success &&
+            tenantResult.data?.id &&
+            typeof window !== "undefined"
+          ) {
+            localStorage.setItem("tenantId", tenantResult.data.id);
+          }
         }
 
         // Super admins and tenants go directly to dashboard
         await router.push("/dashboard");
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred. Please try again.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "An error occurred. Please try again.",
+        );
       } finally {
         setIsLoading(false);
       }
     },
-    [router, setUser]
+    [router, setUser],
   );
 
   return (
@@ -111,11 +130,7 @@ const LoginPage: NextPageWithLayout = () => {
       <Head>
         <title>DWELLA NG · Sign in</title>
       </Head>
-      <LoginForm 
-        onSubmit={handleLogin} 
-        error={error}
-        isLoading={isLoading}
-      />
+      <LoginForm onSubmit={handleLogin} error={error} isLoading={isLoading} />
     </>
   );
 };

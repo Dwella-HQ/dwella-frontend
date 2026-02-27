@@ -1,6 +1,10 @@
 import * as React from "react";
 
-export type UserRole = "landlord" | "property_manager" | "tenant" | "super_admin";
+export type UserRole =
+  | "landlord"
+  | "property_manager"
+  | "tenant"
+  | "super_admin";
 
 export type User = {
   id: string | number;
@@ -35,12 +39,12 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   // Load user from localStorage on mount
   React.useEffect(() => {
     setHasMounted(true);
-    
+
     if (typeof window !== "undefined") {
       try {
         const storedUser = localStorage.getItem("user");
         const token = localStorage.getItem("authToken");
-        
+
         if (storedUser && token) {
           const parsedUser = JSON.parse(storedUser);
           setUserState({ ...parsedUser, token });
@@ -57,7 +61,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
   const setUser = React.useCallback((newUser: User | null) => {
     setUserState(newUser);
-    
+
     if (typeof window !== "undefined") {
       if (newUser) {
         localStorage.setItem("user", JSON.stringify(newUser));
@@ -69,6 +73,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("authToken");
         localStorage.removeItem("userId");
         localStorage.removeItem("landlordId");
+        localStorage.removeItem("tenantId");
         localStorage.removeItem("lastCreatedPropertyId");
       }
     }
@@ -81,6 +86,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem("authToken");
       localStorage.removeItem("userId");
       localStorage.removeItem("landlordId");
+      localStorage.removeItem("tenantId");
       localStorage.removeItem("lastCreatedPropertyId");
     }
   }, [setUser]);
@@ -92,7 +98,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       setUser,
       logout,
     }),
-    [user, isLoading, hasMounted, setUser, logout]
+    [user, isLoading, hasMounted, setUser, logout],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

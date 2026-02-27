@@ -1,5 +1,6 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
+import { format, parseISO } from "date-fns";
 import * as React from "react";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -13,6 +14,8 @@ import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { getPropertiesByLandlord } from "@/api/properties";
+import { getTenantByUser } from "@/api/tenants";
+import type { TenantByUserDTO } from "@/api/tenants";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import type { Property } from "@/data/mockLandlordData";
 import {
@@ -27,7 +30,9 @@ import type { NextPageWithLayout } from "../_app";
 const ManagerDashboard = () => {
   const router = useRouter();
   const { selectedLandlord } = useSelectedLandlord();
-  const [landlordProperties, setLandlordProperties] = React.useState<Property[]>([]);
+  const [landlordProperties, setLandlordProperties] = React.useState<
+    Property[]
+  >([]);
   const [propertiesLoading, setPropertiesLoading] = React.useState(true);
 
   // Redirect to landlord selection if no landlord is selected
@@ -67,14 +72,14 @@ const ManagerDashboard = () => {
   // Filter payments for the selected landlord's properties (by property name)
   const landlordPayments = React.useMemo(() => {
     return mockRecentPayments.filter((payment) =>
-      landlordProperties.some((prop) => prop.name === payment.propertyName)
+      landlordProperties.some((prop) => prop.name === payment.propertyName),
     );
   }, [landlordProperties]);
 
   // Filter maintenance requests for the selected landlord's properties
   const landlordMaintenanceRequests = React.useMemo(() => {
     return mockMaintenanceRequests.filter((request) =>
-      landlordProperties.some((prop) => prop.name === request.propertyName)
+      landlordProperties.some((prop) => prop.name === request.propertyName),
     );
   }, [landlordProperties]);
 
@@ -83,7 +88,7 @@ const ManagerDashboard = () => {
     const totalProperties = landlordProperties.length;
     const totalUnits = landlordProperties.reduce((sum, p) => sum + p.units, 0);
     const unitsUnderMaintenance = landlordMaintenanceRequests.filter(
-      (r) => r.status === "in_progress"
+      (r) => r.status === "in_progress",
     ).length;
     const totalRent = landlordPayments.reduce((sum, p) => sum + p.amount, 0);
     const overdueCount = landlordPayments.filter((p) => {
@@ -109,7 +114,9 @@ const ManagerDashboard = () => {
       {/* Welcome Section */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Dashboard
+          </h1>
           <p className="mt-1 text-sm sm:text-base font-normal text-gray-600">
             Welcome back! Here's what's happening with your Clients properties.
           </p>
@@ -172,142 +179,216 @@ const ManagerDashboard = () => {
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-brand-main border-r-transparent" />
           </div>
         ) : landlordProperties.length === 0 ? (
-          <p className="col-span-full text-sm text-gray-500 py-4">No properties for this landlord yet.</p>
+          <p className="col-span-full text-sm text-gray-500 py-4">
+            No properties for this landlord yet.
+          </p>
         ) : (
-        landlordProperties.slice(0, 3).map((property) => (
-          <div
-            key={property.id}
-            onClick={() => router.push(`/dashboard/properties/${property.id}`)}
-            className="bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-          >
-            {/* Property Image */}
-            <div className="relative h-48 w-full">
-              <img
-                src={property.image}
-                alt={property.name}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-3 left-3">
-                <span
-                  className={`text-xs font-medium px-2 py-1 rounded ${
-                    property.status === "active"
-                      ? "bg-brand-green text-white"
-                      : property.status === "pending"
-                        ? "bg-yellow-500 text-white"
-                        : "bg-gray-700 text-white"
-                  }`}
-                >
-                  {property.status === "active"
-                    ? "Active"
-                    : property.status === "pending"
-                      ? "Pending Verification"
-                      : "Inactive"}
-                </span>
-              </div>
-              <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1">
-                {property.amenities.slice(0, 3).map((amenity, idx) => (
+          landlordProperties.slice(0, 3).map((property) => (
+            <div
+              key={property.id}
+              onClick={() =>
+                router.push(`/dashboard/properties/${property.id}`)
+              }
+              className="bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+            >
+              {/* Property Image */}
+              <div className="relative h-48 w-full">
+                <img
+                  src={property.image}
+                  alt={property.name}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-3 left-3">
                   <span
-                    key={idx}
-                    className="bg-white/90 text-gray-700 text-xs font-medium px-2 py-1 rounded"
+                    className={`text-xs font-medium px-2 py-1 rounded ${
+                      property.status === "active"
+                        ? "bg-brand-green text-white"
+                        : property.status === "pending"
+                          ? "bg-yellow-500 text-white"
+                          : "bg-gray-700 text-white"
+                    }`}
                   >
-                    {amenity}
+                    {property.status === "active"
+                      ? "Active"
+                      : property.status === "pending"
+                        ? "Pending Verification"
+                        : "Inactive"}
                   </span>
-                ))}
-                {property.amenities.length > 3 && (
-                  <span className="bg-white/90 text-gray-700 text-xs font-medium px-2 py-1 rounded">
-                    +{property.amenities.length - 3}
-                  </span>
-                )}
+                </div>
+                <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1">
+                  {property.amenities.slice(0, 3).map((amenity, idx) => (
+                    <span
+                      key={idx}
+                      className="bg-white/90 text-gray-700 text-xs font-medium px-2 py-1 rounded"
+                    >
+                      {amenity}
+                    </span>
+                  ))}
+                  {property.amenities.length > 3 && (
+                    <span className="bg-white/90 text-gray-700 text-xs font-medium px-2 py-1 rounded">
+                      +{property.amenities.length - 3}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Property Details */}
-            <div className="p-4 space-y-3">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900">{property.name}</h3>
-                <p className="text-sm text-gray-600">{property.address}</p>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">{property.units} Units</span>
-                <span className="text-gray-600">{property.occupancy}% Occupancy</span>
-              </div>
-              <div className="pt-3 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-500 uppercase">
-                    Total Units
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {property.units} {property.units === 1 ? 'Unit' : 'Units'}
+              {/* Property Details */}
+              <div className="p-4 space-y-3">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    {property.name}
+                  </h3>
+                  <p className="text-sm text-gray-600">{property.address}</p>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">{property.units} Units</span>
+                  <span className="text-gray-600">
+                    {property.occupancy}% Occupancy
                   </span>
                 </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs font-medium text-gray-500 uppercase">
-                    Occupancy
-                  </span>
-                  <span className="text-sm font-medium text-gray-700">
-                    {property.occupancy}%
-                  </span>
+                <div className="pt-3 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-500 uppercase">
+                      Total Units
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {property.units} {property.units === 1 ? "Unit" : "Units"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs font-medium text-gray-500 uppercase">
+                      Occupancy
+                    </span>
+                    <span className="text-sm font-medium text-gray-700">
+                      {property.occupancy}%
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))
+          ))
         )}
       </div>
     </section>
   );
 };
 
+/** Pick the latest lease (by end date descending); active lease first if present */
+function getLatestLease(leases: TenantByUserDTO["leases"]) {
+  if (!leases?.length) return null;
+  const sorted = [...leases].sort((a, b) => {
+    const endA = new Date(a.endDate).getTime();
+    const endB = new Date(b.endDate).getTime();
+    return endB - endA;
+  });
+  return sorted[0];
+}
+
 // Tenant Dashboard Component
 const TenantDashboard = () => {
   const { user } = useUser();
   const router = useRouter();
+  const [tenantDetails, setTenantDetails] =
+    React.useState<TenantByUserDTO | null>(null);
+  const [tenantLoading, setTenantLoading] = React.useState(true);
+  const [tenantError, setTenantError] = React.useState<string | null>(null);
 
-  // Mock tenant data - in a real app, this would come from an API
-  // For now, we'll use the first tenant as default
-  const tenantData = React.useMemo(() => {
-    return {
-      property: {
-        name: "Harmony Court — 3BR Duplex",
-        address: "12 Iroko Street, Uyo, Akwa Ibom",
-        image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
-      },
-      unit: {
-        number: "A101",
-        type: "2BR Apartment",
-      },
-      amenities: ["AC", "Balcony", "Water Heater", "24/7 Power", "Security Gate"],
-      rental: {
-        monthlyRent: 120000,
-        nextPaymentDue: "05 Jan 2026",
-        paymentStatus: "Paid" as const,
-        lastPayment: "05 Dec 2025",
-        leaseStart: "05 Jan 2024",
-        leaseEnd: "05 Jan 2026",
-      },
-      propertyManager: {
-        name: "Musa A.",
-        phone: "+234 800 000 0001",
-        email: "musa@management.com",
-      },
-      landlord: {
-        name: "Property Owner",
-        phone: "+234 800 000 0000",
-        email: "owner@harmonyourt.com",
-      },
+  React.useEffect(() => {
+    if (!user?.id || user?.role !== "tenant") {
+      setTenantLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setTenantLoading(true);
+    setTenantError(null);
+    getTenantByUser(String(user.id))
+      .then((result) => {
+        if (cancelled) return;
+        if (result.success) setTenantDetails(result.data);
+        else setTenantError(result.error ?? "Failed to load tenant details");
+      })
+      .finally(() => {
+        if (!cancelled) setTenantLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
-  }, []);
+  }, [user?.id, user?.role]);
+
+  const latestLease = React.useMemo(
+    () => getLatestLease(tenantDetails?.leases),
+    [tenantDetails?.leases],
+  );
+
+  const currentUnit = tenantDetails?.currentUnit;
+  const unitTypeLabel = currentUnit
+    ? `${currentUnit.numberOfBedrooms ?? 0}BR Apartment`
+    : "—";
+  const amenities = currentUnit?.amenities ?? [];
+  const defaultPropertyImage =
+    "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop";
 
   const handleSendMessage = (type: "manager" | "landlord") => {
     // Navigate to messages page with the appropriate contact
     router.push("/dashboard/messages");
   };
 
+  if (tenantLoading) {
+    return (
+      <section className="space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">Welcome back!</p>
+        </div>
+        <div className="flex items-center justify-center py-16">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+        </div>
+      </section>
+    );
+  }
+
+  if (tenantError) {
+    return (
+      <section className="space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">Welcome back!</p>
+        </div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {tenantError}
+        </div>
+      </section>
+    );
+  }
+
+  const leaseStartFormatted = latestLease?.startDate
+    ? format(parseISO(latestLease.startDate), "dd MMM yyyy")
+    : "—";
+  const leaseEndFormatted = latestLease?.endDate
+    ? format(parseISO(latestLease.endDate), "dd MMM yyyy")
+    : "—";
+  const rentAmount = latestLease?.rentAmount ?? currentUnit?.rentAmount ?? 0;
+  const rentFrequency = latestLease?.rentFrequency ?? "monthly";
+  const monthlyRentDisplay =
+    rentFrequency === "yearly"
+      ? Math.round(rentAmount / 12)
+      : rentFrequency === "quarterly"
+        ? Math.round(rentAmount / 3)
+        : rentFrequency === "weekly"
+          ? rentAmount * 4
+          : rentAmount;
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Dashboard
+          </h1>
           <p className="mt-1 text-sm sm:text-base font-normal text-gray-600">
             Welcome back! Here's what's happening with your rental.
           </p>
@@ -316,20 +397,22 @@ const TenantDashboard = () => {
 
       {/* Main Content Grid - 4 Cards */}
       <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
-        {/* Quick Actions Card */}
+        {/* Current Unit Card */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
           <div className="relative h-48 w-full">
             <img
-              src={tenantData.property.image}
-              alt={tenantData.property.name}
+              src={defaultPropertyImage}
+              alt={currentUnit?.name ?? "Your unit"}
               className="w-full h-full object-cover"
             />
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
               <h3 className="text-white font-semibold text-base sm:text-lg">
-                {tenantData.property.name}
+                {currentUnit ? `Unit ${currentUnit.name}` : "Your Unit"}
               </h3>
               <p className="text-white/90 text-xs sm:text-sm mt-1">
-                {tenantData.property.address}
+                {currentUnit
+                  ? `${unitTypeLabel} · ₦${(currentUnit.rentAmount ?? 0).toLocaleString()} rent`
+                  : "—"}
               </p>
             </div>
           </div>
@@ -340,7 +423,7 @@ const TenantDashboard = () => {
                   Unit Number
                 </p>
                 <p className="text-sm sm:text-base font-semibold text-gray-900 mt-1">
-                  {tenantData.unit.number}
+                  {currentUnit?.name ?? "—"}
                 </p>
               </div>
               <div>
@@ -348,7 +431,7 @@ const TenantDashboard = () => {
                   Unit Type
                 </p>
                 <p className="text-sm sm:text-base font-semibold text-gray-900 mt-1">
-                  {tenantData.unit.type}
+                  {unitTypeLabel}
                 </p>
               </div>
             </div>
@@ -357,14 +440,18 @@ const TenantDashboard = () => {
                 Amenities
               </p>
               <div className="flex flex-wrap gap-2">
-                {tenantData.amenities.map((amenity, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-2.5 py-1 rounded-md border border-green-200 bg-green-50 text-green-700 text-xs font-medium"
-                  >
-                    {amenity}
-                  </span>
-                ))}
+                {amenities.length > 0 ? (
+                  amenities.map((amenity, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-2.5 py-1 rounded-md border border-green-200 bg-green-50 text-green-700 text-xs font-medium"
+                    >
+                      {amenity}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-500">—</span>
+                )}
               </div>
             </div>
           </div>
@@ -377,54 +464,51 @@ const TenantDashboard = () => {
           </h3>
           <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm text-gray-600">Monthly Rent</span>
+              <span className="text-xs sm:text-sm text-gray-600">
+                Monthly Rent
+              </span>
               <span className="text-sm sm:text-base font-semibold text-gray-900">
-                ₦{tenantData.rental.monthlyRent.toLocaleString()}
+                ₦{monthlyRentDisplay.toLocaleString()}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm text-gray-600">Next Payment Due</span>
+              <span className="text-xs sm:text-sm text-gray-600">
+                Next Payment Due
+              </span>
               <span className="text-sm sm:text-base font-medium text-gray-900">
-                {tenantData.rental.nextPaymentDue}
+                —
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm text-gray-600">Payment Status</span>
-              <span className="inline-flex items-center gap-1.5">
-                <svg
-                  className="h-4 w-4 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-                <span className="text-sm sm:text-base font-medium text-green-600">
-                  {tenantData.rental.paymentStatus}
-                </span>
+              <span className="text-xs sm:text-sm text-gray-600">
+                Payment Status
+              </span>
+              <span className="text-sm sm:text-base font-medium text-gray-500">
+                —
               </span>
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-              <span className="text-xs sm:text-sm text-gray-600">Last Payment</span>
+              <span className="text-xs sm:text-sm text-gray-600">
+                Last Payment
+              </span>
               <span className="text-sm sm:text-base font-medium text-gray-900">
-                {tenantData.rental.lastPayment}
+                —
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm text-gray-600">Lease Start</span>
+              <span className="text-xs sm:text-sm text-gray-600">
+                Lease Start
+              </span>
               <span className="text-sm sm:text-base font-medium text-gray-900">
-                {tenantData.rental.leaseStart}
+                {leaseStartFormatted}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm text-gray-600">Lease End</span>
+              <span className="text-xs sm:text-sm text-gray-600">
+                Lease End
+              </span>
               <span className="text-sm sm:text-base font-medium text-gray-900">
-                {tenantData.rental.leaseEnd}
+                {leaseEndFormatted}
               </span>
             </div>
           </div>
@@ -436,60 +520,7 @@ const TenantDashboard = () => {
             Property Manager
           </h3>
           <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center gap-3">
-              <svg
-                className="h-5 w-5 text-gray-400 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-              <span className="text-sm sm:text-base text-gray-900">
-                {tenantData.propertyManager.name}
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <svg
-                className="h-5 w-5 text-gray-400 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                />
-              </svg>
-              <span className="text-sm sm:text-base text-gray-600">
-                {tenantData.propertyManager.phone}
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <svg
-                className="h-5 w-5 text-gray-400 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-              <span className="text-sm sm:text-base text-gray-600">
-                {tenantData.propertyManager.email}
-              </span>
-            </div>
+            <p className="text-sm text-gray-500">Contact via Messages</p>
           </div>
           <button
             onClick={() => handleSendMessage("manager")}
@@ -518,60 +549,7 @@ const TenantDashboard = () => {
             Landlord
           </h3>
           <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center gap-3">
-              <svg
-                className="h-5 w-5 text-gray-400 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-              <span className="text-sm sm:text-base text-gray-900">
-                {tenantData.landlord.name}
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <svg
-                className="h-5 w-5 text-gray-400 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                />
-              </svg>
-              <span className="text-sm sm:text-base text-gray-600">
-                {tenantData.landlord.phone}
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <svg
-                className="h-5 w-5 text-gray-400 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-              <span className="text-sm sm:text-base text-gray-600">
-                {tenantData.landlord.email}
-              </span>
-            </div>
+            <p className="text-sm text-gray-500">Contact via Messages</p>
           </div>
           <button
             onClick={() => handleSendMessage("landlord")}
@@ -602,7 +580,8 @@ const TenantDashboard = () => {
 const LandlordDashboard = () => {
   const router = useRouter();
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
-  const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] = React.useState(false);
+  const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
+    React.useState(false);
   const [properties, setProperties] = React.useState<Property[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = React.useState(true);
 
@@ -610,7 +589,10 @@ const LandlordDashboard = () => {
   React.useEffect(() => {
     const fetchProperties = async () => {
       setIsLoadingProperties(true);
-      const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+      const landlordId =
+        typeof window !== "undefined"
+          ? localStorage.getItem("landlordId")
+          : null;
       if (landlordId) {
         const result = await getPropertiesByLandlord(landlordId);
         if (result.success) {
@@ -642,7 +624,9 @@ const LandlordDashboard = () => {
         {/* Welcome Section */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              Dashboard
+            </h1>
             <p className="mt-1 text-sm sm:text-base font-normal text-gray-600">
               Welcome back! Here's what's happening with your properties.
             </p>
@@ -675,11 +659,15 @@ const LandlordDashboard = () => {
         {/* My Properties */}
         {isLoadingProperties ? (
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">My Properties</h2>
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">
+              My Properties
+            </h2>
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
-                <p className="mt-4 text-sm text-gray-600">Loading properties...</p>
+                <p className="mt-4 text-sm text-gray-600">
+                  Loading properties...
+                </p>
               </div>
             </div>
           </div>
