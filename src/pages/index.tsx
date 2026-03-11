@@ -1,170 +1,129 @@
 import * as React from "react";
 import Head from "next/head";
-import { useRouter } from "next/router";
-import Image from "next/image";
-import logo from "@/assets/logo.png";
-import loginImage from "@/assets/auth/login_image.png";
+import {
+  LandingHeader,
+  LandingFooter,
+  StatsBar,
+  HeroSearch,
+  CategoryTabs,
+  LandingPropertyCard,
+} from "@/components/landing";
+import { getProperties } from "@/api/properties";
+import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
+import type { Property } from "@/data/mockLandlordData";
 
-const IndexPage = () => {
-  const router = useRouter();
-  const [selectedRole, setSelectedRole] = React.useState<"landlord" | "tenant" | "manager" | null>(null);
+const LISTINGS_PER_PAGE = 9;
 
-  const handleContinue = () => {
-    if (selectedRole) {
-      // Redirect property managers to their dedicated signup page
-      if (selectedRole === "manager") {
-        router.push("/auth/signup/manager");
-      } else {
-        router.push(`/auth/signup?role=${selectedRole}`);
-      }
-    }
-  };
+function filterByCategory(list: Property[], category: string) {
+  if (category === "All") return list;
+  const key = category.toLowerCase().replace(/\s+/g, " ");
+  return list.filter(
+    (p) =>
+      p.name.toLowerCase().includes(key) ||
+      (category === "Self Contain" && p.name.toLowerCase().includes("self")),
+  );
+}
+
+export default function LandingPage() {
+  const [category, setCategory] = React.useState("All");
+  const [displayCount, setDisplayCount] = React.useState(LISTINGS_PER_PAGE);
+  const [properties, setProperties] = React.useState<Property[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getProperties()
+      .then((result) => {
+        if (cancelled) return;
+        if (result.success) {
+          setProperties(
+            result.data
+              .map(mapPropertyDTOToProperty)
+              .filter((p) => p.status === "active"),
+          );
+        } else {
+          setError(result.error);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => setDisplayCount(LISTINGS_PER_PAGE), [category]);
+  const listings = React.useMemo(
+    () => filterByCategory(properties, category),
+    [properties, category],
+  );
+  const visible = listings.slice(0, displayCount);
+  const hasMore = displayCount < listings.length;
 
   return (
     <>
       <Head>
-        <title>DWELLA NG · Get Started</title>
+        <title>DWELLA NG – Find Your Perfect Home</title>
+        <meta
+          name="description"
+          content="Discover verified properties across Nigeria. Rent or list your property with DWELLA NG."
+        />
       </Head>
-
-      <div className="flex min-h-screen bg-gray-50">
-        {/* Left side - Image */}
-        <div className="hidden lg:flex lg:w-1/2 relative">
-          <Image
-            src={loginImage}
-            alt="Building background"
-            fill
-            className="object-cover"
-            priority
-          />
-        </div>
-
-        {/* Right side - Form */}
-        <div className="flex-1 flex flex-col lg:w-1/2">
-          <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-            <div className="w-full max-w-md">
-              {/* Logo */}
-              <div className="flex items-center justify-center gap-2 mb-8">
-                <Image
-                  src={logo}
-                  alt="DWELLA NG logo"
-                  width={48}
-                  height={48}
-                  className="object-contain"
-                />
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-brand-main">DWELLA</span>
-                  <span className="text-2xl font-bold text-blue-400">NG</span>
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <LandingHeader />
+        <main className="flex-1">
+          <HeroSearch />
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <CategoryTabs value={category} onChange={setCategory} />
+            <section className="py-8">
+              {loading ? (
+                <div className="flex min-h-[280px] items-center justify-center">
+                  <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--brand-main)] border-t-transparent" />
                 </div>
-              </div>
-
-              {/* Heading */}
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-8 text-center">
-                Get Started As
-              </h1>
-
-              {/* Role Selection - Radio Buttons */}
-              <div className="space-y-3 mb-8">
-                {/* Landlord Option */}
-                <label
-                  className={`flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition ${
-                    selectedRole === "landlord"
-                      ? "border-brand-main bg-brand-main/5"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="role"
-                    value="landlord"
-                    checked={selectedRole === "landlord"}
-                    onChange={(e) => setSelectedRole(e.target.value as "landlord")}
-                    className="mt-1 h-5 w-5 text-brand-main focus:ring-brand-main border-gray-300"
-                  />
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-900 mb-1">Landlord / Realtor</div>
-                    <div className="text-sm text-gray-500">
-                      Manage properties, rent, and tenants.
-                    </div>
+              ) : error ? (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 py-12 text-center text-gray-600">
+                  <p>
+                    {error === "Unauthorized"
+                      ? "Properties are temporarily unavailable. Please try again later."
+                      : error}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {visible.map((property, index) => (
+                      <LandingPropertyCard
+                        key={property.id}
+                        property={property}
+                        showListCta={index === 2}
+                      />
+                    ))}
                   </div>
-                </label>
-
-                {/* Tenant Option */}
-                <label
-                  className={`flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition ${
-                    selectedRole === "tenant"
-                      ? "border-brand-main bg-brand-main/5"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="role"
-                    value="tenant"
-                    checked={selectedRole === "tenant"}
-                    onChange={(e) => setSelectedRole(e.target.value as "tenant")}
-                    className="mt-1 h-5 w-5 text-brand-main focus:ring-brand-main border-gray-300"
-                  />
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-900 mb-1">Tenant</div>
-                    <div className="text-sm text-gray-500">
-                      Find and manage your rental home.
+                  {hasMore && (
+                    <div className="mt-10 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDisplayCount((c) => c + LISTINGS_PER_PAGE)
+                        }
+                        className="rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                      >
+                        Load More Properties
+                      </button>
                     </div>
-                  </div>
-                </label>
-
-                {/* Property Manager Option */}
-                <label
-                  className={`flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition ${
-                    selectedRole === "manager"
-                      ? "border-brand-main bg-brand-main/5"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="role"
-                    value="manager"
-                    checked={selectedRole === "manager"}
-                    onChange={(e) => setSelectedRole(e.target.value as "manager")}
-                    className="mt-1 h-5 w-5 text-brand-main focus:ring-brand-main border-gray-300"
-                  />
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-900 mb-1">Property Manager</div>
-                    <div className="text-sm text-gray-500">
-                      Manage properties on behalf of landlords.
-                    </div>
-                  </div>
-                </label>
-              </div>
-
-              {/* Continue Button */}
-              <button
-                type="button"
-                onClick={handleContinue}
-                disabled={!selectedRole}
-                className="w-full rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Continue
-              </button>
-
-              {/* Login Link */}
-              <div className="mt-6 text-center">
-                <p className="text-sm text-gray-600">
-                  Already have an account?{" "}
-                  <a
-                    href="/auth/login"
-                    className="font-medium text-brand-main hover:text-brand-main/80 underline"
-                  >
-                    Sign in
-                  </a>
-                </p>
-              </div>
-            </div>
+                  )}
+                </>
+              )}
+            </section>
           </div>
-        </div>
+          <StatsBar />
+        </main>
+        <LandingFooter />
       </div>
     </>
   );
-};
-
-export default IndexPage;
+}

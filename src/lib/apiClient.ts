@@ -18,7 +18,7 @@ type ApiResult<T> =
  */
 export const apiClient = async <T>(
   endpoint: string,
-  options: ApiClientOptions = {}
+  options: ApiClientOptions = {},
 ): Promise<ApiResult<T>> => {
   try {
     const { token, skipAuth, headers, method, data, ...axiosOptions } = options;
@@ -73,22 +73,25 @@ export const apiClient = async <T>(
       console.warn("⚠️ Backend returned redirect instead of JSON:", {
         status: response.status,
         location: redirectUrl,
-        message: "Backend should return JSON response, not redirects for API calls",
+        message:
+          "Backend should return JSON response, not redirects for API calls",
       });
-      
+
       // If the redirect URL contains verified=true, treat it as success
       // This is a workaround for backends that redirect after verification
       if (redirectUrl.includes("verified=true")) {
-        console.log("✅ Redirect indicates verification success, treating as success");
-        return { 
-          success: true, 
-          data: { 
-            success: true, 
-            message: "Email verified successfully" 
-          } as T 
+        console.log(
+          "✅ Redirect indicates verification success, treating as success",
+        );
+        return {
+          success: true,
+          data: {
+            success: true,
+            message: "Email verified successfully",
+          } as T,
         };
       }
-      
+
       // Otherwise, return error
       return {
         success: false,
@@ -108,15 +111,19 @@ export const apiClient = async <T>(
     }
 
     // Handle error responses (4xx, 5xx)
-    const responseData = response.data as { message?: string; error?: string } | undefined;
-    
+    const responseData = response.data as
+      | { message?: string; error?: string }
+      | undefined;
+
     // Special handling for 401 Unauthorized (expired/invalid token)
     if (response.status === 401) {
-      // Clear user session
-      if (typeof window !== "undefined") {
-        // Only redirect if not already on login page to avoid redirect loops
-        const currentPath = window.location.pathname;
-        if (!currentPath.startsWith("/auth/login") && !currentPath.startsWith("/auth/signup")) {
+      const isProtectedRoute =
+        typeof window !== "undefined" &&
+        (window.location.pathname.startsWith("/dashboard") ||
+          window.location.pathname.startsWith("/onboarding"));
+
+      if (isProtectedRoute) {
+        if (typeof window !== "undefined") {
           localStorage.removeItem("user");
           localStorage.removeItem("authToken");
           localStorage.removeItem("accessToken");
@@ -124,19 +131,23 @@ export const apiClient = async <T>(
           localStorage.removeItem("landlordId");
           localStorage.removeItem("lastCreatedPropertyId");
           sessionStorage.clear();
-          
-          // Redirect to login page
           window.location.href = "/auth/login";
         }
+        return {
+          success: false,
+          error: "Your session has expired. Please sign in again.",
+          statusCode: response.status,
+        };
       }
-      
+
+      // On public pages (landing, property, auth, etc.): do not redirect or clear session
       return {
         success: false,
-        error: "Your session has expired. Please sign in again.",
+        error: "Unauthorized",
         statusCode: response.status,
       };
     }
-    
+
     // Special handling for 413 (Request Entity Too Large)
     if (response.status === 413) {
       return {
@@ -145,18 +156,23 @@ export const apiClient = async <T>(
         statusCode: response.status,
       };
     }
-    
+
     return {
       success: false,
       error:
-        (responseData && typeof responseData === "object" && (responseData.message || responseData.error)) ||
+        (responseData &&
+          typeof responseData === "object" &&
+          (responseData.message || responseData.error)) ||
         `Request failed with status ${response.status}`,
       statusCode: response.status,
     };
   } catch (error) {
     // Handle Axios errors
     if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError<{ message?: string; error?: string }>;
+      const axiosError = error as AxiosError<{
+        message?: string;
+        error?: string;
+      }>;
 
       // Network errors
       if (!axiosError.response) {
@@ -168,15 +184,19 @@ export const apiClient = async <T>(
 
       // HTTP errors with response
       const statusCode = axiosError.response.status;
-      const responseData = axiosError.response.data as { message?: string; error?: string } | undefined;
+      const responseData = axiosError.response.data as
+        | { message?: string; error?: string }
+        | undefined;
 
       // Special handling for 401 Unauthorized (expired/invalid token)
       if (statusCode === 401) {
-        // Clear user session
-        if (typeof window !== "undefined") {
-          // Only redirect if not already on login page to avoid redirect loops
-          const currentPath = window.location.pathname;
-          if (!currentPath.startsWith("/auth/login") && !currentPath.startsWith("/auth/signup")) {
+        const isProtectedRoute =
+          typeof window !== "undefined" &&
+          (window.location.pathname.startsWith("/dashboard") ||
+            window.location.pathname.startsWith("/onboarding"));
+
+        if (isProtectedRoute) {
+          if (typeof window !== "undefined") {
             localStorage.removeItem("user");
             localStorage.removeItem("authToken");
             localStorage.removeItem("accessToken");
@@ -184,15 +204,18 @@ export const apiClient = async <T>(
             localStorage.removeItem("landlordId");
             localStorage.removeItem("lastCreatedPropertyId");
             sessionStorage.clear();
-            
-            // Redirect to login page
             window.location.href = "/auth/login";
           }
+          return {
+            success: false,
+            error: "Your session has expired. Please sign in again.",
+            statusCode,
+          };
         }
-        
+
         return {
           success: false,
-          error: "Your session has expired. Please sign in again.",
+          error: "Unauthorized",
           statusCode,
         };
       }
@@ -209,7 +232,9 @@ export const apiClient = async <T>(
       return {
         success: false,
         error:
-          (responseData && typeof responseData === "object" && (responseData.message || responseData.error)) ||
+          (responseData &&
+            typeof responseData === "object" &&
+            (responseData.message || responseData.error)) ||
           axiosError.message ||
           `Request failed: ${axiosError.response.statusText}`,
         statusCode,
@@ -219,7 +244,8 @@ export const apiClient = async <T>(
     // Handle other errors
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An unexpected error occurred",
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
     };
   }
 };
@@ -229,7 +255,7 @@ export const apiClient = async <T>(
  */
 export const apiGet = <T>(
   endpoint: string,
-  options?: Omit<ApiClientOptions, "method" | "data">
+  options?: Omit<ApiClientOptions, "method" | "data">,
 ): Promise<ApiResult<T>> => {
   return apiClient<T>(endpoint, { ...options, method: "GET" });
 };
@@ -240,7 +266,7 @@ export const apiGet = <T>(
 export const apiPost = <T>(
   endpoint: string,
   body?: unknown,
-  options?: Omit<ApiClientOptions, "method" | "data">
+  options?: Omit<ApiClientOptions, "method" | "data">,
 ): Promise<ApiResult<T>> => {
   return apiClient<T>(endpoint, {
     ...options,
@@ -255,7 +281,7 @@ export const apiPost = <T>(
 export const apiPatch = <T>(
   endpoint: string,
   body?: unknown,
-  options?: Omit<ApiClientOptions, "method" | "data">
+  options?: Omit<ApiClientOptions, "method" | "data">,
 ): Promise<ApiResult<T>> => {
   return apiClient<T>(endpoint, {
     ...options,
@@ -270,7 +296,7 @@ export const apiPatch = <T>(
 export const apiPut = <T>(
   endpoint: string,
   body?: unknown,
-  options?: Omit<ApiClientOptions, "method" | "data">
+  options?: Omit<ApiClientOptions, "method" | "data">,
 ): Promise<ApiResult<T>> => {
   return apiClient<T>(endpoint, {
     ...options,
@@ -284,7 +310,7 @@ export const apiPut = <T>(
  */
 export const apiDelete = <T>(
   endpoint: string,
-  options?: Omit<ApiClientOptions, "method" | "data">
+  options?: Omit<ApiClientOptions, "method" | "data">,
 ): Promise<ApiResult<T>> => {
   return apiClient<T>(endpoint, { ...options, method: "DELETE" });
 };

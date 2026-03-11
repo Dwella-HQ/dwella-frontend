@@ -278,8 +278,15 @@ export const mockProperties: Property[] = [
     monthlyRent: 450000,
     nextDue: "05 Jan 2026",
     status: "active",
-    image: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
-    amenities: ["24/7 Power", "Security Gate", "Water Treatment", "Swimming Pool", "Gym"],
+    image:
+      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+    amenities: [
+      "24/7 Power",
+      "Security Gate",
+      "Water Treatment",
+      "Swimming Pool",
+      "Gym",
+    ],
   },
   {
     id: "2",
@@ -290,7 +297,8 @@ export const mockProperties: Property[] = [
     monthlyRent: 680000,
     nextDue: "10 Jan 2026",
     status: "active",
-    image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
     amenities: ["24/7 Power", "Security Gate", "Water Treatment", "Parking"],
   },
   {
@@ -302,8 +310,14 @@ export const mockProperties: Property[] = [
     monthlyRent: 520000,
     nextDue: "15 Jan 2026",
     status: "active",
-    image: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
-    amenities: ["24/7 Power", "Security Gate", "Water Treatment", "Swimming Pool"],
+    image:
+      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+    amenities: [
+      "24/7 Power",
+      "Security Gate",
+      "Water Treatment",
+      "Swimming Pool",
+    ],
   },
   {
     id: "4",
@@ -314,7 +328,8 @@ export const mockProperties: Property[] = [
     monthlyRent: 380000,
     nextDue: "20 Jan 2026",
     status: "active",
-    image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
     amenities: ["24/7 Power", "Security Gate", "Water Treatment"],
   },
   {
@@ -326,8 +341,14 @@ export const mockProperties: Property[] = [
     monthlyRent: 280000,
     nextDue: "25 Jan 2026",
     status: "active",
-    image: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
-    amenities: ["24/7 Power", "Security Gate", "Water Treatment", "Swimming Pool"],
+    image:
+      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+    amenities: [
+      "24/7 Power",
+      "Security Gate",
+      "Water Treatment",
+      "Swimming Pool",
+    ],
   },
   {
     id: "6",
@@ -338,8 +359,15 @@ export const mockProperties: Property[] = [
     monthlyRent: 950000,
     nextDue: "30 Jan 2026",
     status: "active",
-    image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
-    amenities: ["24/7 Power", "Security Gate", "Water Treatment", "Fiber Internet", "Gym"],
+    image:
+      "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
+    amenities: [
+      "24/7 Power",
+      "Security Gate",
+      "Water Treatment",
+      "Fiber Internet",
+      "Gym",
+    ],
   },
   {
     id: "7",
@@ -350,7 +378,8 @@ export const mockProperties: Property[] = [
     monthlyRent: 620000,
     nextDue: "05 Feb 2026",
     status: "active",
-    image: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
     amenities: ["24/7 Power", "Security Gate", "Water Treatment", "Parking"],
   },
   {
@@ -362,7 +391,8 @@ export const mockProperties: Property[] = [
     monthlyRent: 480000,
     nextDue: "10 Feb 2026",
     status: "pending",
-    image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
     amenities: ["24/7 Power", "Security Gate", "Water Treatment"],
   },
 ];
@@ -393,6 +423,7 @@ export type MaintenanceRequestWithDetails = {
   status: "new" | "in_progress" | "resolved";
   reportedTime: string;
   description: string;
+  title?: string;
 };
 
 // Types for Messages Page
@@ -474,73 +505,75 @@ export const mockRentPayments: RentPayment[] = [
 ];
 
 // Mock Maintenance Requests with Details
-export const mockMaintenanceRequestsWithDetails: MaintenanceRequestWithDetails[] = [
-  {
-    id: "1",
-    requestId: "MNT-045",
-    propertyName: "Harmony Court",
-    unit: "A203",
-    tenantName: "Ada Emmanuel",
-    type: "Plumbing",
-    subType: "Sink Not Working",
-    priority: "high",
-    status: "in_progress",
-    reportedTime: "2 hours ago",
-    description: "Kitchen sink has a persistent leak under the cabinet. Water is dripping onto the floor.",
-  },
-  {
-    id: "2",
-    requestId: "MNT-044",
-    propertyName: "Garden View",
-    unit: "B101",
-    tenantName: "John Musa",
-    type: "Electrical",
-    subType: "Light Fixture",
-    priority: "medium",
-    status: "resolved",
-    reportedTime: "1 day ago",
-    description: "Bedroom light fixture is not working properly.",
-  },
-  {
-    id: "3",
-    requestId: "MNT-043",
-    propertyName: "Harmony Court",
-    unit: "C305",
-    tenantName: "Sarah Okon",
-    type: "AC",
-    subType: "AC Not Cooling",
-    priority: "high",
-    status: "new",
-    reportedTime: "3 hours ago",
-    description: "AC unit in the living room is not cooling properly.",
-  },
-  {
-    id: "4",
-    requestId: "MNT-042",
-    propertyName: "Palm Estate",
-    unit: "A102",
-    tenantName: "Michael Chen",
-    type: "Plumbing",
-    subType: "Toilet Issues",
-    priority: "low",
-    status: "new",
-    reportedTime: "5 hours ago",
-    description: "Toilet is constantly running and needs repair.",
-  },
-  {
-    id: "5",
-    requestId: "MNT-041",
-    propertyName: "Sunset Apartments",
-    unit: "D201",
-    tenantName: "Fatima Ahmed",
-    type: "Electrical",
-    subType: "Power Outlet",
-    priority: "medium",
-    status: "in_progress",
-    reportedTime: "1 day ago",
-    description: "Power outlet in the kitchen is not working.",
-  },
-];
+export const mockMaintenanceRequestsWithDetails: MaintenanceRequestWithDetails[] =
+  [
+    {
+      id: "1",
+      requestId: "MNT-045",
+      propertyName: "Harmony Court",
+      unit: "A203",
+      tenantName: "Ada Emmanuel",
+      type: "Plumbing",
+      subType: "Sink Not Working",
+      priority: "high",
+      status: "in_progress",
+      reportedTime: "2 hours ago",
+      description:
+        "Kitchen sink has a persistent leak under the cabinet. Water is dripping onto the floor.",
+    },
+    {
+      id: "2",
+      requestId: "MNT-044",
+      propertyName: "Garden View",
+      unit: "B101",
+      tenantName: "John Musa",
+      type: "Electrical",
+      subType: "Light Fixture",
+      priority: "medium",
+      status: "resolved",
+      reportedTime: "1 day ago",
+      description: "Bedroom light fixture is not working properly.",
+    },
+    {
+      id: "3",
+      requestId: "MNT-043",
+      propertyName: "Harmony Court",
+      unit: "C305",
+      tenantName: "Sarah Okon",
+      type: "AC",
+      subType: "AC Not Cooling",
+      priority: "high",
+      status: "new",
+      reportedTime: "3 hours ago",
+      description: "AC unit in the living room is not cooling properly.",
+    },
+    {
+      id: "4",
+      requestId: "MNT-042",
+      propertyName: "Palm Estate",
+      unit: "A102",
+      tenantName: "Michael Chen",
+      type: "Plumbing",
+      subType: "Toilet Issues",
+      priority: "low",
+      status: "new",
+      reportedTime: "5 hours ago",
+      description: "Toilet is constantly running and needs repair.",
+    },
+    {
+      id: "5",
+      requestId: "MNT-041",
+      propertyName: "Sunset Apartments",
+      unit: "D201",
+      tenantName: "Fatima Ahmed",
+      type: "Electrical",
+      subType: "Power Outlet",
+      priority: "medium",
+      status: "in_progress",
+      reportedTime: "1 day ago",
+      description: "Power outlet in the kitchen is not working.",
+    },
+  ];
 
 // Mock Conversations
 export const mockConversations: Conversation[] = [
@@ -705,4 +738,3 @@ export const mockManagers: Manager[] = [
     lastActive: "5 days ago",
   },
 ];
-

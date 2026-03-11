@@ -17,12 +17,12 @@ import { getPropertiesByLandlord } from "@/api/properties";
 import { getTenantByUser } from "@/api/tenants";
 import type { TenantByUserDTO } from "@/api/tenants";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
-import type { Property } from "@/data/mockLandlordData";
+import type { Property, MaintenanceRequest } from "@/data/mockLandlordData";
 import {
   mockDashboardStats,
   mockRecentPayments,
-  mockMaintenanceRequests,
 } from "@/data/mockLandlordData";
+import { getMaintenanceRequests } from "@/api/maintenance";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -34,6 +34,10 @@ const ManagerDashboard = () => {
     Property[]
   >([]);
   const [propertiesLoading, setPropertiesLoading] = React.useState(true);
+  const [recentMaintenance, setRecentMaintenance] = React.useState<
+    MaintenanceRequest[]
+  >([]);
+  const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
 
   // Redirect to landlord selection if no landlord is selected
   React.useEffect(() => {
@@ -65,6 +69,34 @@ const ManagerDashboard = () => {
     };
   }, [selectedLandlord?.id]);
 
+  // Fetch recent maintenance requests (global for now)
+  React.useEffect(() => {
+    let cancelled = false;
+    setMaintenanceLoading(true);
+    getMaintenanceRequests({ limit: 10 }).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        const mapped: MaintenanceRequest[] = result.data.map((r) => ({
+          id: r.id,
+          type: r.type || "Maintenance",
+          description: r.subType || r.description || "",
+          propertyName: r.propertyName || "",
+          unit: r.unit || "",
+          status: r.status,
+          priority: r.priority,
+          timeAgo: r.reportedTime || "",
+        }));
+        setRecentMaintenance(mapped.slice(0, 3));
+      } else {
+        setRecentMaintenance([]);
+      }
+      setMaintenanceLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!selectedLandlord) {
     return null;
   }
@@ -76,18 +108,11 @@ const ManagerDashboard = () => {
     );
   }, [landlordProperties]);
 
-  // Filter maintenance requests for the selected landlord's properties
-  const landlordMaintenanceRequests = React.useMemo(() => {
-    return mockMaintenanceRequests.filter((request) =>
-      landlordProperties.some((prop) => prop.name === request.propertyName),
-    );
-  }, [landlordProperties]);
-
   // Calculate stats for selected landlord
   const landlordStats = React.useMemo(() => {
     const totalProperties = landlordProperties.length;
     const totalUnits = landlordProperties.reduce((sum, p) => sum + p.units, 0);
-    const unitsUnderMaintenance = landlordMaintenanceRequests.filter(
+    const unitsUnderMaintenance = recentMaintenance.filter(
       (r) => r.status === "in_progress",
     ).length;
     const totalRent = landlordPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -584,6 +609,10 @@ const LandlordDashboard = () => {
     React.useState(false);
   const [properties, setProperties] = React.useState<Property[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = React.useState(true);
+  const [recentMaintenance, setRecentMaintenance] = React.useState<
+    MaintenanceRequest[]
+  >([]);
+  const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
 
   // Fetch properties for the landlord
   React.useEffect(() => {
@@ -604,6 +633,34 @@ const LandlordDashboard = () => {
     };
 
     fetchProperties();
+  }, []);
+
+  // Fetch recent maintenance requests for landlord dashboard
+  React.useEffect(() => {
+    let cancelled = false;
+    setMaintenanceLoading(true);
+    getMaintenanceRequests({ limit: 10 }).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        const mapped: MaintenanceRequest[] = result.data.map((r) => ({
+          id: r.id,
+          type: r.type || "Maintenance",
+          description: r.subType || r.description || "",
+          propertyName: r.propertyName || "",
+          unit: r.unit || "",
+          status: r.status === "resolved" ? "completed" : r.status,
+          priority: r.priority,
+          timeAgo: r.reportedTime || "",
+        }));
+        setRecentMaintenance(mapped.slice(0, 3));
+      } else {
+        setRecentMaintenance([]);
+      }
+      setMaintenanceLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleAddProperty = React.useCallback(() => {
@@ -650,10 +707,21 @@ const LandlordDashboard = () => {
           />
 
           {/* Maintenance Requests */}
-          <MaintenanceRequests
-            requests={mockMaintenanceRequests.slice(0, 3)}
-            onViewAll={() => router.push("/dashboard/maintenance")}
-          />
+          {maintenanceLoading ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm flex items-center justify-center">
+              <div className="text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent" />
+                <p className="mt-4 text-sm text-gray-600">
+                  Loading maintenance requests...
+                </p>
+              </div>
+            </div>
+          ) : (
+            <MaintenanceRequests
+              requests={recentMaintenance}
+              onViewAll={() => router.push("/dashboard/maintenance")}
+            />
+          )}
         </div>
 
         {/* My Properties */}
