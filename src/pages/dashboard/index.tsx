@@ -82,7 +82,7 @@ const ManagerDashboard = () => {
           description: r.subType || r.description || "",
           propertyName: r.propertyName || "",
           unit: r.unit || "",
-          status: r.status,
+          status: r.status === "resolved" ? "completed" : r.status,
           priority: r.priority,
           timeAgo: r.reportedTime || "",
         }));
@@ -132,7 +132,7 @@ const ManagerDashboard = () => {
       overdueAmount: 250000, // Mock value
       overdueCount,
     };
-  }, [landlordProperties, landlordMaintenanceRequests, landlordPayments]);
+  }, [landlordProperties, recentMaintenance, landlordPayments]);
 
   return (
     <section className="space-y-6">
@@ -180,7 +180,7 @@ const ManagerDashboard = () => {
 
         {/* Maintenance Requests */}
         <MaintenanceRequests
-          requests={landlordMaintenanceRequests.slice(0, 3)}
+          requests={recentMaintenance.slice(0, 3)}
           onViewAll={() => router.push("/dashboard/maintenance")}
         />
       </div>
