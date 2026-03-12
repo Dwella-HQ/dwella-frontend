@@ -65,51 +65,55 @@ export const MaintenanceRequests = ({
       {requests.length > 0 ? (
         <div className="divide-y divide-gray-200">
           {requests.map((request, index) => (
-            <motion.div
+            <Link
               key={request.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.2, delay: index * 0.05 }}
-              whileHover={{ x: 4, transition: { duration: 0.2 } }}
-              className="px-6 py-4 hover:bg-gray-50"
+              href={`/dashboard/maintenance/${request.id}`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-2 flex-wrap w-full">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {request.type} — {request.description}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.2, delay: index * 0.05 }}
+                whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2 flex-wrap w-full">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {request.type} — {request.description}
+                      </p>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${getPriorityColor(
+                          request.priority,
+                        )}`}
+                      >
+                        {request.priority.charAt(0).toUpperCase() +
+                          request.priority.slice(1)}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-sm text-gray-500">
+                      {request.propertyName} • {request.unit}
                     </p>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${getPriorityColor(
-                        request.priority
-                      )}`}
-                    >
-                      {request.priority.charAt(0).toUpperCase() +
-                        request.priority.slice(1)}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-sm text-gray-500">
-                    {request.propertyName} • {request.unit}
-                  </p>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusBadge(
-                        request.status
-                      )}`}
-                    >
-                      {request.status === "in_progress"
-                        ? "In Progress"
-                        : request.status === "completed"
-                          ? "Completed"
-                          : "New"}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {request.timeAgo}
-                    </span>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusBadge(
+                          request.status,
+                        )}`}
+                      >
+                        {request.status === "in_progress"
+                          ? "In Progress"
+                          : request.status === "completed"
+                            ? "Completed"
+                            : "New"}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {request.timeAgo}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </Link>
           ))}
         </div>
       ) : (
@@ -122,7 +126,9 @@ export const MaintenanceRequests = ({
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 mb-4">
             <Wrench className="h-8 w-8 text-gray-400" />
           </div>
-          <p className="text-sm font-medium text-gray-900 mb-1">No Maintenance Requests</p>
+          <p className="text-sm font-medium text-gray-900 mb-1">
+            No Maintenance Requests
+          </p>
           <p className="text-xs text-gray-500 text-center">
             Maintenance requests will appear here when available.
           </p>

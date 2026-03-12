@@ -15,6 +15,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import {
   getMaintenanceRequest,
   deleteMaintenanceRequest,
+  updateMaintenanceRequestStatus,
 } from "@/api/maintenance";
 import type { MaintenanceRequestItemDTO } from "@/api/maintenance";
 import { useUser } from "@/contexts/UserContext";
@@ -104,6 +105,16 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [isMarkingResolved, setIsMarkingResolved] = React.useState(false);
+
+  const isTenant = user?.role === "tenant";
+  const isLandlordOrManager =
+    user?.role === "landlord" || user?.role === "property_manager";
+  const canEdit = isTenant;
+  const showMarkResolved =
+    isLandlordOrManager &&
+    request &&
+    normalizeStatus(request.status) !== "Resolved";
 
   React.useEffect(() => {
     if (!id) return;
@@ -142,6 +153,18 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
       router.push("/dashboard/maintenance");
     }
   }, [id, router]);
+
+  const handleMarkResolved = React.useCallback(async () => {
+    if (!id || !request) return;
+    setIsMarkingResolved(true);
+    const result = await updateMaintenanceRequestStatus(id, {
+      status: "RESOLVED",
+    });
+    setIsMarkingResolved(false);
+    if (result.success && result.data) {
+      setRequest(result.data);
+    }
+  }, [id, request]);
 
   const status = request?.status ? normalizeStatus(request.status) : "";
   const priority = request?.priority ? normalizePriority(request.priority) : "";
@@ -239,22 +262,37 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
                 >
                   {priority}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setIsEditOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  <Pencil className="h-4 w-4" />
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsDeleteConfirmOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </button>
+                {canEdit && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsDeleteConfirmOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  </>
+                )}
+                {showMarkResolved && (
+                  <button
+                    type="button"
+                    onClick={handleMarkResolved}
+                    disabled={isMarkingResolved}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-70"
+                  >
+                    <Check className="h-4 w-4" />
+                    {isMarkingResolved ? "Marking…" : "Mark as Resolved"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -356,7 +394,7 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
         )}
       </section>
 
-      {request && (
+      {request && canEdit && (
         <EditMaintenanceRequestModal
           isOpen={isEditOpen}
           onClose={() => setIsEditOpen(false)}
