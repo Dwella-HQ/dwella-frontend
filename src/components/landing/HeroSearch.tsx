@@ -45,7 +45,7 @@ export const HeroSearch = () => {
               <option value="self-contain">Self Contain</option>
               <option value="2br">2 Bedroom Flat</option>
               <option value="3br">3 Bedroom Flat</option>
-              <option value="4br">4 Bedroom Flat</option>
+              <option value="duplex">Duplex</option>
             </select>
             <select className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-[var(--brand-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-main)]">
               <option value="">Budget</option>

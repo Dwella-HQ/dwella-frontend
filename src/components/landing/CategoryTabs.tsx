@@ -6,7 +6,7 @@ const categories = [
   "Self Contain",
   "2 Bedroom Flat",
   "3 Bedroom Flat",
-  "4 Bedroom Flat",
+  "Duplex",
 ] as const;
 
 type CategoryTabsProps = {
