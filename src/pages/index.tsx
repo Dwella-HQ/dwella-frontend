@@ -1,5 +1,7 @@
 import * as React from "react";
 import Head from "next/head";
+import Link from "next/link";
+import { Home } from "lucide-react";
 import {
   LandingHeader,
   LandingFooter,
@@ -123,6 +125,20 @@ export default function LandingPage() {
           <StatsBar />
         </main>
         <LandingFooter />
+
+        {/* Floating "List Your Property" – signup as landlord */}
+        <Link
+          href="/auth/signup?role=landlord"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2"
+          style={{
+            background: "linear-gradient(90deg, #155DFC 0%, #10C7FA 100%)",
+          }}
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
+            <Home className="h-4 w-4" />
+          </span>
+          List Your Property
+        </Link>
       </div>
     </>
   );
