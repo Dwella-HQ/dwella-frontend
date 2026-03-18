@@ -75,6 +75,14 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("landlordId");
         localStorage.removeItem("tenantId");
         localStorage.removeItem("lastCreatedPropertyId");
+        localStorage.removeItem("selectedLandlord");
+        localStorage.removeItem("selectedLandlordId");
+        document.cookie =
+          "selectedLandlord=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+        document.cookie =
+          "selectedLandlordId=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+        document.cookie =
+          "accessToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
       }
     }
   }, []);
@@ -88,6 +96,14 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem("landlordId");
       localStorage.removeItem("tenantId");
       localStorage.removeItem("lastCreatedPropertyId");
+      localStorage.removeItem("selectedLandlord");
+      localStorage.removeItem("selectedLandlordId");
+      document.cookie =
+        "selectedLandlord=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+      document.cookie =
+        "selectedLandlordId=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+      document.cookie =
+        "accessToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
     }
   }, [setUser]);
 

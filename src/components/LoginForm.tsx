@@ -10,7 +10,10 @@ import { motion } from "framer-motion";
 import logo from "@/assets/logo.png";
 
 const loginFormSchema = z.object({
-  email: z.string().min(1, "Email is required.").email("Please enter a valid email address."),
+  email: z
+    .string()
+    .min(1, "Email is required.")
+    .email("Please enter a valid email address."),
   password: z.string().min(1, "Password is required."),
 });
 
@@ -18,13 +21,22 @@ export type LoginFormValues = z.infer<typeof loginFormSchema>;
 
 export type LoginFormProps = {
   onSubmit?: (values: LoginFormValues) => Promise<void> | void;
+  onGoogleSignIn?: (
+    role: "tenant" | "landlord" | "manager",
+  ) => Promise<void> | void;
   error?: string | null;
   isLoading?: boolean;
 };
 
-export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
+export const LoginForm = ({
+  onSubmit,
+  onGoogleSignIn,
+  error,
+  isLoading,
+}: LoginFormProps) => {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
+  const [showGoogleRoles, setShowGoogleRoles] = React.useState(false);
   const loading = isLoading || isSubmitting;
 
   const {
@@ -38,7 +50,6 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
       password: "",
     },
   });
-
 
   const handleFormSubmit = handleSubmit(async (values) => {
     try {
@@ -54,16 +65,20 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
   }, []);
 
   const handleGoogleSignIn = React.useCallback(() => {
-    // TODO: Implement Google sign-in
-    console.log("Google sign-in clicked");
+    setShowGoogleRoles((prev) => !prev);
   }, []);
+
+  const handleGoogleRoleClick = React.useCallback(
+    async (role: "tenant" | "landlord" | "manager") => {
+      setShowGoogleRoles(false);
+      await onGoogleSignIn?.(role);
+    },
+    [onGoogleSignIn],
+  );
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <form
-        onSubmit={handleFormSubmit}
-        className="flex flex-col gap-6"
-      >
+      <form onSubmit={handleFormSubmit} className="flex flex-col gap-6">
         {/* Logo and Name */}
         <div className="flex flex-col items-center justify-center mb-6">
           <Image
@@ -82,9 +97,7 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
 
         {/* Heading */}
         <div className="text-center mb-6">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            Sign in
-          </h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Sign in</h2>
           <p className="text-sm text-gray-600">
             Please login to continue to your account.
           </p>
@@ -163,7 +176,11 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
             </button>
           </div>
           {errors.password && (
-            <p id="password-error" className="text-xs text-red-600" role="alert">
+            <p
+              id="password-error"
+              className="text-xs text-red-600"
+              role="alert"
+            >
               {errors.password.message}
             </p>
           )}
@@ -200,7 +217,9 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
         {/* Divider */}
         <div className="relative flex items-center">
           <div className="flex-grow border-t border-gray-300"></div>
-          <span className="px-4 text-xs uppercase text-gray-400 bg-white">or</span>
+          <span className="px-4 text-xs uppercase text-gray-400 bg-white">
+            or
+          </span>
           <div className="flex-grow border-t border-gray-300"></div>
         </div>
 
@@ -212,11 +231,7 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
           whileTap={{ scale: 0.98 }}
           className="h-11 w-full rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 flex items-center justify-center gap-2"
         >
-          <svg
-            className="w-5 h-5"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
             <path
               fill="#4285F4"
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -236,6 +251,36 @@ export const LoginForm = ({ onSubmit, error, isLoading }: LoginFormProps) => {
           </svg>
           Sign in with Google
         </motion.button>
+        {showGoogleRoles && (
+          <div className="grid gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Continue as
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => void handleGoogleRoleClick("tenant")}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Tenant
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGoogleRoleClick("landlord")}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Landlord
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGoogleRoleClick("manager")}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Property Manager
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Sign Up Link */}
         <div className="text-center text-sm text-gray-600">

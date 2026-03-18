@@ -19,22 +19,31 @@ export const createLandlordRequestSchema = z.object({
   }),
 });
 
-export type CreateLandlordRequestDTO = z.infer<typeof createLandlordRequestSchema>;
+export type CreateLandlordRequestDTO = z.infer<
+  typeof createLandlordRequestSchema
+>;
 
 // Profile picture / file reference (from get landlord by user response)
-const profilePictureSchema = z.object({
-  id: z.string().uuid(),
-  url: z.string().url(),
-  label: z.string().optional(),
-  fileName: z.string().optional(),
-  mimeType: z.string().optional(),
-}).optional().nullable();
+const profilePictureSchema = z
+  .object({
+    id: z.string().uuid(),
+    url: z.string().url(),
+    label: z.string().optional(),
+    fileName: z.string().optional(),
+    mimeType: z.string().optional(),
+  })
+  .optional()
+  .nullable();
 
 // Landlord Response
 export const landlordSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid().optional(),
-  landLordName: z.string(),
+  // Some responses omit this field; normalize to empty string so parsing stays stable.
+  landLordName: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ""),
   bvn: z.string().optional(),
   profilePictureId: z.string().uuid().optional(),
   profilePicture: profilePictureSchema,
@@ -89,9 +98,6 @@ export const createLandlordResponseSchema = z.object({
 });
 
 export type LandlordResponseDTO = z.infer<typeof landlordResponseSchema>;
-export type CreateLandlordResponseDTO = z.infer<typeof createLandlordResponseSchema>;
-
-
-
-
-
+export type CreateLandlordResponseDTO = z.infer<
+  typeof createLandlordResponseSchema
+>;
