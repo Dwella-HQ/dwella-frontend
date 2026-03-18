@@ -6,6 +6,7 @@ import "react-day-picker/dist/style.css";
 import type { NextPage } from "next";
 import type { AppProps } from "next/app";
 import * as React from "react";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { ToastProvider } from "@/components/Toast";
 import { UserProvider } from "@/contexts/UserContext";
@@ -21,16 +22,19 @@ type AppPropsWithLayout = AppProps & {
 
 const DwellaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
   const getLayout = Component.getLayout ?? ((page) => page);
-  
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+
   return (
-    <ToastProvider>
-      <UserProvider>
-        <SelectedLandlordProvider>
-          {getLayout(<Component {...pageProps} />)}
-          <PWAInstallPrompt />
-        </SelectedLandlordProvider>
-      </UserProvider>
-    </ToastProvider>
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <ToastProvider>
+        <UserProvider>
+          <SelectedLandlordProvider>
+            {getLayout(<Component {...pageProps} />)}
+            <PWAInstallPrompt />
+          </SelectedLandlordProvider>
+        </UserProvider>
+      </ToastProvider>
+    </GoogleOAuthProvider>
   );
 };
 

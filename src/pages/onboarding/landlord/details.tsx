@@ -8,6 +8,8 @@ import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
 import { useUser } from "@/contexts/UserContext";
+import { Country, State, City } from "country-state-city";
+import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../../_app";
@@ -26,7 +28,7 @@ const emptyDetails: LandlordDetails = {
   businessName: "",
   address: "",
   phoneNumber: "",
-  country: "",
+  country: "Nigeria",
   state: "",
   city: "",
   postalCode: "",
@@ -41,9 +43,11 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   const [profileUploadProgress, setProfileUploadProgress] = React.useState(0);
   const [isProfileUploading, setIsProfileUploading] = React.useState(false);
   const [profilePictureId, setProfilePictureId] = React.useState<string | null>(
-    null
+    null,
   );
-  const [profilePreview, setProfilePreview] = React.useState<string | null>(null);
+  const [profilePreview, setProfilePreview] = React.useState<string | null>(
+    null,
+  );
 
   const initials = React.useMemo(() => {
     if (!user?.name) {
@@ -54,6 +58,34 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
     const last = parts.length > 1 ? parts[parts.length - 1]?.[0] || "" : "";
     return `${first}${last}`.toUpperCase() || "JD";
   }, [user?.name]);
+
+  const allCountries = React.useMemo(() => Country.getAllCountries(), []);
+  const selectedCountry = React.useMemo(
+    () =>
+      allCountries.find((country) => country.name === details.country) ??
+      allCountries.find((country) => country.name === "Nigeria") ??
+      null,
+    [allCountries, details.country],
+  );
+
+  const statesForCountry = React.useMemo(() => {
+    if (!selectedCountry?.isoCode) return [];
+    return State.getStatesOfCountry(selectedCountry.isoCode);
+  }, [selectedCountry?.isoCode]);
+
+  const selectedState = React.useMemo(
+    () =>
+      statesForCountry.find((state) => state.name === details.state) ?? null,
+    [details.state, statesForCountry],
+  );
+
+  const citiesForState = React.useMemo(() => {
+    if (!selectedCountry?.isoCode || !selectedState?.isoCode) return [];
+    return City.getCitiesOfState(
+      selectedCountry.isoCode,
+      selectedState.isoCode,
+    );
+  }, [selectedCountry?.isoCode, selectedState?.isoCode]);
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -76,7 +108,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
       }
 
       const storedProfileId = sessionStorage.getItem(
-        "landlordOnboardingProfilePictureId"
+        "landlordOnboardingProfilePictureId",
       );
       if (storedProfileId) {
         setProfilePictureId(storedProfileId);
@@ -89,7 +121,47 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
       const { name, value } = event.target;
       setDetails((prev) => ({ ...prev, [name]: value }));
     },
-    []
+    [],
+  );
+
+  const handlePhoneChange = React.useCallback((value: string | undefined) => {
+    setDetails((prev) => ({ ...prev, phoneNumber: value ?? "" }));
+  }, []);
+
+  const handleCountryChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const nextCountryName = event.target.value;
+      setDetails((prev) => ({
+        ...prev,
+        country: nextCountryName,
+        state: "",
+        city: "",
+      }));
+    },
+    [],
+  );
+
+  const handleStateChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const nextStateName = event.target.value;
+      setDetails((prev) => ({
+        ...prev,
+        state: nextStateName,
+        city: "",
+      }));
+    },
+    [],
+  );
+
+  const handleCityChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const nextCityName = event.target.value;
+      setDetails((prev) => ({
+        ...prev,
+        city: nextCityName,
+      }));
+    },
+    [],
   );
 
   const handleContinue = React.useCallback(async () => {
@@ -97,7 +169,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
     if (typeof window !== "undefined") {
       sessionStorage.setItem(
         "landlordOnboardingDetails",
-        JSON.stringify(details)
+        JSON.stringify(details),
       );
     }
     await router.push("/onboarding/landlord/documents");
@@ -128,7 +200,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
         if (typeof window !== "undefined") {
           sessionStorage.setItem(
             "landlordOnboardingProfilePictureId",
-            result.data.id
+            result.data.id,
           );
         }
       } else {
@@ -137,7 +209,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
 
       setIsProfileUploading(false);
     },
-    [showToast, user?.token]
+    [showToast, user?.token],
   );
 
   return (
@@ -251,41 +323,47 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Phone Number
                 </label>
-                <input
-                  name="phoneNumber"
+                <PhoneInputWithCountry
+                  id="phoneNumber"
                   value={details.phoneNumber}
-                  onChange={handleChange}
-                  placeholder="Placeholder"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                  onChange={handlePhoneChange}
+                  placeholder="801 234 5678"
+                  className="w-full focus-within:ring-2 focus-within:ring-brand-main focus-within:border-transparent"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Postal Code
-              </label>
-              <input
-                name="postalCode"
-                value={details.postalCode}
-                onChange={handleChange}
-                placeholder="Placeholder"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-              />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Country
+                  Postal Code
                 </label>
                 <input
-                  name="country"
-                  value={details.country}
+                  name="postalCode"
+                  value={details.postalCode}
                   onChange={handleChange}
-                  placeholder="Placeholder"
+                  placeholder="e.g. 930212"
+                  inputMode="numeric"
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Country
+                </label>
+                <select
+                  name="country"
+                  value={details.country}
+                  onChange={handleCountryChange}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                >
+                  <option value="">Select Country</option>
+                  {allCountries.map((country) => (
+                    <option key={country.isoCode} value={country.name}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -294,25 +372,43 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   State
                 </label>
-                <input
+                <select
                   name="state"
                   value={details.state}
-                  onChange={handleChange}
-                  placeholder="Placeholder"
+                  onChange={handleStateChange}
+                  disabled={!details.country}
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                />
+                >
+                  <option value="">
+                    {details.country ? "Select State" : "Select Country First"}
+                  </option>
+                  {statesForCountry.map((state) => (
+                    <option key={state.isoCode} value={state.name}>
+                      {state.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   City
                 </label>
-                <input
+                <select
                   name="city"
                   value={details.city}
-                  onChange={handleChange}
-                  placeholder="Placeholder"
+                  onChange={handleCityChange}
+                  disabled={!details.country || !details.state}
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                />
+                >
+                  <option value="">
+                    {details.state ? "Select City" : "Select State First"}
+                  </option>
+                  {citiesForState.map((city) => (
+                    <option key={city.name} value={city.name}>
+                      {city.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -345,4 +441,3 @@ LandlordOnboardingDetailsPage.getLayout = (page) => (
 );
 
 export default LandlordOnboardingDetailsPage;
-

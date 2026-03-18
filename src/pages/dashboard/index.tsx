@@ -11,6 +11,7 @@ import { MaintenanceRequests } from "@/components/MaintenanceRequests";
 import { MyProperties } from "@/components/MyProperties";
 import { AddTenantModal } from "@/components/AddTenantModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
+import { useToast } from "@/components/Toast";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { getPropertiesByLandlord } from "@/api/properties";
@@ -23,6 +24,7 @@ import {
   mockRecentPayments,
 } from "@/data/mockLandlordData";
 import { getMaintenanceRequests } from "@/api/maintenance";
+import { createAnnouncementLandlord } from "@/api/announcement";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -604,6 +606,7 @@ const TenantDashboard = () => {
 // Landlord Dashboard Component (existing)
 const LandlordDashboard = () => {
   const router = useRouter();
+  const { showToast } = useToast();
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
     React.useState(false);
@@ -674,6 +677,38 @@ const LandlordDashboard = () => {
   const handleSendAnnouncement = React.useCallback(() => {
     setIsSendAnnouncementOpen(true);
   }, []);
+
+  const handleAnnouncementSend = React.useCallback(
+    async (data: { title: string; message: string; fileIds?: string[] }) => {
+      const landlordId =
+        typeof window !== "undefined" ? localStorage.getItem("landlordId") : "";
+
+      if (!landlordId) {
+        showToast("Missing landlord id. Please sign in again.", "error");
+        throw new Error("Missing landlord id");
+      }
+
+      console.log("Sending landlord announcement", {
+        landlordId,
+        title: data.title,
+      });
+
+      const result = await createAnnouncementLandlord(landlordId, {
+        title: data.title,
+        content: data.message,
+        fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+      });
+
+      if (result.success) {
+        showToast("Announcement sent", "success");
+        return;
+      }
+
+      showToast(result.error || "Failed to send announcement", "error");
+      return;
+    },
+    [showToast],
+  );
 
   return (
     <>
@@ -755,6 +790,7 @@ const LandlordDashboard = () => {
       <SendAnnouncementModal
         isOpen={isSendAnnouncementOpen}
         onClose={() => setIsSendAnnouncementOpen(false)}
+        onSend={handleAnnouncementSend}
       />
     </>
   );

@@ -47,16 +47,20 @@ import {
 import { getProperty } from "@/api/properties";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import type { PropertyDTO } from "@/api/properties";
+import { updatePropertyGracePeriodSettings } from "@/api/properties";
+import { createAnnouncementProperty } from "@/api/announcement";
 import { getUnitsByProperty } from "@/api/units";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
 import type { Unit } from "@/data/mockLandlordData";
 import { useUser } from "@/contexts/UserContext";
+import { useToast } from "@/components/Toast";
 
 import type { NextPageWithLayout } from "../../_app";
 
 const PropertyDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { user } = useUser();
+  const { showToast } = useToast();
   const { id } = router.query;
   const [activeTab, setActiveTab] = React.useState("overview");
   const [isAddUnitOpen, setIsAddUnitOpen] = React.useState(false);
@@ -70,6 +74,15 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   const [isLoadingUnits, setIsLoadingUnits] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = React.useState(0);
+  const [propertyMaintenanceFromApi, setPropertyMaintenanceFromApi] =
+    React.useState<MaintenanceRequestWithDetails[]>([]);
+  const [maintenanceLoading, setMaintenanceLoading] = React.useState(false);
+  const [gracePeriods, setGracePeriods] = React.useState({
+    monthlyRentGracePeriod: "NO_GRACE_PERIOD",
+    quarterlyRentGracePeriod: "NO_GRACE_PERIOD",
+    yearlyRentGracePeriod: "NO_GRACE_PERIOD",
+  });
+  const [isSavingGracePeriod, setIsSavingGracePeriod] = React.useState(false);
 
   // Fetch property from API
   React.useEffect(() => {
@@ -112,6 +125,50 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     if (!propertyDTO) return null;
     return mapPropertyDTOToProperty(propertyDTO);
   }, [propertyDTO]);
+
+  // Maintenance for Overview: from API, mapped to MaintenanceRequest[]
+  const propertyMaintenance = React.useMemo((): MaintenanceRequest[] => {
+    return propertyMaintenanceFromApi.map((r) => ({
+      id: r.id,
+      type: r.type || "Maintenance",
+      description: r.subType || r.description || "",
+      propertyName: r.propertyName || "",
+      unit: r.unit || "",
+      status: r.status === "resolved" ? "completed" : r.status,
+      priority: r.priority,
+      timeAgo: r.reportedTime || "",
+    }));
+  }, [propertyMaintenanceFromApi]);
+
+  // Maintenance for Maintenance tab: from API, mapped to MaintenanceRequestDetail[]
+  const propertyMaintenanceDetails =
+    React.useMemo((): MaintenanceRequestDetail[] => {
+      return propertyMaintenanceFromApi.map((r) => ({
+        id: r.id,
+        propertyId: (id as string) ?? "",
+        unitId: r.unit || "",
+        tenantId: "",
+        tenantName: r.tenantName ?? "",
+        type: r.type ?? "",
+        subType: r.subType ?? "",
+        priority: r.priority,
+        reportedDate: r.reportedTime ?? "",
+        status: r.status,
+        additionalDetail: r.description ?? "",
+      }));
+    }, [propertyMaintenanceFromApi, id]);
+
+  const handleSaveGracePeriod = React.useCallback(async () => {
+    if (!id || typeof id !== "string") return;
+    setIsSavingGracePeriod(true);
+    const result = await updatePropertyGracePeriodSettings(id, gracePeriods);
+    setIsSavingGracePeriod(false);
+    if (result.success) {
+      showToast("Grace period preferences saved", "success");
+    } else {
+      showToast(result.error || "Failed to save grace periods", "error");
+    }
+  }, [gracePeriods, id, showToast]);
 
   if (isLoading) {
     return (
@@ -560,13 +617,18 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                     </label>
                     <select
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      defaultValue=""
+                      value={gracePeriods.monthlyRentGracePeriod}
+                      onChange={(e) =>
+                        setGracePeriods((prev) => ({
+                          ...prev,
+                          monthlyRentGracePeriod: e.target.value,
+                        }))
+                      }
                     >
-                      <option value="">Placeholder</option>
-                      <option value="0">0 days</option>
-                      <option value="3">3 days</option>
-                      <option value="5">5 days</option>
-                      <option value="7">7 days</option>
+                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
+                      <option value="THREE_DAYS">Three Days</option>
+                      <option value="FIVE_DAYS">Five Days</option>
+                      <option value="SEVEN_DAYS">Seven Days</option>
                     </select>
                   </div>
                   <div>
@@ -575,13 +637,18 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                     </label>
                     <select
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      defaultValue=""
+                      value={gracePeriods.quarterlyRentGracePeriod}
+                      onChange={(e) =>
+                        setGracePeriods((prev) => ({
+                          ...prev,
+                          quarterlyRentGracePeriod: e.target.value,
+                        }))
+                      }
                     >
-                      <option value="">Placeholder</option>
-                      <option value="0">0 days</option>
-                      <option value="5">5 days</option>
-                      <option value="7">7 days</option>
-                      <option value="14">14 days</option>
+                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
+                      <option value="FIVE_DAYS">Five Days</option>
+                      <option value="SEVEN_DAYS">Seven Days</option>
+                      <option value="FOURTEEN_DAYS">Fourteen Days</option>
                     </select>
                   </div>
                   <div>
@@ -590,21 +657,28 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                     </label>
                     <select
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      defaultValue=""
+                      value={gracePeriods.yearlyRentGracePeriod}
+                      onChange={(e) =>
+                        setGracePeriods((prev) => ({
+                          ...prev,
+                          yearlyRentGracePeriod: e.target.value,
+                        }))
+                      }
                     >
-                      <option value="">Placeholder</option>
-                      <option value="0">0 days</option>
-                      <option value="7">7 days</option>
-                      <option value="14">14 days</option>
-                      <option value="30">30 days</option>
+                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
+                      <option value="SEVEN_DAYS">Seven Days</option>
+                      <option value="FOURTEEN_DAYS">Fourteen Days</option>
+                      <option value="THIRTY_DAYS">Thirty Days</option>
                     </select>
                   </div>
                 </div>
                 <button
                   type="button"
+                  onClick={handleSaveGracePeriod}
+                  disabled={isSavingGracePeriod}
                   className="mt-6 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                 >
-                  Save Preferences
+                  {isSavingGracePeriod ? "Saving..." : "Save Preferences"}
                 </button>
               </motion.div>
             )}
@@ -655,9 +729,30 @@ const PropertyDetailPage: NextPageWithLayout = () => {
       <SendAnnouncementModal
         isOpen={isSendAnnouncementOpen}
         onClose={() => setIsSendAnnouncementOpen(false)}
-        onSend={(data) => {
-          console.log("Send announcement:", data);
-          setIsSendAnnouncementOpen(false);
+        onSend={async (data) => {
+          if (!id || typeof id !== "string") {
+            showToast("Missing property id", "error");
+            throw new Error("Missing property id");
+          }
+
+          console.log("Sending property announcement", {
+            propertyId: id,
+            title: data.title,
+          });
+
+          const result = await createAnnouncementProperty(id, {
+            title: data.title,
+            content: data.message,
+            fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+          });
+
+          if (result.success) {
+            showToast("Announcement sent", "success");
+            return;
+          }
+
+          showToast(result.error || "Failed to send announcement", "error");
+          return;
         }}
       />
 

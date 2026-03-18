@@ -17,7 +17,17 @@ import {
   Heart,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
-import { getLandlordByUser } from "@/api/landlord";
+import { useToast } from "@/components/Toast";
+import { uploadFile } from "@/api/files";
+import {
+  getLandlordByUser,
+  getLandlordSettings,
+  updateLandlordDocumentsSettings,
+  updateLandlordGracePeriodsSettings,
+  updateLandlordNotificationPreferencesSettings,
+  updateLandlordPlatformPreferencesSettings,
+  updateLandlordProfileSettings,
+} from "@/api/landlord";
 import type { NextPageWithLayout } from "../_app";
 
 type SettingsTab =
@@ -32,12 +42,44 @@ type SettingsTab =
 const SettingsPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { user } = useUser();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = React.useState<SettingsTab>("profile");
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
   const [showNewPassword, setShowNewPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [landlord, setLandlord] = React.useState<any>(null);
   const [isLoadingLandlord, setIsLoadingLandlord] = React.useState(true);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isUploadingDoc, setIsUploadingDoc] = React.useState<string | null>(
+    null,
+  );
+
+  const [profileForm, setProfileForm] = React.useState({
+    businessName: "",
+    businessEmail: "",
+    businessPhoneNumber: "",
+    address: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "Nigeria",
+  });
+  const [documentsForm, setDocumentsForm] = React.useState({
+    govermentIdDocumentId: "",
+    landSurveyDocumentId: "",
+    proofOfOwnershipDocumentId: "",
+    taxIdentificationNumberDocumentId: "",
+  });
+  const [platformPrefsForm, setPlatformPrefsForm] = React.useState({
+    defaultCurrency: "NGN",
+    defaultLateFeeAmount: "0",
+    language: "en",
+  });
+  const [gracePeriodsForm, setGracePeriodsForm] = React.useState({
+    monthlyRentGracePeriod: "NO_GRACE_PERIOD",
+    quarterlyRentGracePeriod: "NO_GRACE_PERIOD",
+    yearlyRentGracePeriod: "NO_GRACE_PERIOD",
+  });
 
   // Notification preferences state
   const [notifications, setNotifications] = React.useState({
@@ -47,6 +89,8 @@ const SettingsPage: NextPageWithLayout = () => {
     reports: { email: true, push: false, sms: false },
   });
 
+  const landlordId = landlord?.id as string | undefined;
+
   // Fetch landlord profile for landlords
   React.useEffect(() => {
     const fetchLandlord = async () => {
@@ -55,6 +99,24 @@ const SettingsPage: NextPageWithLayout = () => {
         const result = await getLandlordByUser(user.id as string);
         if (result.success) {
           setLandlord(result.data);
+          setProfileForm({
+            businessName: result.data.landLordName ?? "",
+            businessEmail: result.data.user?.email ?? user?.email ?? "",
+            businessPhoneNumber: "",
+            address: result.data.address?.address ?? "",
+            city: result.data.address?.city ?? "",
+            state: result.data.address?.state ?? "",
+            postalCode: result.data.address?.postalCode ?? "",
+            country: result.data.address?.country ?? "Nigeria",
+          });
+          setDocumentsForm({
+            govermentIdDocumentId: result.data.govermentIdDocumentId ?? "",
+            landSurveyDocumentId: result.data.landSurveyDocumentId ?? "",
+            proofOfOwnershipDocumentId:
+              result.data.proofOfOwnershipDocumentId ?? "",
+            taxIdentificationNumberDocumentId:
+              result.data.taxIdentificationNumberDocumentId ?? "",
+          });
         }
         setIsLoadingLandlord(false);
       }
@@ -62,6 +124,78 @@ const SettingsPage: NextPageWithLayout = () => {
 
     fetchLandlord();
   }, [user]);
+
+  // Fetch settings payload and prefill forms where values exist
+  React.useEffect(() => {
+    if (!landlordId) return;
+    let cancelled = false;
+    getLandlordSettings(landlordId).then((result) => {
+      if (cancelled || !result.success) return;
+      const data = result.data;
+      setProfileForm((prev) => ({
+        ...prev,
+        businessName:
+          (data.businessName as string) ??
+          (data.landLordName as string) ??
+          prev.businessName,
+        businessEmail: (data.businessEmail as string) ?? prev.businessEmail,
+        businessPhoneNumber:
+          (data.businessPhoneNumber as string) ?? prev.businessPhoneNumber,
+        address:
+          (data.address as { address?: string } | undefined)?.address ??
+          prev.address,
+        city:
+          (data.address as { city?: string } | undefined)?.city ?? prev.city,
+        state:
+          (data.address as { state?: string } | undefined)?.state ?? prev.state,
+        postalCode:
+          (data.address as { postalCode?: string } | undefined)?.postalCode ??
+          prev.postalCode,
+        country:
+          (data.address as { country?: string } | undefined)?.country ??
+          prev.country,
+      }));
+      setPlatformPrefsForm((prev) => ({
+        defaultCurrency:
+          (data.defaultCurrency as string) ?? prev.defaultCurrency,
+        defaultLateFeeAmount: String(
+          (data.defaultLateFeeAmount as number | string | undefined) ??
+            prev.defaultLateFeeAmount,
+        ),
+        language: (data.language as string) ?? prev.language,
+      }));
+      setGracePeriodsForm((prev) => ({
+        monthlyRentGracePeriod:
+          (data.monthlyRentGracePeriod as string) ??
+          prev.monthlyRentGracePeriod,
+        quarterlyRentGracePeriod:
+          (data.quarterlyRentGracePeriod as string) ??
+          prev.quarterlyRentGracePeriod,
+        yearlyRentGracePeriod:
+          (data.yearlyRentGracePeriod as string) ?? prev.yearlyRentGracePeriod,
+      }));
+      setNotifications((prev) => {
+        const toBooleans = (arr: unknown) => {
+          const list = Array.isArray(arr) ? arr : [];
+          return {
+            email: list.includes("EMAIL_NOTIFICATION"),
+            push: list.includes("PUSH_NOTIFICATION"),
+            sms: list.includes("SMS_NOTIFICATION"),
+          };
+        };
+        return {
+          ...prev,
+          payment: toBooleans(data.paymentNotifications),
+          maintenance: toBooleans(data.maintenanceRequestNotifications),
+          overdue: toBooleans(data.overDueNotifications),
+          reports: toBooleans(data.weeklyReportsNotifications),
+        };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [landlordId]);
 
   const getInitials = (name: string) => {
     if (!name) return "JD";
@@ -103,7 +237,7 @@ const SettingsPage: NextPageWithLayout = () => {
 
   const handleNotificationChange = (
     category: keyof typeof notifications,
-    type: "email" | "push" | "sms"
+    type: "email" | "push" | "sms",
   ) => {
     setNotifications((prev) => ({
       ...prev,
@@ -113,6 +247,129 @@ const SettingsPage: NextPageWithLayout = () => {
       },
     }));
   };
+
+  const toNotificationArray = React.useCallback(
+    (v: { email: boolean; push: boolean; sms: boolean }) => {
+      const channels: string[] = [];
+      if (v.email) channels.push("EMAIL_NOTIFICATION");
+      if (v.push) channels.push("PUSH_NOTIFICATION");
+      if (v.sms) channels.push("SMS_NOTIFICATION");
+      return channels;
+    },
+    [],
+  );
+
+  const handleSaveProfile = React.useCallback(async () => {
+    if (!landlordId) return;
+    setIsSaving(true);
+    const result = await updateLandlordProfileSettings(landlordId, {
+      businessName: profileForm.businessName,
+      businessEmail: profileForm.businessEmail,
+      businessPhoneNumber: profileForm.businessPhoneNumber,
+      address: {
+        address: profileForm.address,
+        city: profileForm.city,
+        state: profileForm.state,
+        postalCode: profileForm.postalCode,
+        country: profileForm.country,
+      },
+    });
+    setIsSaving(false);
+    if (result.success) showToast("Profile updated successfully", "success");
+    else showToast(result.error || "Failed to update profile", "error");
+  }, [landlordId, profileForm, showToast]);
+
+  const handleSaveDocuments = React.useCallback(async () => {
+    if (!landlordId) return;
+    setIsSaving(true);
+    const result = await updateLandlordDocumentsSettings(landlordId, {
+      govermentIdDocumentId: documentsForm.govermentIdDocumentId || undefined,
+      landSurveyDocumentId: documentsForm.landSurveyDocumentId || undefined,
+      proofOfOwnershipDocumentId:
+        documentsForm.proofOfOwnershipDocumentId || undefined,
+      taxIdentificationNumberDocumentId:
+        documentsForm.taxIdentificationNumberDocumentId || undefined,
+    });
+    setIsSaving(false);
+    if (result.success) showToast("Documents updated successfully", "success");
+    else showToast(result.error || "Failed to update documents", "error");
+  }, [documentsForm, landlordId, showToast]);
+
+  const handleSavePreferences = React.useCallback(async () => {
+    if (!landlordId) return;
+    setIsSaving(true);
+    const result = await updateLandlordPlatformPreferencesSettings(landlordId, {
+      defaultCurrency: platformPrefsForm.defaultCurrency,
+      defaultLateFeeAmount: Number(platformPrefsForm.defaultLateFeeAmount || 0),
+      language: platformPrefsForm.language,
+    });
+    setIsSaving(false);
+    if (result.success) showToast("Platform preferences saved", "success");
+    else showToast(result.error || "Failed to save preferences", "error");
+  }, [landlordId, platformPrefsForm, showToast]);
+
+  const handleSaveNotifications = React.useCallback(async () => {
+    if (!landlordId) return;
+    setIsSaving(true);
+    const result = await updateLandlordNotificationPreferencesSettings(
+      landlordId,
+      {
+        paymentNotifications: toNotificationArray(notifications.payment),
+        maintenanceRequestNotifications: toNotificationArray(
+          notifications.maintenance,
+        ),
+        overDueNotifications: toNotificationArray(notifications.overdue),
+        weeklyReportsNotifications: toNotificationArray(notifications.reports),
+      },
+    );
+    setIsSaving(false);
+    if (result.success) showToast("Notification preferences saved", "success");
+    else showToast(result.error || "Failed to save notifications", "error");
+  }, [landlordId, notifications, showToast, toNotificationArray]);
+
+  const handleSaveGracePeriods = React.useCallback(async () => {
+    if (!landlordId) return;
+    setIsSaving(true);
+    const result = await updateLandlordGracePeriodsSettings(landlordId, {
+      monthlyRentGracePeriod: gracePeriodsForm.monthlyRentGracePeriod,
+      quarterlyRentGracePeriod: gracePeriodsForm.quarterlyRentGracePeriod,
+      yearlyRentGracePeriod: gracePeriodsForm.yearlyRentGracePeriod,
+    });
+    setIsSaving(false);
+    if (result.success) showToast("Grace periods saved", "success");
+    else showToast(result.error || "Failed to save grace periods", "error");
+  }, [gracePeriodsForm, landlordId, showToast]);
+
+  const handleUploadDocument = React.useCallback(
+    async (
+      key:
+        | "govermentIdDocumentId"
+        | "landSurveyDocumentId"
+        | "proofOfOwnershipDocumentId"
+        | "taxIdentificationNumberDocumentId",
+      file: File,
+    ) => {
+      if (!user?.token) {
+        showToast("You must be signed in to upload files", "error");
+        return;
+      }
+      setIsUploadingDoc(key);
+      const result = await uploadFile({
+        file,
+        folder: "landlord",
+        label: key,
+        token: user.token,
+      });
+      setIsUploadingDoc(null);
+      if (result.success) {
+        setDocumentsForm((prev) => ({ ...prev, [key]: result.data.id }));
+        showToast("Document uploaded", "success");
+      } else {
+        showToast(result.error || "Failed to upload document", "error");
+      }
+    },
+    [showToast, user?.token],
+  );
 
   return (
     <>
@@ -177,7 +434,9 @@ const SettingsPage: NextPageWithLayout = () => {
                   <div className="flex items-center justify-center py-12">
                     <div className="text-center">
                       <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
-                      <p className="mt-4 text-sm text-gray-600">Loading profile...</p>
+                      <p className="mt-4 text-sm text-gray-600">
+                        Loading profile...
+                      </p>
                     </div>
                   </div>
                 ) : (
@@ -196,118 +455,180 @@ const SettingsPage: NextPageWithLayout = () => {
                           initials
                         )}
                       </div>
-                  <div>
-                    <button
+                      <div>
+                        <button
+                          type="button"
+                          className="text-sm font-medium text-brand-main hover:text-brand-main/80"
+                        >
+                          Change Photo
+                        </button>
+                        <p className="text-xs text-gray-500">
+                          JPG, PNG up to 2MB
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Form Fields */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          value={user?.name ?? ""}
+                          readOnly
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-gray-50 px-4 text-sm text-gray-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          value={profileForm.businessEmail}
+                          onChange={(e) =>
+                            setProfileForm((prev) => ({
+                              ...prev,
+                              businessEmail: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={profileForm.businessPhoneNumber}
+                          onChange={(e) =>
+                            setProfileForm((prev) => ({
+                              ...prev,
+                              businessPhoneNumber: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          Business Name
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.businessName}
+                          onChange={(e) =>
+                            setProfileForm((prev) => ({
+                              ...prev,
+                              businessName: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          Address
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.address}
+                          onChange={(e) =>
+                            setProfileForm((prev) => ({
+                              ...prev,
+                              address: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.city}
+                          onChange={(e) =>
+                            setProfileForm((prev) => ({
+                              ...prev,
+                              city: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          State
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.state}
+                          onChange={(e) =>
+                            setProfileForm((prev) => ({
+                              ...prev,
+                              state: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          Postal Code
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.postalCode}
+                          onChange={(e) =>
+                            setProfileForm((prev) => ({
+                              ...prev,
+                              postalCode: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          Country
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.country}
+                          onChange={(e) =>
+                            setProfileForm((prev) => ({
+                              ...prev,
+                              country: e.target.value,
+                            }))
+                          }
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+                    </div>
+
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       type="button"
-                      className="text-sm font-medium text-brand-main hover:text-brand-main/80"
+                      onClick={handleSaveProfile}
+                      disabled={isSaving}
+                      className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                     >
-                      Change Photo
-                    </button>
-                    <p className="text-xs text-gray-500">
-                      JPG, PNG up to 2MB
-                    </p>
-                  </div>
-                </div>
-
-                {/* Form Fields */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Business Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Address
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      State
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                >
-                  Save Changes
-                </motion.button>
+                      {isSaving ? "Saving..." : "Save Changes"}
+                    </motion.button>
                   </>
                 )}
               </div>
@@ -329,13 +650,30 @@ const SettingsPage: NextPageWithLayout = () => {
                     <p className="mb-3 text-sm text-gray-600">
                       Driver's License, National ID, or International Passport
                     </p>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50"
-                    >
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
                       <Upload className="h-4 w-4" />
-                      Choose File
-                    </button>
+                      {isUploadingDoc === "govermentIdDocumentId"
+                        ? "Uploading..."
+                        : "Choose File"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            void handleUploadDocument(
+                              "govermentIdDocumentId",
+                              file,
+                            );
+                          }
+                        }}
+                      />
+                    </label>
+                    {documentsForm.govermentIdDocumentId && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        File ID: {documentsForm.govermentIdDocumentId}
+                      </p>
+                    )}
                   </div>
 
                   {/* Land Survey Document */}
@@ -346,13 +684,30 @@ const SettingsPage: NextPageWithLayout = () => {
                     <p className="mb-3 text-sm text-gray-600">
                       Property map, site plans, or official record
                     </p>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50"
-                    >
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
                       <Upload className="h-4 w-4" />
-                      Choose File
-                    </button>
+                      {isUploadingDoc === "landSurveyDocumentId"
+                        ? "Uploading..."
+                        : "Choose File"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            void handleUploadDocument(
+                              "landSurveyDocumentId",
+                              file,
+                            );
+                          }
+                        }}
+                      />
+                    </label>
+                    {documentsForm.landSurveyDocumentId && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        File ID: {documentsForm.landSurveyDocumentId}
+                      </p>
+                    )}
                   </div>
 
                   {/* Proof of Ownership */}
@@ -363,13 +718,30 @@ const SettingsPage: NextPageWithLayout = () => {
                     <p className="mb-3 text-sm text-gray-600">
                       Document, receipt of purchase, or transfer agreement
                     </p>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50"
-                    >
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
                       <Upload className="h-4 w-4" />
-                      Choose File (Optional)
-                    </button>
+                      {isUploadingDoc === "proofOfOwnershipDocumentId"
+                        ? "Uploading..."
+                        : "Choose File (Optional)"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            void handleUploadDocument(
+                              "proofOfOwnershipDocumentId",
+                              file,
+                            );
+                          }
+                        }}
+                      />
+                    </label>
+                    {documentsForm.proofOfOwnershipDocumentId && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        File ID: {documentsForm.proofOfOwnershipDocumentId}
+                      </p>
+                    )}
                   </div>
 
                   {/* Tax Identification Number */}
@@ -380,15 +752,43 @@ const SettingsPage: NextPageWithLayout = () => {
                     <p className="mb-3 text-sm text-gray-600">
                       Tax certificate or TIN document
                     </p>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50"
-                    >
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
                       <Upload className="h-4 w-4" />
-                      Choose File (Optional)
-                    </button>
+                      {isUploadingDoc === "taxIdentificationNumberDocumentId"
+                        ? "Uploading..."
+                        : "Choose File (Optional)"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            void handleUploadDocument(
+                              "taxIdentificationNumberDocumentId",
+                              file,
+                            );
+                          }
+                        }}
+                      />
+                    </label>
+                    {documentsForm.taxIdentificationNumberDocumentId && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        File ID:{" "}
+                        {documentsForm.taxIdentificationNumberDocumentId}
+                      </p>
+                    )}
                   </div>
                 </div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  type="button"
+                  onClick={handleSaveDocuments}
+                  disabled={isSaving}
+                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                >
+                  {isSaving ? "Saving..." : "Save Documents"}
+                </motion.button>
               </div>
             )}
 
@@ -566,9 +966,11 @@ const SettingsPage: NextPageWithLayout = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   type="button"
+                  onClick={handleSaveNotifications}
+                  disabled={isSaving}
                   className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                 >
-                  Save Preferences
+                  {isSaving ? "Saving..." : "Save Preferences"}
                 </motion.button>
               </div>
             )}
@@ -643,7 +1045,13 @@ const SettingsPage: NextPageWithLayout = () => {
                     </label>
                     <input
                       type="text"
-                      placeholder="Placeholder"
+                      value={platformPrefsForm.defaultCurrency}
+                      onChange={(e) =>
+                        setPlatformPrefsForm((prev) => ({
+                          ...prev,
+                          defaultCurrency: e.target.value,
+                        }))
+                      }
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
                     />
                   </div>
@@ -654,29 +1062,25 @@ const SettingsPage: NextPageWithLayout = () => {
                     </label>
                     <input
                       type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                      value="N/A"
+                      readOnly
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-gray-50 px-4 text-sm text-gray-900"
                     />
                   </div>
 
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Default Late Fee (%)
+                      Default Late Fee Amount
                     </label>
                     <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Default Late Fee (%)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
+                      type="number"
+                      value={platformPrefsForm.defaultLateFeeAmount}
+                      onChange={(e) =>
+                        setPlatformPrefsForm((prev) => ({
+                          ...prev,
+                          defaultLateFeeAmount: e.target.value,
+                        }))
+                      }
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
                     />
                   </div>
@@ -687,7 +1091,13 @@ const SettingsPage: NextPageWithLayout = () => {
                     </label>
                     <input
                       type="text"
-                      placeholder="Placeholder"
+                      value={platformPrefsForm.language}
+                      onChange={(e) =>
+                        setPlatformPrefsForm((prev) => ({
+                          ...prev,
+                          language: e.target.value,
+                        }))
+                      }
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
                     />
                   </div>
@@ -697,9 +1107,11 @@ const SettingsPage: NextPageWithLayout = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   type="button"
+                  onClick={handleSavePreferences}
+                  disabled={isSaving}
                   className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                 >
-                  Save Preferences
+                  {isSaving ? "Saving..." : "Save Preferences"}
                 </motion.button>
               </div>
             )}
@@ -718,13 +1130,18 @@ const SettingsPage: NextPageWithLayout = () => {
                     </label>
                     <select
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      defaultValue=""
+                      value={gracePeriodsForm.monthlyRentGracePeriod}
+                      onChange={(e) =>
+                        setGracePeriodsForm((prev) => ({
+                          ...prev,
+                          monthlyRentGracePeriod: e.target.value,
+                        }))
+                      }
                     >
-                      <option value="">Placeholder</option>
-                      <option value="0">0 days</option>
-                      <option value="3">3 days</option>
-                      <option value="5">5 days</option>
-                      <option value="7">7 days</option>
+                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
+                      <option value="THREE_DAYS">Three Days</option>
+                      <option value="FIVE_DAYS">Five Days</option>
+                      <option value="SEVEN_DAYS">Seven Days</option>
                     </select>
                   </div>
                   <div>
@@ -733,13 +1150,18 @@ const SettingsPage: NextPageWithLayout = () => {
                     </label>
                     <select
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      defaultValue=""
+                      value={gracePeriodsForm.quarterlyRentGracePeriod}
+                      onChange={(e) =>
+                        setGracePeriodsForm((prev) => ({
+                          ...prev,
+                          quarterlyRentGracePeriod: e.target.value,
+                        }))
+                      }
                     >
-                      <option value="">Placeholder</option>
-                      <option value="0">0 days</option>
-                      <option value="5">5 days</option>
-                      <option value="7">7 days</option>
-                      <option value="14">14 days</option>
+                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
+                      <option value="FIVE_DAYS">Five Days</option>
+                      <option value="SEVEN_DAYS">Seven Days</option>
+                      <option value="FOURTEEN_DAYS">Fourteen Days</option>
                     </select>
                   </div>
                   <div>
@@ -748,13 +1170,18 @@ const SettingsPage: NextPageWithLayout = () => {
                     </label>
                     <select
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      defaultValue=""
+                      value={gracePeriodsForm.yearlyRentGracePeriod}
+                      onChange={(e) =>
+                        setGracePeriodsForm((prev) => ({
+                          ...prev,
+                          yearlyRentGracePeriod: e.target.value,
+                        }))
+                      }
                     >
-                      <option value="">Placeholder</option>
-                      <option value="0">0 days</option>
-                      <option value="7">7 days</option>
-                      <option value="14">14 days</option>
-                      <option value="30">30 days</option>
+                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
+                      <option value="SEVEN_DAYS">Seven Days</option>
+                      <option value="FOURTEEN_DAYS">Fourteen Days</option>
+                      <option value="THIRTY_DAYS">Thirty Days</option>
                     </select>
                   </div>
                 </div>
@@ -763,9 +1190,11 @@ const SettingsPage: NextPageWithLayout = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   type="button"
+                  onClick={handleSaveGracePeriods}
+                  disabled={isSaving}
                   className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                 >
-                  Save Preferences
+                  {isSaving ? "Saving..." : "Save Preferences"}
                 </motion.button>
               </div>
             )}
