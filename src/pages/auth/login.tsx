@@ -67,6 +67,7 @@ const LoginPage: NextPageWithLayout = () => {
     document.cookie = `selectedLandlordId=; Path=/; Expires=${expired}; SameSite=Lax`;
     document.cookie = `accessToken=; Path=/; Expires=${expired}; SameSite=Lax`;
     document.cookie = `authToken=; Path=/; Expires=${expired}; SameSite=Lax`;
+    document.cookie = `landlordId=; Path=/; Expires=${expired}; SameSite=Lax`;
   }, []);
 
   const persistFreshAuth = React.useCallback(
@@ -83,6 +84,14 @@ const LoginPage: NextPageWithLayout = () => {
     },
     [],
   );
+
+  const persistLandlordId = React.useCallback((landlordId: string) => {
+    if (typeof window === "undefined" || !landlordId) return;
+    localStorage.setItem("landlordId", landlordId);
+    const maxAge = 60 * 60 * 24 * 7;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `landlordId=${encodeURIComponent(landlordId)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+  }, []);
 
   const completeLogin = React.useCallback(
     async (
@@ -131,7 +140,7 @@ const LoginPage: NextPageWithLayout = () => {
         const landlordResult = await getLandlordByUser(apiUser.id);
         if (landlordResult.success) {
           if (typeof window !== "undefined" && landlordResult.data?.id) {
-            localStorage.setItem("landlordId", landlordResult.data.id);
+            persistLandlordId(landlordResult.data.id);
             // Landlord login should not depend on selected landlord cache.
             localStorage.removeItem("selectedLandlord");
             localStorage.removeItem("selectedLandlordId");
@@ -177,6 +186,7 @@ const LoginPage: NextPageWithLayout = () => {
     },
     [
       mapRoleNameToUserRole,
+      persistLandlordId,
       persistFreshAuth,
       resetClientSession,
       router,

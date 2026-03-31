@@ -8,7 +8,7 @@ import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
-import { createLandlord } from "@/api/landlord";
+import { createLandlord, getLandlordByUser } from "@/api/landlord";
 import { ensureLandlordWallet } from "@/api/wallet";
 import { useUser } from "@/contexts/UserContext";
 import logo from "@/assets/logo.png";
@@ -43,6 +43,14 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     Partial<Record<DocumentType, string>>
   >({});
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+
+  const persistLandlordId = React.useCallback((landlordId: string) => {
+    if (typeof window === "undefined" || !landlordId) return;
+    localStorage.setItem("landlordId", landlordId);
+    const maxAge = 60 * 60 * 24 * 7;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `landlordId=${encodeURIComponent(landlordId)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+  }, []);
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -192,9 +200,17 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
       return;
     }
 
+    let landlordId = result.data?.id ? String(result.data.id) : "";
+    if (!landlordId && user?.id) {
+      const landlordResult = await getLandlordByUser(String(user.id));
+      if (landlordResult.success && landlordResult.data?.id) {
+        landlordId = String(landlordResult.data.id);
+      }
+    }
+
     if (typeof window !== "undefined") {
-      if (result.data?.id) {
-        localStorage.setItem("landlordId", result.data.id);
+      if (landlordId) {
+        persistLandlordId(landlordId);
       }
       sessionStorage.removeItem("landlordOnboardingDetails");
       sessionStorage.removeItem("landlordOnboardingDocumentIds");
@@ -203,8 +219,7 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
 
     // Ensure the landlord wallet exists immediately after registration.
     // This prevents needing to create the wallet at login time.
-    if (typeof window !== "undefined" && result.data?.id) {
-      const landlordId = String(result.data.id);
+    if (typeof window !== "undefined" && landlordId) {
       try {
         await ensureLandlordWallet(landlordId, "NGN");
       } catch (err) {
@@ -214,7 +229,7 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
 
     await router.push("/onboarding/landlord/complete");
     setIsSubmitting(false);
-  }, [router, showToast, user?.id]);
+  }, [persistLandlordId, router, showToast, user?.id]);
 
   const documentSections = [
     {
