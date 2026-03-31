@@ -9,6 +9,7 @@ import { useUser, type UserRole } from "@/contexts/UserContext";
 import { googleLogin, login } from "@/api/auth";
 import { getLandlordByUser } from "@/api/landlord";
 import { getTenantByUser } from "@/api/tenants";
+import { ensureLandlordWallet } from "@/api/wallet";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -33,6 +34,52 @@ const LoginPage: NextPageWithLayout = () => {
         return "tenant";
       }
       return "landlord";
+    },
+    [],
+  );
+
+  const resetClientSession = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    const localKeysToClear = [
+      "user",
+      "authToken",
+      "accessToken",
+      "userId",
+      "landlordId",
+      "tenantId",
+      "selectedLandlord",
+      "selectedLandlordId",
+      "lastCreatedPropertyId",
+    ];
+    localKeysToClear.forEach((k) => localStorage.removeItem(k));
+
+    const sessionKeysToClear = [
+      "landlordOnboardingDetails",
+      "landlordOnboardingDocumentIds",
+      "landlordOnboardingProfilePictureId",
+      "landlordOnboardingStarted",
+    ];
+    sessionKeysToClear.forEach((k) => sessionStorage.removeItem(k));
+
+    const expired = "Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = `selectedLandlord=; Path=/; Expires=${expired}; SameSite=Lax`;
+    document.cookie = `selectedLandlordId=; Path=/; Expires=${expired}; SameSite=Lax`;
+    document.cookie = `accessToken=; Path=/; Expires=${expired}; SameSite=Lax`;
+    document.cookie = `authToken=; Path=/; Expires=${expired}; SameSite=Lax`;
+  }, []);
+
+  const persistFreshAuth = React.useCallback(
+    (userId: string, accessToken: string) => {
+      if (typeof window === "undefined") return;
+
+      localStorage.setItem("userId", userId);
+      localStorage.setItem("accessToken", accessToken);
+
+      const maxAge = 60 * 60 * 24 * 7; // 7 days
+      const secure = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `accessToken=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+      document.cookie = `authToken=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
     },
     [],
   );
@@ -64,13 +111,15 @@ const LoginPage: NextPageWithLayout = () => {
         token: accessToken,
       };
 
+      // Always clear stale cache/cookies before storing the new session.
+      resetClientSession();
       setUser(user);
+      persistFreshAuth(String(apiUser.id), accessToken);
 
       if (typeof window !== "undefined") {
-        sessionStorage.removeItem("landlordOnboardingDetails");
-        sessionStorage.removeItem("landlordOnboardingDocumentIds");
-        sessionStorage.removeItem("landlordOnboardingProfilePictureId");
-        sessionStorage.removeItem("landlordOnboardingStarted");
+        // Defensive: ensure role-specific stale identifiers are reset.
+        localStorage.removeItem("tenantId");
+        localStorage.removeItem("landlordId");
       }
 
       if (role === "property_manager") {
@@ -83,6 +132,20 @@ const LoginPage: NextPageWithLayout = () => {
         if (landlordResult.success) {
           if (typeof window !== "undefined" && landlordResult.data?.id) {
             localStorage.setItem("landlordId", landlordResult.data.id);
+            // Landlord login should not depend on selected landlord cache.
+            localStorage.removeItem("selectedLandlord");
+            localStorage.removeItem("selectedLandlordId");
+            const expired = "Thu, 01 Jan 1970 00:00:00 GMT";
+            document.cookie = `selectedLandlord=; Path=/; Expires=${expired}; SameSite=Lax`;
+            document.cookie = `selectedLandlordId=; Path=/; Expires=${expired}; SameSite=Lax`;
+          }
+          // Ensure a wallet exists after login too (fallback in case onboarding wallet creation wasn't triggered).
+          if (typeof window !== "undefined" && landlordResult.data?.id) {
+            try {
+              await ensureLandlordWallet(String(landlordResult.data.id), "NGN");
+            } catch (e) {
+              console.warn("ensureLandlordWallet failed:", e);
+            }
           }
           await router.push("/dashboard");
           return;
@@ -112,7 +175,13 @@ const LoginPage: NextPageWithLayout = () => {
 
       await router.push("/dashboard");
     },
-    [mapRoleNameToUserRole, router, setUser],
+    [
+      mapRoleNameToUserRole,
+      persistFreshAuth,
+      resetClientSession,
+      router,
+      setUser,
+    ],
   );
 
   const handleLogin = React.useCallback(

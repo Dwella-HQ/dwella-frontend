@@ -1,14 +1,18 @@
 import { apiGet } from "@/lib/apiClient";
 
 import type { WalletDTO } from "./wallet.schema";
-import { walletResponseSchema } from "./wallet.schema";
+import { walletResponseSchema, walletSchema } from "./wallet.schema";
 
-type GetWalletResult = 
+type GetWalletResult =
   | { success: true; data: WalletDTO }
   | { success: false; error: string };
 
 export const getWallet = async (id: string): Promise<GetWalletResult> => {
-  const result = await apiGet<{ success: boolean; data: WalletDTO; message?: string }>(`/wallet/${id}`);
+  const result = await apiGet<{
+    success: boolean;
+    data: WalletDTO;
+    message?: string;
+  }>(`/wallet/${id}`);
 
   if (!result.success) {
     return result;
@@ -17,7 +21,9 @@ export const getWallet = async (id: string): Promise<GetWalletResult> => {
   // Validate response with Zod
   try {
     const parsed = walletResponseSchema.parse(result.data);
-    return { success: true, data: parsed.data };
+    // Re-parse nested wallet with tolerant schema (handles numeric balances etc.)
+    const wallet = walletSchema.parse(parsed.data);
+    return { success: true, data: wallet };
   } catch (parseError) {
     console.error("Get wallet schema validation error:", parseError);
     return {
@@ -26,8 +32,3 @@ export const getWallet = async (id: string): Promise<GetWalletResult> => {
     };
   }
 };
-
-
-
-
-

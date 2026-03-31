@@ -9,6 +9,7 @@ import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
 import { createLandlord } from "@/api/landlord";
+import { ensureLandlordWallet } from "@/api/wallet";
 import { useUser } from "@/contexts/UserContext";
 import logo from "@/assets/logo.png";
 
@@ -198,6 +199,17 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
       sessionStorage.removeItem("landlordOnboardingDetails");
       sessionStorage.removeItem("landlordOnboardingDocumentIds");
       sessionStorage.removeItem("landlordOnboardingProfilePictureId");
+    }
+
+    // Ensure the landlord wallet exists immediately after registration.
+    // This prevents needing to create the wallet at login time.
+    if (typeof window !== "undefined" && result.data?.id) {
+      const landlordId = String(result.data.id);
+      try {
+        await ensureLandlordWallet(landlordId, "NGN");
+      } catch (err) {
+        console.warn("Ensure landlord wallet failed:", err);
+      }
     }
 
     await router.push("/onboarding/landlord/complete");

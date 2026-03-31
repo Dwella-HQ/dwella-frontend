@@ -18,15 +18,29 @@ export const createAnnouncementLandlord = async (
   landlordId: string,
   payload: CreateAnnouncementPayload,
 ): Promise<CreateAnnouncementLandlordResult> => {
+  console.log("createAnnouncementLandlord request", {
+    landlordId,
+    payload,
+  });
   const result = await apiPost<AnnouncementActionResponseDTO>(
     `/announcement/landlord/${landlordId}`,
     payload,
   );
 
-  if (!result.success) return result;
+  if (!result.success) {
+    console.log("createAnnouncementLandlord response (error)", result);
+    return result;
+  }
 
   const parsed = announcementActionResponseSchema.safeParse(result.data);
-  if (parsed.success) return { success: true, data: parsed.data };
+  if (parsed.success) {
+    console.log("createAnnouncementLandlord response (success)", parsed.data);
+    return { success: true, data: parsed.data };
+  }
 
+  console.log(
+    "createAnnouncementLandlord response (fallback success)",
+    result.data,
+  );
   return { success: true, data: { success: true, message: "Sent" } };
 };

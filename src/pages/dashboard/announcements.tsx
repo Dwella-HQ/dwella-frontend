@@ -1,0 +1,143 @@
+import * as React from "react";
+import Head from "next/head";
+import { format, parseISO } from "date-fns";
+import type { NextPageWithLayout } from "../_app";
+import { useUser } from "@/contexts/UserContext";
+import {
+  subscribeAnnouncements,
+  type AnnouncementItemDTO,
+} from "@/api/announcement";
+import { AnnouncementDetailsModal } from "@/components/AnnouncementDetailsModal";
+import { DashboardLayout } from "@/components/DashboardLayout";
+
+const formatDateValue = (value?: string) => {
+  if (!value) return "Just now";
+  try {
+    return format(parseISO(value), "dd MMM yyyy, h:mm a");
+  } catch {
+    return value;
+  }
+};
+
+const isLandlordLevelAnnouncement = (item: AnnouncementItemDTO) => {
+  return (item.level || "").toUpperCase() === "LANDLORD";
+};
+
+const AnnouncementsPage: NextPageWithLayout = () => {
+  const { user } = useUser();
+  const [announcements, setAnnouncements] = React.useState<
+    AnnouncementItemDTO[]
+  >([]);
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    React.useState<AnnouncementItemDTO | null>(null);
+
+  React.useEffect(() => {
+    if (!user?.id) return;
+
+    const subscription = subscribeAnnouncements({
+      onLoad: (items) => {
+        const roleFiltered =
+          user.role === "tenant" || user.role === "property_manager"
+            ? items.filter(isLandlordLevelAnnouncement)
+            : items;
+
+        setAnnouncements((prev) => {
+          if (roleFiltered.length === 0 && prev.length > 0) return prev;
+          return roleFiltered;
+        });
+
+        console.log("Announcements page loaded via socket", {
+          role: user.role,
+          count: roleFiltered.length,
+          items: roleFiltered,
+          rawCount: items.length,
+        });
+      },
+      onRaw: (payload) => {
+        console.log("Announcements page raw socket payload", payload);
+      },
+      onError: (error) => {
+        console.warn("Announcements page socket error:", error);
+      },
+    });
+
+    return () => {
+      subscription.disconnect();
+      console.log("Announcements page socket disconnected");
+    };
+  }, [user?.id, user?.role]);
+
+  const pageTitle =
+    user?.role === "tenant" || user?.role === "property_manager"
+      ? "Landlord Broadcasts"
+      : "All Announcements";
+
+  return (
+    <>
+      <Head>
+        <title>DWELLA NG · Announcements</title>
+      </Head>
+
+      <section className="space-y-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              {pageTitle}
+            </h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Click any announcement to view full details and attachments.
+            </p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-brand-main/10 px-2.5 py-1 text-xs font-semibold text-brand-main">
+            {announcements.length}
+          </span>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          {announcements.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              No announcements available yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {announcements.map((item, index) => (
+                <button
+                  key={item.id || `${item.title}-${index}`}
+                  type="button"
+                  onClick={() => setSelectedAnnouncement(item)}
+                  className="w-full rounded-md border border-gray-100 bg-gray-50 p-4 text-left transition hover:border-gray-200 hover:bg-gray-100"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {item.title}
+                    </p>
+                    <span className="text-xs text-gray-500">
+                      {formatDateValue(item.createdAt)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-700">{item.content}</p>
+                  <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
+                    <span>Level: {item.level || "N/A"}</span>
+                    <span>Attachments: {item.fileIds?.length || 0}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <AnnouncementDetailsModal
+        isOpen={Boolean(selectedAnnouncement)}
+        announcement={selectedAnnouncement}
+        onClose={() => setSelectedAnnouncement(null)}
+      />
+    </>
+  );
+};
+
+AnnouncementsPage.getLayout = (page) => (
+  <DashboardLayout>{page}</DashboardLayout>
+);
+
+export default AnnouncementsPage;

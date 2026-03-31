@@ -38,8 +38,7 @@ import type { NextPageWithLayout } from "../_app";
 const TenantMaintenancePage = () => {
   const { user } = useUser();
   const [activeTab, setActiveTab] = React.useState<"new" | "history">("new");
-  const [tenantDetails, setTenantDetails] =
-    React.useState<TenantByUserDTO | null>(null);
+  const [tenantDetails, setTenantDetails] = React.useState<TenantByUserDTO | null>(null);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [historyCount, setHistoryCount] = React.useState(0);
 

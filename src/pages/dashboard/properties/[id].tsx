@@ -40,9 +40,11 @@ import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
 import {
   mockRecentPayments,
   mockMaintenanceRequests,
-  type MaintenanceRequest,
-  type MaintenanceRequestDetail,
-  type MaintenanceRequestWithDetails,
+} from "@/data/mockLandlordData";
+import type {
+  MaintenanceRequest,
+  MaintenanceRequestDetail,
+  MaintenanceRequestWithDetails,
 } from "@/data/mockLandlordData";
 import {
   mockTenants,
@@ -826,6 +828,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
             content: data.message,
             fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
           });
+          console.log("Property announcement API result", result);
 
           if (result.success) {
             showToast("Announcement sent", "success");

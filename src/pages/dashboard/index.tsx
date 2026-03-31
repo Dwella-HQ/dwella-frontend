@@ -11,6 +11,7 @@ import { MaintenanceRequests } from "@/components/MaintenanceRequests";
 import { MyProperties } from "@/components/MyProperties";
 import { AddTenantModal } from "@/components/AddTenantModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
+import { AnnouncementDetailsModal } from "@/components/AnnouncementDetailsModal";
 import { useToast } from "@/components/Toast";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
@@ -24,13 +25,116 @@ import {
   mockRecentPayments,
 } from "@/data/mockLandlordData";
 import { getMaintenanceRequests } from "@/api/maintenance";
-import { createAnnouncementLandlord } from "@/api/announcement";
+import {
+  type AnnouncementItemDTO,
+  createAnnouncementLandlord,
+  createAnnouncementProperty,
+  subscribeAnnouncements,
+} from "@/api/announcement";
 
 import type { NextPageWithLayout } from "../_app";
+
+const formatAnnouncementDate = (value?: string) => {
+  if (!value) return "Just now";
+  try {
+    return format(parseISO(value), "dd MMM yyyy, h:mm a");
+  } catch {
+    return value;
+  }
+};
+
+const isLandlordLevelAnnouncement = (item: AnnouncementItemDTO) => {
+  return (item.level || "").toUpperCase() === "LANDLORD";
+};
+
+const keepExistingWhenIncomingEmpty = (
+  previous: AnnouncementItemDTO[],
+  incoming: AnnouncementItemDTO[],
+) => {
+  if (incoming.length === 0 && previous.length > 0) {
+    return previous;
+  }
+  return incoming;
+};
+
+type LiveAnnouncementsCardProps = {
+  announcements: AnnouncementItemDTO[];
+  title?: string;
+  emptyText?: string;
+  onViewAll?: () => void;
+  onAnnouncementClick?: (item: AnnouncementItemDTO) => void;
+};
+
+const LiveAnnouncementsCard = ({
+  announcements,
+  title = "Live Announcements",
+  emptyText = "Waiting for announcements from socket...",
+  onViewAll,
+  onAnnouncementClick,
+}: LiveAnnouncementsCardProps) => {
+  const preview = announcements.slice(0, 3);
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <div className="flex items-center gap-3">
+          {onViewAll ? (
+            <button
+              type="button"
+              onClick={onViewAll}
+              className="text-sm font-medium text-brand-main transition hover:text-brand-main/80"
+            >
+              View All
+            </button>
+          ) : null}
+          <span className="inline-flex items-center rounded-full bg-brand-main/10 px-2.5 py-1 text-xs font-semibold text-brand-main">
+            {announcements.length}
+          </span>
+        </div>
+      </div>
+      {preview.length === 0 ? (
+        <p className="text-sm text-gray-500">{emptyText}</p>
+      ) : (
+        <div className="space-y-3">
+          {preview.map((item, index) => (
+            <div
+              key={item.id || `${item.title}-${index}`}
+              className="rounded-md border border-gray-100 bg-gray-50 p-3"
+            >
+              <button
+                type="button"
+                onClick={() => onAnnouncementClick?.(item)}
+                className="w-full text-left"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {item.title}
+                  </p>
+                  <span className="text-xs text-gray-500">
+                    {formatAnnouncementDate(item.createdAt)}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-gray-600">{item.content}</p>
+                {item.fileIds && item.fileIds.length > 0 ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Attachments: {item.fileIds.length}
+                  </p>
+                ) : null}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Manager Dashboard Component
 const ManagerDashboard = () => {
   const router = useRouter();
+  const { showToast } = useToast();
+  const { user } = useUser();
   const { selectedLandlord } = useSelectedLandlord();
   const [landlordProperties, setLandlordProperties] = React.useState<
     Property[]
@@ -40,6 +144,13 @@ const ManagerDashboard = () => {
     MaintenanceRequest[]
   >([]);
   const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
+  const [liveAnnouncements, setLiveAnnouncements] = React.useState<
+    AnnouncementItemDTO[]
+  >([]);
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    React.useState<AnnouncementItemDTO | null>(null);
+  const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
+    React.useState(false);
 
   // Redirect to landlord selection if no landlord is selected
   React.useEffect(() => {
@@ -99,6 +210,34 @@ const ManagerDashboard = () => {
     };
   }, []);
 
+  React.useEffect(() => {
+    if (!user?.token) return;
+    const subscription = subscribeAnnouncements({
+      token: user.token,
+      onLoad: (items) => {
+        const landlordItems = items.filter(isLandlordLevelAnnouncement);
+        setLiveAnnouncements((prev) =>
+          keepExistingWhenIncomingEmpty(prev, landlordItems),
+        );
+        console.log("Manager loaded announcements via socket", {
+          count: landlordItems.length,
+          items: landlordItems,
+          rawCount: items.length,
+        });
+      },
+      onRaw: (payload) => {
+        console.log("Manager raw announcement socket payload", payload);
+      },
+      onError: (error) => {
+        console.warn("Manager announcement socket error:", error);
+      },
+    });
+    return () => {
+      subscription.disconnect();
+      console.log("Manager announcement socket disconnected");
+    };
+  }, [user?.token]);
+
   if (!selectedLandlord) {
     return null;
   }
@@ -135,6 +274,39 @@ const ManagerDashboard = () => {
       overdueCount,
     };
   }, [landlordProperties, recentMaintenance, landlordPayments]);
+  const handleManagerSendAnnouncement = React.useCallback(
+    async (data: { title: string; message: string; fileIds?: string[] }) => {
+      const primaryProperty = landlordProperties[0];
+      if (!primaryProperty?.id) {
+        showToast(
+          "No property found to send this announcement. Add or select a property first.",
+          "error",
+        );
+        throw new Error("Missing property id for manager announcement");
+      }
+
+      console.log("Sending manager property announcement", {
+        propertyId: primaryProperty.id,
+        title: data.title,
+      });
+
+      const result = await createAnnouncementProperty(primaryProperty.id, {
+        title: data.title,
+        content: data.message,
+        fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+      });
+      console.log("Manager property announcement API result", result);
+
+      if (result.success) {
+        showToast("Announcement sent", "success");
+        return;
+      }
+
+      showToast(result.error || "Failed to send announcement", "error");
+      throw new Error(result.error || "Failed to send announcement");
+    },
+    [landlordProperties, showToast],
+  );
 
   return (
     <section className="space-y-6">
@@ -149,7 +321,7 @@ const ManagerDashboard = () => {
           </p>
         </div>
         <button
-          onClick={() => router.push("/dashboard/messages")}
+          onClick={() => setIsSendAnnouncementOpen(true)}
           className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
         >
           <svg
@@ -171,6 +343,13 @@ const ManagerDashboard = () => {
 
       {/* Summary Cards */}
       <DashboardSummaryCards stats={landlordStats} />
+
+      <LiveAnnouncementsCard
+        announcements={liveAnnouncements}
+        title="Landlord Broadcasts"
+        onViewAll={() => router.push("/dashboard/announcements")}
+        onAnnouncementClick={(item) => setSelectedAnnouncement(item)}
+      />
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -296,6 +475,16 @@ const ManagerDashboard = () => {
           ))
         )}
       </div>
+      <AnnouncementDetailsModal
+        isOpen={Boolean(selectedAnnouncement)}
+        announcement={selectedAnnouncement}
+        onClose={() => setSelectedAnnouncement(null)}
+      />
+      <SendAnnouncementModal
+        isOpen={isSendAnnouncementOpen}
+        onClose={() => setIsSendAnnouncementOpen(false)}
+        onSend={handleManagerSendAnnouncement}
+      />
     </section>
   );
 };
@@ -319,6 +508,11 @@ const TenantDashboard = () => {
     React.useState<TenantByUserDTO | null>(null);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [tenantError, setTenantError] = React.useState<string | null>(null);
+  const [liveAnnouncements, setLiveAnnouncements] = React.useState<
+    AnnouncementItemDTO[]
+  >([]);
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    React.useState<AnnouncementItemDTO | null>(null);
 
   React.useEffect(() => {
     if (!user?.id || user?.role !== "tenant") {
@@ -341,6 +535,34 @@ const TenantDashboard = () => {
       cancelled = true;
     };
   }, [user?.id, user?.role]);
+
+  React.useEffect(() => {
+    if (!user?.id || user.role !== "tenant" || !user.token) return;
+    const subscription = subscribeAnnouncements({
+      token: user.token,
+      onLoad: (items) => {
+        const landlordItems = items.filter(isLandlordLevelAnnouncement);
+        setLiveAnnouncements((prev) =>
+          keepExistingWhenIncomingEmpty(prev, landlordItems),
+        );
+        console.log("Tenant loaded announcements via socket", {
+          count: landlordItems.length,
+          items: landlordItems,
+          rawCount: items.length,
+        });
+      },
+      onRaw: (payload) => {
+        console.log("Tenant raw announcement socket payload", payload);
+      },
+      onError: (error) => {
+        console.warn("Tenant announcement socket error:", error);
+      },
+    });
+    return () => {
+      subscription.disconnect();
+      console.log("Tenant announcement socket disconnected");
+    };
+  }, [user?.id, user?.role, user?.token]);
 
   const latestLease = React.useMemo(
     () => getLatestLease(tenantDetails?.leases),
@@ -421,6 +643,14 @@ const TenantDashboard = () => {
           </p>
         </div>
       </div>
+
+      <LiveAnnouncementsCard
+        announcements={liveAnnouncements}
+        title="Landlord Broadcasts"
+        emptyText="No announcements yet for your account."
+        onViewAll={() => router.push("/dashboard/announcements")}
+        onAnnouncementClick={(item) => setSelectedAnnouncement(item)}
+      />
 
       {/* Main Content Grid - 4 Cards */}
       <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
@@ -599,6 +829,11 @@ const TenantDashboard = () => {
           </button>
         </div>
       </div>
+      <AnnouncementDetailsModal
+        isOpen={Boolean(selectedAnnouncement)}
+        announcement={selectedAnnouncement}
+        onClose={() => setSelectedAnnouncement(null)}
+      />
     </section>
   );
 };
@@ -607,6 +842,7 @@ const TenantDashboard = () => {
 const LandlordDashboard = () => {
   const router = useRouter();
   const { showToast } = useToast();
+  const { user } = useUser();
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
     React.useState(false);
@@ -616,6 +852,11 @@ const LandlordDashboard = () => {
     MaintenanceRequest[]
   >([]);
   const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
+  const [liveAnnouncements, setLiveAnnouncements] = React.useState<
+    AnnouncementItemDTO[]
+  >([]);
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    React.useState<AnnouncementItemDTO | null>(null);
 
   // Fetch properties for the landlord
   React.useEffect(() => {
@@ -666,6 +907,33 @@ const LandlordDashboard = () => {
     };
   }, []);
 
+  // Subscribe to announcements feed over websocket.
+  React.useEffect(() => {
+    if (!user?.token) return;
+    const subscription = subscribeAnnouncements({
+      token: user.token,
+      onLoad: (items) => {
+        setLiveAnnouncements((prev) =>
+          keepExistingWhenIncomingEmpty(prev, items),
+        );
+        console.log("Loaded announcements via socket", {
+          count: items.length,
+          items,
+        });
+      },
+      onRaw: (payload) => {
+        console.log("Raw announcement socket payload", payload);
+      },
+      onError: (error) => {
+        console.warn("Announcement socket error:", error);
+      },
+    });
+    return () => {
+      subscription.disconnect();
+      console.log("Announcement socket disconnected");
+    };
+  }, [user?.token]);
+
   const handleAddProperty = React.useCallback(() => {
     router.push("/dashboard/properties/new");
   }, [router]);
@@ -698,8 +966,33 @@ const LandlordDashboard = () => {
         content: data.message,
         fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
       });
+      console.log("Landlord announcement API result", result);
 
       if (result.success) {
+        const responseData =
+          result.data &&
+          typeof result.data.data === "object" &&
+          result.data.data
+            ? (result.data.data as {
+                id?: string;
+                createdAt?: string;
+                updatedAt?: string;
+              })
+            : null;
+
+        // Fallback: update UI immediately even if websocket event is delayed/missing.
+        setLiveAnnouncements((prev) => [
+          {
+            id: responseData?.id,
+            title: data.title,
+            content: data.message,
+            level: "LANDLORD",
+            fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+            createdAt: responseData?.createdAt || new Date().toISOString(),
+            updatedAt: responseData?.updatedAt || new Date().toISOString(),
+          },
+          ...prev,
+        ]);
         showToast("Announcement sent", "success");
         return;
       }
@@ -732,6 +1025,12 @@ const LandlordDashboard = () => {
 
         {/* Summary Cards */}
         <DashboardSummaryCards stats={mockDashboardStats} />
+
+        <LiveAnnouncementsCard
+          announcements={liveAnnouncements}
+          onViewAll={() => router.push("/dashboard/announcements")}
+          onAnnouncementClick={(item) => setSelectedAnnouncement(item)}
+        />
 
         {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-2">
@@ -791,6 +1090,11 @@ const LandlordDashboard = () => {
         isOpen={isSendAnnouncementOpen}
         onClose={() => setIsSendAnnouncementOpen(false)}
         onSend={handleAnnouncementSend}
+      />
+      <AnnouncementDetailsModal
+        isOpen={Boolean(selectedAnnouncement)}
+        announcement={selectedAnnouncement}
+        onClose={() => setSelectedAnnouncement(null)}
       />
     </>
   );
