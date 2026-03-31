@@ -5,8 +5,9 @@ import { walletResponseSchema } from "./wallet.schema";
 
 type CreateLandlordWalletRequest = {
   landlordId: string;
-  bvn: string;
   currency?: string;
+  // Some backends may accept BVN later; this is optional to match contract variability.
+  bvn?: string;
 };
 
 type CreateLandlordWalletResult = 
@@ -20,8 +21,8 @@ export const createLandlordWallet = async (
     "/wallet/landlord",
     {
       landlordId: data.landlordId,
-      bvn: data.bvn,
       currency: data.currency || "NGN",
+      ...(data.bvn ? { bvn: data.bvn } : {}),
     }
   );
 

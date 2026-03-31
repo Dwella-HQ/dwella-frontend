@@ -4,13 +4,85 @@ import { Users } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { InviteManagerModal } from "@/components/InviteManagerModal";
 import { EditManagerModal } from "@/components/EditManagerModal";
-import { mockManagers, mockProperties, type Manager } from "@/data/mockLandlordData";
+import { mockProperties, type Manager } from "@/data/mockLandlordData";
+import { getPropertyManagersByLandlord } from "@/api/property-managers";
+import { useToast } from "@/components/Toast";
+
+const timeAgo = (iso?: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const diffMs = Date.now() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} min ago`;
+  const diffHrs = Math.floor(diffMins / 60);
+  if (diffHrs < 24) return `${diffHrs} hour${diffHrs === 1 ? "" : "s"} ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+};
 
 const ManagersPage = () => {
+  const { showToast } = useToast();
   const [isInviteModalOpen, setIsInviteModalOpen] = React.useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [selectedManager, setSelectedManager] = React.useState<Manager | null>(null);
-  const [managers, setManagers] = React.useState<Manager[]>(mockManagers);
+  const [managers, setManagers] = React.useState<Manager[]>([]);
+  const [isLoadingManagers, setIsLoadingManagers] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      const landlordId =
+        typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+      if (!landlordId) {
+        setManagers([]);
+        return;
+      }
+
+      setIsLoadingManagers(true);
+      const result = await getPropertyManagersByLandlord(landlordId);
+      if (cancelled) return;
+
+      if (!result.success) {
+        showToast(result.error || "Failed to load managers", "error");
+        setManagers([]);
+        setIsLoadingManagers(false);
+        return;
+      }
+
+      const mapped: Manager[] = result.data.map((pm) => {
+        const name =
+          pm.user?.fullName ||
+          (pm as any).fullName ||
+          (pm as any).name ||
+          pm.user?.email ||
+          "Manager";
+        const email = pm.user?.email || (pm as any).email || "";
+        const phone = pm.user?.phoneNumber || (pm as any).phone || "";
+        const status = pm.isActive ? "active" : "inactive";
+        return {
+          id: pm.id,
+          name,
+          email,
+          phone,
+          status,
+          assignedProperties: [], // not returned by this endpoint (yet)
+          permissions: pm.permissions || [],
+          lastActive: timeAgo(pm.updatedAt || pm.createdAt),
+        };
+      });
+
+      setManagers(mapped);
+      setIsLoadingManagers(false);
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [showToast]);
 
   const handleInvite = (data: {
     fullName: string;
@@ -118,6 +190,11 @@ const ManagersPage = () => {
 
               {/* Managers List */}
               <div className="space-y-4">
+                {isLoadingManagers && (
+                  <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                    <p className="text-sm text-gray-600">Loading managers…</p>
+                  </div>
+                )}
                 {managers.map((manager, index) => (
                   <motion.div
                     key={manager.id}
@@ -169,7 +246,11 @@ const ManagersPage = () => {
                         <div className="flex-shrink-0">
                           <p className="text-sm text-gray-500 mb-2">Assigned Properties</p>
                           <div className="flex flex-wrap gap-2">
-                            {manager.assignedProperties.map((propertyId) => (
+                            {manager.assignedProperties.length === 0 ? (
+                              <span className="rounded-md bg-gray-50 px-3 py-1 text-sm font-medium text-gray-600">
+                                None assigned
+                              </span>
+                            ) : manager.assignedProperties.map((propertyId) => (
                               <span
                                 key={propertyId}
                                 className="rounded-md bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700"

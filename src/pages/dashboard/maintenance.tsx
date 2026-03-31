@@ -29,7 +29,7 @@ import {
 } from "@/api/maintenance";
 import { getPropertiesByLandlord } from "@/api/properties";
 import { useUser } from "@/contexts/UserContext";
-import { getTenantByUser } from "@/api/tenants";
+import { getTenantByUser, type TenantByUserDTO } from "@/api/tenants";
 import { getUnit } from "@/api/units";
 import { uploadFile } from "@/api/files";
 import type { NextPageWithLayout } from "../_app";
@@ -38,9 +38,7 @@ import type { NextPageWithLayout } from "../_app";
 const TenantMaintenancePage = () => {
   const { user } = useUser();
   const [activeTab, setActiveTab] = React.useState<"new" | "history">("new");
-  const [tenantDetails, setTenantDetails] = React.useState<
-    Awaited<ReturnType<typeof getTenantByUser>>["data"] | null
-  >(null);
+  const [tenantDetails, setTenantDetails] = React.useState<TenantByUserDTO | null>(null);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [historyCount, setHistoryCount] = React.useState(0);
 

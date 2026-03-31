@@ -37,7 +37,15 @@ import { AddTenantModal } from "@/components/AddTenantModal";
 import { AssignPropertyManagerModal } from "@/components/AssignPropertyManagerModal";
 import { InviteManagerModal } from "@/components/InviteManagerModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
-import { mockRecentPayments, mockMaintenanceRequests } from "@/data/mockLandlordData";
+import {
+  mockRecentPayments,
+  mockMaintenanceRequests,
+} from "@/data/mockLandlordData";
+import type {
+  MaintenanceRequest,
+  MaintenanceRequestDetail,
+  MaintenanceRequestWithDetails,
+} from "@/data/mockLandlordData";
 import {
   mockTenants,
   mockPaymentHistory,
@@ -67,8 +75,11 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [isAssignManagerOpen, setIsAssignManagerOpen] = React.useState(false);
   const [isInviteManagerOpen, setIsInviteManagerOpen] = React.useState(false);
-  const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] = React.useState(false);
-  const [propertyDTO, setPropertyDTO] = React.useState<PropertyDTO | null>(null);
+  const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
+    React.useState(false);
+  const [propertyDTO, setPropertyDTO] = React.useState<PropertyDTO | null>(
+    null,
+  );
   const [units, setUnits] = React.useState<Unit[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingUnits, setIsLoadingUnits] = React.useState(false);
@@ -88,7 +99,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     const fetchProperty = async () => {
       if (!id || typeof id !== "string") return;
-      
+
       setIsLoading(true);
       setError(null);
       const result = await getProperty(id);
@@ -107,11 +118,13 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     const fetchUnits = async () => {
       if (!id || typeof id !== "string") return;
-      
+
       setIsLoadingUnits(true);
       const result = await getUnitsByProperty(id);
       if (result.success) {
-        const mappedUnits = result.data.map((unitDTO) => mapUnitDTOToUnit(unitDTO, id));
+        const mappedUnits = result.data.map((unitDTO) =>
+          mapUnitDTOToUnit(unitDTO, id),
+        );
         setUnits(mappedUnits);
       }
       setIsLoadingUnits(false);
@@ -211,10 +224,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   // Filter payments and maintenance for this property
   const propertyNameBase = property.name.split(" — ")[0].split(" —")[0];
   const propertyPayments = mockRecentPayments.filter(
-    (p) => p.propertyName === propertyNameBase
-  );
-  const propertyMaintenance = mockMaintenanceRequests.filter(
-    (m) => m.propertyName === propertyNameBase
+    (p) => p.propertyName === propertyNameBase,
   );
 
   // Helper function to get amenity icon
@@ -232,7 +242,11 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     if (lowerAmenity.includes("power") || lowerAmenity.includes("24/7")) {
       return Zap;
     }
-    if (lowerAmenity.includes("internet") || lowerAmenity.includes("fiber") || lowerAmenity.includes("wifi")) {
+    if (
+      lowerAmenity.includes("internet") ||
+      lowerAmenity.includes("fiber") ||
+      lowerAmenity.includes("wifi")
+    ) {
       return Wifi;
     }
     return CheckCircle2;
@@ -260,7 +274,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         {/* Property Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{property.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              {property.name}
+            </h1>
             <div className="mt-1 flex items-center gap-1 text-sm text-gray-600">
               <MapPin className="h-4 w-4" />
               <span>
@@ -299,7 +315,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 const photos = propertyDTO?.photos || [];
                 const mainPhoto = photos[selectedPhotoIndex];
                 const mainImageUrl = mainPhoto?.url || property.image;
-                
+
                 return (
                   <div className="relative w-full lg:flex-1 h-[400px] lg:h-[500px] overflow-hidden rounded-lg bg-gray-200">
                     <Image
@@ -317,7 +333,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   const photos = propertyDTO?.photos || [];
                   // Get up to 4 photos total (1 main + 3 thumbnails)
                   const displayPhotos = photos.slice(0, 4);
-                  
+
                   if (displayPhotos.length === 0) {
                     // No photos, show placeholder thumbnails
                     return [1, 2, 3].map((i) => (
@@ -334,11 +350,14 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                       </div>
                     ));
                   }
-                  
+
                   // Show thumbnails for all photos except the currently selected one
                   return displayPhotos
                     .map((photo, originalIndex) => ({ photo, originalIndex }))
-                    .filter(({ originalIndex }) => originalIndex !== selectedPhotoIndex)
+                    .filter(
+                      ({ originalIndex }) =>
+                        originalIndex !== selectedPhotoIndex,
+                    )
                     .slice(0, 3)
                     .map(({ photo, originalIndex }) => (
                       <button
@@ -370,7 +389,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   <Home className="h-4 w-4 text-blue-600" />
                 </div>
                 <p className="text-xs text-gray-600 mb-1">Total Units</p>
-                <p className="text-2xl font-bold text-gray-900">{property.units}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {property.units}
+                </p>
               </div>
 
               {/* Monthly Rent */}
@@ -390,7 +411,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   <Users className="h-4 w-4 text-green-600" />
                 </div>
                 <p className="text-xs text-gray-600 mb-1">Occupancy</p>
-                <p className="text-2xl font-bold text-gray-900">{property.occupancy}%</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {property.occupancy}%
+                </p>
               </div>
 
               {/* Manager */}
@@ -446,7 +469,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 </div>
                 <div className="h-12 w-px bg-gray-300"></div>
                 <div>
-                  <p className="text-xs text-gray-500 uppercase">PARKING SPACE</p>
+                  <p className="text-xs text-gray-500 uppercase">
+                    PARKING SPACE
+                  </p>
                   <p className="mt-1 text-sm font-semibold text-gray-900">
                     {propertyDTO?.parkingSpace ? "Yes" : "No"}
                   </p>
@@ -463,18 +488,20 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 </h3>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(propertyDTO?.amenities || property.amenities).map((amenity, index) => {
-                  const Icon = getAmenityIcon(amenity);
-                  return (
-                    <div
-                      key={index}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700"
-                    >
-                      <Icon className="h-3.5 w-3.5 text-gray-500" />
-                      <span>{amenity}</span>
-                    </div>
-                  );
-                })}
+                {(propertyDTO?.amenities || property.amenities).map(
+                  (amenity, index) => {
+                    const Icon = getAmenityIcon(amenity);
+                    return (
+                      <div
+                        key={index}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700"
+                      >
+                        <Icon className="h-3.5 w-3.5 text-gray-500" />
+                        <span>{amenity}</span>
+                      </div>
+                    );
+                  },
+                )}
               </div>
             </div>
           </div>
@@ -535,12 +562,14 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   <div className="flex items-center justify-center py-12">
                     <div className="text-center">
                       <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
-                      <p className="mt-4 text-sm text-gray-600">Loading units...</p>
+                      <p className="mt-4 text-sm text-gray-600">
+                        Loading units...
+                      </p>
                     </div>
                   </div>
                 ) : (
-                  <PropertyUnitsTab 
-                    units={units} 
+                  <PropertyUnitsTab
+                    units={units}
                     propertyId={id as string}
                     tenants={mockTenants.filter((t) => t.propertyId === id)}
                   />
@@ -555,8 +584,8 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <PropertyTenantsTab 
-                  tenants={mockTenants.filter((t) => t.propertyId === id)} 
+                <PropertyTenantsTab
+                  tenants={mockTenants.filter((t) => t.propertyId === id)}
                   propertyId={id as string}
                 />
               </motion.div>
@@ -569,7 +598,11 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <PropertyPaymentsTab payments={mockPaymentHistory.filter((p) => p.propertyId === id)} />
+                <PropertyPaymentsTab
+                  payments={mockPaymentHistory.filter(
+                    (p) => p.propertyId === id,
+                  )}
+                />
               </motion.div>
             )}
             {activeTab === "maintenance" && (
@@ -580,7 +613,12 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <PropertyMaintenanceTab requests={mockMaintenanceRequestDetails.filter((r) => r.propertyId === id)} propertyId={id as string} />
+                <PropertyMaintenanceTab
+                  requests={mockMaintenanceRequestDetails.filter(
+                    (r) => r.propertyId === id,
+                  )}
+                  propertyId={id as string}
+                />
               </motion.div>
             )}
             {activeTab === "documents" && (
@@ -591,9 +629,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <PropertyDocumentsTab 
-                  documents={propertyDTO?.documents || []} 
-                  propertyId={id as string} 
+                <PropertyDocumentsTab
+                  documents={propertyDTO?.documents || []}
+                  propertyId={id as string}
                   propertyDTO={propertyDTO}
                 />
               </motion.div>
@@ -696,7 +734,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
             setIsLoadingUnits(true);
             const result = await getUnitsByProperty(id);
             if (result.success) {
-              const mappedUnits = result.data.map((unitDTO) => mapUnitDTOToUnit(unitDTO, id));
+              const mappedUnits = result.data.map((unitDTO) =>
+                mapUnitDTOToUnit(unitDTO, id),
+              );
               setUnits(mappedUnits);
             }
             setIsLoadingUnits(false);
@@ -745,6 +785,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
             content: data.message,
             fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
           });
+          console.log("Property announcement API result", result);
 
           if (result.success) {
             showToast("Announcement sent", "success");
@@ -766,7 +807,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
             setIsLoadingUnits(true);
             getUnitsByProperty(id).then((result) => {
               if (result.success) {
-                setUnits(result.data.map((unitDTO) => mapUnitDTOToUnit(unitDTO, id)));
+                setUnits(
+                  result.data.map((unitDTO) => mapUnitDTOToUnit(unitDTO, id)),
+                );
               }
               setIsLoadingUnits(false);
             });
@@ -777,7 +820,8 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   );
 };
 
-PropertyDetailPage.getLayout = (page) => <DashboardLayout>{page}</DashboardLayout>;
+PropertyDetailPage.getLayout = (page) => (
+  <DashboardLayout>{page}</DashboardLayout>
+);
 
 export default PropertyDetailPage;
-

@@ -37,21 +37,45 @@ export const walletTransactionsResponseSchema = z.object({
 });
 
 export type WalletTransactionDTO = z.infer<typeof walletTransactionSchema>;
-export type WalletTransactionsPaginationDTO = z.infer<typeof walletTransactionsPaginationSchema>;
-export type WalletTransactionsResponseDTO = z.infer<typeof walletTransactionsResponseSchema>;
+export type WalletTransactionsPaginationDTO = z.infer<
+  typeof walletTransactionsPaginationSchema
+>;
+export type WalletTransactionsResponseDTO = z.infer<
+  typeof walletTransactionsResponseSchema
+>;
+
+const stringOrNumberToString = z
+  .union([z.string(), z.number()])
+  .transform((v) => String(v));
 
 // Wallet Schema
-export const walletSchema = z.object({
-  id: z.string().uuid(),
-  landlordId: z.string().uuid(),
-  bvn: z.string(),
-  currency: z.string().default("NGN"),
-  balance: z.string().optional(),
-  isActive: z.boolean().default(true),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  deletedAt: z.string().nullable(),
-});
+export const walletSchema = z
+  .object({
+    id: z.string().uuid(),
+    // Backend sometimes returns landlordId, sometimes landlord.id.
+    landlordId: z.string().uuid().optional(),
+    landlord: z
+      .object({
+        id: z.string().uuid().optional(),
+      })
+      .optional()
+      .nullable(),
+    bvn: z
+      .string()
+      .nullish()
+      .transform((value) => value ?? ""),
+    currency: z.string().default("NGN"),
+    balance: stringOrNumberToString.optional(),
+    escrowBalance: stringOrNumberToString.optional(),
+    isActive: z.boolean().default(true),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    deletedAt: z.string().nullish(),
+  })
+  .transform((w) => ({
+    ...w,
+    landlordId: w.landlordId ?? w.landlord?.id,
+  }));
 
 export const walletResponseSchema = z.object({
   success: z.boolean().optional(),
@@ -61,4 +85,3 @@ export const walletResponseSchema = z.object({
 
 export type WalletDTO = z.infer<typeof walletSchema>;
 export type WalletResponseDTO = z.infer<typeof walletResponseSchema>;
-

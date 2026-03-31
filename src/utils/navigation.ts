@@ -9,6 +9,8 @@ import {
   BarChart3,
   MessageSquare,
   Settings,
+  Megaphone,
+  ArrowDownToLine,
 } from "lucide-react";
 import type { UserRole } from "@/contexts/UserContext";
 import type { LucideIcon } from "lucide-react";
@@ -73,7 +75,7 @@ export const getMobileNavigationItems = (role: UserRole): NavigationItem[] => {
 // Get "More" menu items based on user role
 export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
   const baseMoreItems: MoreMenuItem[] = [];
-  
+
   switch (role) {
     case "landlord":
     case "super_admin":
@@ -82,19 +84,36 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
         { name: "Managers", href: "/dashboard/managers", icon: Users },
         { name: "Units", href: "/dashboard/units", icon: FileText },
         { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
+        {
+          name: "Announcements",
+          href: "/dashboard/announcements",
+          icon: Megaphone,
+        },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
+        { name: "Finance", href: "/dashboard/finance", icon: ArrowDownToLine },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
     case "property_manager":
       // Property manager "More" menu will be updated based on Figma designs
       return [
         { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
+        {
+          name: "Announcements",
+          href: "/dashboard/announcements",
+          icon: Megaphone,
+        },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
+        { name: "Finance", href: "/dashboard/finance", icon: ArrowDownToLine },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
     case "tenant":
       // Tenant "More" menu will be updated later
       return [
+        {
+          name: "Announcements",
+          href: "/dashboard/announcements",
+          icon: Megaphone,
+        },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
@@ -102,4 +121,3 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
       return baseMoreItems;
   }
 };
-
