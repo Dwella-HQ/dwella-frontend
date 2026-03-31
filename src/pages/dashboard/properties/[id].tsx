@@ -252,6 +252,24 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     return CheckCircle2;
   };
 
+  const totalUnitsCount = units.length > 0 ? units.length : property.units;
+  const occupiedUnitsCount = units.filter((u) => u.status === "occupied").length;
+  const occupancyPercent =
+    totalUnitsCount > 0 ? Math.round((occupiedUnitsCount / totalUnitsCount) * 100) : 0;
+  const monthlyRentTotal = units.reduce((sum, unit) => {
+    const rentValue = (unit as any).rent ?? unit.monthlyRent ?? 0;
+    const rent = Number.parseFloat(String(rentValue));
+    return sum + (Number.isFinite(rent) ? rent : 0);
+  }, 0);
+  const managerName =
+    ((propertyDTO as any)?.propertyManager?.user?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.propertyManager?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.manager?.user?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.manager?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.assignedManager?.user?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.assignedManager?.fullName as string | undefined) ||
+    "Not assigned";
+
   return (
     <>
       <Head>
@@ -390,7 +408,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 </div>
                 <p className="text-xs text-gray-600 mb-1">Total Units</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {property.units}
+                  {totalUnitsCount}
                 </p>
               </div>
 
@@ -401,7 +419,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 </div>
                 <p className="text-xs text-gray-600 mb-1">Monthly Rent</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ₦{property.monthlyRent.toLocaleString()}
+                  ₦{monthlyRentTotal.toLocaleString()}
                 </p>
               </div>
 
@@ -412,7 +430,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 </div>
                 <p className="text-xs text-gray-600 mb-1">Occupancy</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {property.occupancy}%
+                  {occupancyPercent}%
                 </p>
               </div>
 
@@ -422,7 +440,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   <User className="h-4 w-4 text-orange-600" />
                 </div>
                 <p className="text-xs text-gray-600 mb-1">Manager</p>
-                <p className="text-lg font-semibold text-gray-900">M Musa A.</p>
+                <p className="text-lg font-semibold text-gray-900">{managerName}</p>
               </div>
             </div>
 
