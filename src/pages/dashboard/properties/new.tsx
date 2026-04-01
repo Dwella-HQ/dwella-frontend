@@ -166,6 +166,10 @@ const AddPropertyPage: NextPageWithLayout = () => {
   const [units, setUnits] = React.useState<Unit[]>([]);
   const [isAddUnitModalOpen, setIsAddUnitModalOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const yearOptions = React.useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from({ length: 80 }, (_, idx) => String(currentYear - idx));
+  }, []);
 
   React.useEffect(() => {
     getAmenities().then((result) => {
@@ -192,6 +196,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
     resolver: zodResolver(basicDetailsSchema),
     defaultValues: {
       country: "Nigeria",
+      yearBuilt: String(new Date().getFullYear()),
     },
   });
 
@@ -756,12 +761,19 @@ const AddPropertyPage: NextPageWithLayout = () => {
 
   const handleUnitAdded = React.useCallback(
     (unitData: any) => {
+      const beds = parseInt(String(unitData.bedrooms ?? ""), 10);
+      const typeLabel =
+        !Number.isFinite(beds) || beds < 0
+          ? "2BR Apt"
+          : beds === 0
+            ? "Studio Apt"
+            : `${beds}BR Apt`;
       // Generate a temporary unit ID
       const newUnit: Unit = {
         id: `temp-${Date.now()}`,
         unitId:
           unitData.unitName || `A${String(units.length + 1).padStart(3, "0")}`,
-        type: unitData.unitType || "2BR Apt",
+        type: typeLabel,
         amenities: unitData.amenities || [],
         rent: `N${parseInt(unitData.monthlyRent || "250000").toLocaleString()}`,
         image:
@@ -903,12 +915,17 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         <label className="mb-1 block text-sm font-medium text-gray-700">
                           Year Built
                         </label>
-                        <input
-                          type="text"
-                          placeholder="Placeholder"
+                        <select
                           {...register("yearBuilt")}
                           className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                        />
+                        >
+                          <option value="">Select Year</option>
+                          {yearOptions.map((year) => (
+                            <option key={year} value={year}>
+                              {year}
+                            </option>
+                          ))}
+                        </select>
                         {errors.yearBuilt && (
                           <p className="mt-1 text-xs text-red-600">
                             {errors.yearBuilt.message}

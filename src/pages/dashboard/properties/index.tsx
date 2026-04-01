@@ -8,8 +8,13 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import type { Property } from "@/data/mockLandlordData";
 import { PropertyCard } from "@/components/PropertyCard";
 import { PropertyTable } from "@/components/PropertyTable";
-import { getProperties, getPropertiesByLandlord } from "@/api/properties";
+import {
+  getProperties,
+  getPropertiesByLandlord,
+  type PropertyDTO,
+} from "@/api/properties";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
+import { getUnitsByProperty } from "@/api/units";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 
@@ -17,6 +22,35 @@ import type { NextPageWithLayout } from "../../_app";
 
 type ViewMode = "grid" | "list";
 type FilterStatus = "all" | "active" | "inactive" | "pending" | "occupied" | "commercial" | "residential";
+
+/** When list payloads omit `units` but `numberOfUnits` is stale, resolve real counts from the units API. */
+const mapPropertiesWithLiveUnitCounts = async (
+  dtos: PropertyDTO[],
+): Promise<Property[]> => {
+  return Promise.all(
+    dtos.map(async (dto) => {
+      const base = mapPropertyDTOToProperty(dto);
+      const embedded =
+        Array.isArray(dto.units) && dto.units.length > 0
+          ? dto.units.length
+          : 0;
+      if (embedded > 0) {
+        return base;
+      }
+      const res = await getUnitsByProperty(dto.id);
+      if (!res.success || res.data.length === 0) {
+        return base;
+      }
+      const list = res.data;
+      const occupied = list.filter((u) => !u.isAvailable).length;
+      const occupancy =
+        list.length > 0
+          ? Math.round((occupied / list.length) * 100)
+          : base.occupancy;
+      return { ...base, units: list.length, occupancy };
+    }),
+  );
+};
 
 const PropertiesPage: NextPageWithLayout = () => {
   const router = useRouter();

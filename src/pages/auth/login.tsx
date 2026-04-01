@@ -10,6 +10,7 @@ import { googleLogin, login } from "@/api/auth";
 import { getLandlordByUser } from "@/api/landlord";
 import { getTenantByUser } from "@/api/tenants";
 import { ensureLandlordWallet } from "@/api/wallet";
+import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -156,7 +157,7 @@ const LoginPage: NextPageWithLayout = () => {
               console.warn("ensureLandlordWallet failed:", e);
             }
           }
-          await router.push("/dashboard");
+          await router.push(consumePostLoginRedirect() ?? "/dashboard");
           return;
         }
 
@@ -182,7 +183,7 @@ const LoginPage: NextPageWithLayout = () => {
         }
       }
 
-      await router.push("/dashboard");
+      await router.push(consumePostLoginRedirect() ?? "/dashboard");
     },
     [
       mapRoleNameToUserRole,

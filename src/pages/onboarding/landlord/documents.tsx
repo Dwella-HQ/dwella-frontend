@@ -2,7 +2,7 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import { Upload } from "lucide-react";
+import { Upload, ArrowRight } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
@@ -369,9 +369,16 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
               type="button"
               onClick={handleContinue}
               disabled={isSubmitting}
-              className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+              className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 flex items-center gap-2"
             >
-              {isSubmitting ? "Processing..." : "Continue >"}
+              {isSubmitting ? (
+                "Processing..."
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </>
+              )}
             </button>
           </div>
         </div>

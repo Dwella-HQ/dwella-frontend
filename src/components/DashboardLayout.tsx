@@ -6,6 +6,7 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import { DashboardMobileNav } from "@/components/DashboardMobileNav";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
+import { savePostLoginRedirect } from "@/utils/postLoginRedirect";
 
 export type DashboardLayoutProps = {
   children: React.ReactNode;
@@ -29,7 +30,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     const token = localStorage.getItem("authToken");
 
     if (!token) {
-      // Redirect to login if no token
+      savePostLoginRedirect();
       router.replace("/auth/login");
       return;
     }

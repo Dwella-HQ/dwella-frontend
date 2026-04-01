@@ -12,6 +12,17 @@ export const createUnitRequestSchema = z.object({
 
 export type CreateUnitRequestDTO = z.infer<typeof createUnitRequestSchema>;
 
+/** PATCH /property/unit/{unitId} */
+export const updateUnitRequestSchema = z.object({
+  name: z.string().min(1, "Unit name is required"),
+  rentAmount: z.number(),
+  numberOfBedrooms: z.number().int().min(0),
+  numberOfBathrooms: z.number().int().min(0),
+  isAvailable: z.boolean(),
+});
+
+export type UpdateUnitRequestDTO = z.infer<typeof updateUnitRequestSchema>;
+
 // Unit Response (may need to be adjusted based on actual API response)
 export const unitSchema = z.object({
   id: z.string().uuid(),
