@@ -15,11 +15,8 @@ import { useUser } from "@/contexts/UserContext";
 const addUnitSchema = z.object({
   property: z.string().min(1, "Property is required"),
   unitName: z.string().min(1, "Unit name is required"),
-  unitType: z.string().min(1, "Unit type is required"),
   bedrooms: z.string().min(1, "Bedrooms is required"),
   bathrooms: z.string().min(1, "Bathrooms is required"),
-  size: z.string().min(1, "Size is required"),
-  floor: z.string().min(1, "Floor is required"),
   monthlyRent: z.string().min(1, "Monthly rent is required"),
   cautionFee: z.string().optional(),
   amenities: z.array(z.string()).optional(),
@@ -84,7 +81,6 @@ export const AddUnitModal = ({
     resolver: zodResolver(addUnitSchema),
     defaultValues: {
       property: propertyId,
-      unitType: "2BR Apt",
     },
   });
 
@@ -370,25 +366,6 @@ export const AddUnitModal = ({
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Unit Type
-                    </label>
-                    <select
-                      {...register("unitType")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                    >
-                      <option value="2BR Apt">2BR Apt</option>
-                      <option value="1BR Apt">1BR Apt</option>
-                      <option value="Studio Apt">Studio Apt</option>
-                      <option value="Self Contain">Self Contain</option>
-                    </select>
-                    {errors.unitType && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {errors.unitType.message}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Bedrooms
                     </label>
                     <input
@@ -400,38 +377,6 @@ export const AddUnitModal = ({
                     {errors.bedrooms && (
                       <p className="mt-1 text-xs text-red-600">
                         {errors.bedrooms.message}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Floor
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      {...register("floor")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                    />
-                    {errors.floor && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {errors.floor.message}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Size
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      {...register("size")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                    />
-                    {errors.size && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {errors.size.message}
                       </p>
                     )}
                   </div>

@@ -7,18 +7,18 @@ import {
   ChevronRight,
   Download,
   Plus,
-  UserPlus,
   MessageSquare,
   User,
   CheckCircle2,
-  Calendar,
   Phone,
   Mail,
+  Pencil,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { AddTenantModal } from "@/components/AddTenantModal";
+import { EditUnitModal } from "@/components/EditUnitModal";
 import { NewMaintenanceRequestModal } from "@/components/NewMaintenanceRequestModal";
 import { getUnit } from "@/api/units";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
@@ -35,31 +35,47 @@ const UnitDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { id, unitId } = router.query;
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
+  const [isEditUnitOpen, setIsEditUnitOpen] = React.useState(false);
   const [isNewRequestOpen, setIsNewRequestOpen] = React.useState(false);
   const [unit, setUnit] = React.useState<Unit | null>(null);
   const [propertyName, setPropertyName] = React.useState<string>("");
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    const fetchUnit = async () => {
-      if (!unitId || typeof unitId !== "string") return;
-      setIsLoading(true);
-      setError(null);
-      const result = await getUnit(unitId);
-      if (result.success) {
-        const data = result.data;
-        const property = data.property as NestedProperty | undefined;
-        const propertyId = property?.id ?? data.propertyId ?? (id as string) ?? "";
-        setPropertyName(property?.name ?? "Property");
-        setUnit(mapUnitDTOToUnit(data, propertyId));
-      } else {
-        setError(result.error);
-      }
-      setIsLoading(false);
-    };
-    fetchUnit();
+  const loadUnit = React.useCallback(async (quiet = false) => {
+    if (!unitId || typeof unitId !== "string") return;
+    if (!quiet) setIsLoading(true);
+    setError(null);
+    const result = await getUnit(unitId);
+    if (result.success) {
+      const data = result.data;
+      const property = data.property as NestedProperty | undefined;
+      const propertyId = property?.id ?? data.propertyId ?? (id as string) ?? "";
+      setPropertyName(property?.name ?? "Property");
+      setUnit(mapUnitDTOToUnit(data, propertyId));
+    } else {
+      setError(result.error);
+    }
+    if (!quiet) setIsLoading(false);
   }, [unitId, id]);
+
+  React.useEffect(() => {
+    loadUnit();
+  }, [loadUnit]);
+
+  const editUnitInitial = React.useMemo(
+    () =>
+      unit
+        ? {
+            name: unit.unitId,
+            rentAmount: unit.monthlyRent,
+            numberOfBedrooms: unit.bedrooms,
+            numberOfBathrooms: unit.bathrooms,
+            isAvailable: unit.status === "vacant",
+          }
+        : null,
+    [unit],
+  );
 
   const tenant = React.useMemo(() => {
     if (!unit?.tenantId) return null;
@@ -156,8 +172,12 @@ const UnitDetailPage: NextPageWithLayout = () => {
                 className="object-cover"
               />
               <div className="absolute left-3 top-3">
-                <span className="inline-flex rounded-full bg-brand-green px-3 py-1 text-xs font-bold text-white">
-                  Occupied
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-bold text-white ${
+                    unit.status === "vacant" ? "bg-gray-500" : "bg-brand-green"
+                  }`}
+                >
+                  {unit.status === "vacant" ? "Vacant" : "Occupied"}
                 </span>
               </div>
               {/* Unit ID and Type Overlay */}
@@ -174,12 +194,24 @@ const UnitDetailPage: NextPageWithLayout = () => {
           <div className="space-y-6">
             {/* Unit Information */}
             <div className="rounded-lg border border-gray-200 bg-white p-6">
-              <h2 className="mb-1 text-lg font-bold text-gray-900">
-                Unit Information
-              </h2>
-              <p className="mb-6 text-sm text-gray-600">
-                Complete details and management.
-              </p>
+              <div className="mb-6 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="mb-1 text-lg font-bold text-gray-900">
+                    Unit Information
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Complete details and management.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditUnitOpen(true)}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit unit
+                </button>
+              </div>
 
               <div className="mb-6">
                 <p className="text-xs text-gray-500 uppercase">MONTHLY RENT</p>
@@ -436,15 +468,22 @@ const UnitDetailPage: NextPageWithLayout = () => {
         </div>
       </section>
 
+      {editUnitInitial && (
+        <EditUnitModal
+          isOpen={isEditUnitOpen}
+          onClose={() => setIsEditUnitOpen(false)}
+          unitApiId={unit.id}
+          initial={editUnitInitial}
+          onSuccess={() => loadUnit(true)}
+        />
+      )}
       <AddTenantModal
         isOpen={isAddTenantOpen}
         onClose={() => setIsAddTenantOpen(false)}
         propertyId={propertyIdForLinks}
         unitId={unit.id}
         unitLabel={`${unit.unitId} • ${unit.type}`}
-        onSuccess={() => {
-          // Optionally refresh tenant or unit data
-        }}
+        onSuccess={() => loadUnit(true)}
       />
       <NewMaintenanceRequestModal
         isOpen={isNewRequestOpen}

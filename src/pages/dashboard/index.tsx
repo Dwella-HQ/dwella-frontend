@@ -19,11 +19,12 @@ import { getPropertiesByLandlord } from "@/api/properties";
 import { getTenantByUser } from "@/api/tenants";
 import type { TenantByUserDTO } from "@/api/tenants";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
-import type { Property, MaintenanceRequest } from "@/data/mockLandlordData";
-import {
-  mockDashboardStats,
-  mockRecentPayments,
+import type {
+  Property,
+  MaintenanceRequest,
+  DashboardStats,
 } from "@/data/mockLandlordData";
+import { mockRecentPayments } from "@/data/mockLandlordData";
 import { getMaintenanceRequests } from "@/api/maintenance";
 import {
   type AnnouncementItemDTO,
@@ -265,12 +266,20 @@ const ManagerDashboard = () => {
 
     return {
       totalProperties,
-      pendingVerification: 1, // Mock value
+      pendingVerification: landlordProperties.filter(
+        (p) => p.status === "pending",
+      ).length,
       totalUnits,
       unitsUnderMaintenance,
       rentCollected: totalRent,
       rentCollectedPeriod: "This month",
-      overdueAmount: 250000, // Mock value
+      overdueAmount: landlordPayments
+        .filter((p) => {
+          const dueDate = new Date(p.dueDate);
+          const today = new Date();
+          return dueDate < today;
+        })
+        .reduce((sum, p) => sum + p.amount, 0),
       overdueCount,
     };
   }, [landlordProperties, recentMaintenance, landlordPayments]);
@@ -852,6 +861,9 @@ const LandlordDashboard = () => {
   const [recentMaintenance, setRecentMaintenance] = React.useState<
     MaintenanceRequest[]
   >([]);
+  const [allMaintenanceForStats, setAllMaintenanceForStats] = React.useState<
+    MaintenanceRequest[]
+  >([]);
   const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
   const [liveAnnouncements, setLiveAnnouncements] = React.useState<
     AnnouncementItemDTO[]
@@ -880,11 +892,11 @@ const LandlordDashboard = () => {
     fetchProperties();
   }, []);
 
-  // Fetch recent maintenance requests for landlord dashboard
+  // Fetch maintenance for dashboard KPIs and recent list
   React.useEffect(() => {
     let cancelled = false;
     setMaintenanceLoading(true);
-    getMaintenanceRequests({ limit: 10 }).then((result) => {
+    getMaintenanceRequests({ limit: 100 }).then((result) => {
       if (cancelled) return;
       if (result.success) {
         const mapped: MaintenanceRequest[] = result.data.map((r) => ({
@@ -897,8 +909,10 @@ const LandlordDashboard = () => {
           priority: r.priority,
           timeAgo: r.reportedTime || "",
         }));
+        setAllMaintenanceForStats(mapped);
         setRecentMaintenance(mapped.slice(0, 3));
       } else {
+        setAllMaintenanceForStats([]);
         setRecentMaintenance([]);
       }
       setMaintenanceLoading(false);
@@ -1004,6 +1018,39 @@ const LandlordDashboard = () => {
     [showToast],
   );
 
+  const landlordStats = React.useMemo((): DashboardStats => {
+    const totalProperties = properties.length;
+    const pendingVerification = properties.filter(
+      (p) => p.status === "pending",
+    ).length;
+    const totalUnits = properties.reduce((sum, p) => sum + p.units, 0);
+
+    const propertyNames = new Set(
+      properties.map((p) => p.name.trim().toLowerCase()),
+    );
+    const unitsUnderMaintenance =
+      propertyNames.size === 0
+        ? 0
+        : allMaintenanceForStats.filter((r) => {
+            if (r.status !== "in_progress" && r.status !== "new") return false;
+            return propertyNames.has(r.propertyName.trim().toLowerCase());
+          }).length;
+
+    return {
+      totalProperties,
+      pendingVerification,
+      totalUnits,
+      unitsUnderMaintenance,
+      rentCollected: 0,
+      rentCollectedPeriod: "No payment data yet",
+      overdueAmount: 0,
+      overdueCount: 0,
+    };
+  }, [properties, allMaintenanceForStats]);
+
+  const summaryCardsLoading =
+    isLoadingProperties || maintenanceLoading;
+
   return (
     <>
       <section className="space-y-6">
@@ -1025,7 +1072,10 @@ const LandlordDashboard = () => {
         </div>
 
         {/* Summary Cards */}
-        <DashboardSummaryCards stats={mockDashboardStats} />
+        <DashboardSummaryCards
+          stats={landlordStats}
+          loading={summaryCardsLoading}
+        />
 
         <LiveAnnouncementsCard
           announcements={liveAnnouncements}

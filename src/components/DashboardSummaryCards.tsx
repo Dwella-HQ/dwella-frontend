@@ -5,22 +5,42 @@ import type { DashboardStats } from "@/data/mockLandlordData";
 
 export type DashboardSummaryCardsProps = {
   stats: DashboardStats;
+  /** When true, show skeleton placeholders instead of values */
+  loading?: boolean;
 };
 
 export const DashboardSummaryCards = ({
   stats,
+  loading = false,
 }: DashboardSummaryCardsProps) => {
+  const pendingLabel =
+    stats.pendingVerification === 0
+      ? "All properties verified"
+      : `${stats.pendingVerification} pending verification`;
+  const maintenanceLabel =
+    stats.unitsUnderMaintenance === 0
+      ? "No units under maintenance"
+      : `${stats.unitsUnderMaintenance} unit${
+          stats.unitsUnderMaintenance === 1 ? "" : "s"
+        } under maintenance`;
+  const overdueSubtitle =
+    stats.overdueCount === 0
+      ? "No overdue balances"
+      : `${stats.overdueCount} tenant${
+          stats.overdueCount === 1 ? "" : "s"
+        } overdue`;
+
   const cards = [
     {
       title: "Total Properties",
       value: stats.totalProperties.toString(),
-      subtitle: `${stats.pendingVerification} pending verification`,
+      subtitle: pendingLabel,
       icon: Building2,
     },
     {
       title: "Total Units",
       value: stats.totalUnits.toString(),
-      subtitle: `${stats.unitsUnderMaintenance} units under maintenance`,
+      subtitle: maintenanceLabel,
       icon: Home,
     },
     {
@@ -32,10 +52,32 @@ export const DashboardSummaryCards = ({
     {
       title: "Overdue Amount",
       value: `₦${stats.overdueAmount.toLocaleString()}`,
-      subtitle: `${stats.overdueCount} tenant overdue`,
+      subtitle: overdueSubtitle,
       icon: AlertCircle,
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="rounded-lg border border-gray-200 bg-white p-3 lg:p-5 shadow-sm animate-pulse"
+          >
+            <div className="flex items-center gap-2 lg:gap-4">
+              <div className="h-9 w-9 lg:h-11 lg:w-11 rounded-lg bg-gray-200" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-24 rounded bg-gray-200" />
+                <div className="h-7 w-16 rounded bg-gray-200" />
+                <div className="h-3 w-32 rounded bg-gray-200" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

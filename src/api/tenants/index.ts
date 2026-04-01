@@ -1,4 +1,6 @@
 export { getTenants } from "./getTenants";
+export { getInvitedTenantsForProperty } from "./getInvitedTenantsForProperty";
+export type { InvitedTenantDTO } from "./invitedTenants.schema";
 export { getTenant } from "./getTenant";
 export { getTenantByUser } from "./getTenantByUser";
 export type { TenantByUserDTO } from "./getTenantByUser";

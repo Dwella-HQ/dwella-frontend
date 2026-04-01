@@ -13,6 +13,63 @@ import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 
+function LeaseDatePickerField({
+  value,
+  onChange,
+  id,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  id: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const selected = value ? parseISO(value) : undefined;
+  const defaultMonth = selected ?? new Date();
+  const y = new Date().getFullYear();
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          id={id}
+          className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+        >
+          <span className={value ? "" : "text-gray-400"}>
+            {value
+              ? format(parseISO(value), "MMM d, yyyy")
+              : "Select date"}
+          </span>
+          <Calendar className="h-4 w-4 text-gray-400" />
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          className="z-[200] rounded-lg border border-gray-200 bg-white p-4 shadow-lg"
+          align="start"
+          sideOffset={4}
+        >
+          <DayPicker
+            mode="single"
+            selected={selected}
+            onSelect={(date) => {
+              if (date) {
+                onChange(format(date, "yyyy-MM-dd"));
+                setOpen(false);
+              }
+            }}
+            defaultMonth={defaultMonth}
+            captionLayout="dropdown"
+            startMonth={new Date(y - 50, 0)}
+            endMonth={new Date(y + 20, 11)}
+            className="text-gray-900"
+          />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
 /** Convert YYYY-MM-DD to ISO 8601 date string (UTC midnight) */
 function toISO8601Date(dateStr: string): string {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
@@ -46,8 +103,6 @@ type AssignTenantFormValues = {
   serviceChargeFrequency: string;
   securityDeposit: string;
   leaseOption: "auto" | "upload";
-  // Step 3
-  sendPortalInvite: boolean;
 };
 
 const RENT_FREQUENCY_OPTIONS: { value: RentFrequency; label: string }[] = [
@@ -99,7 +154,6 @@ const defaultValues: AssignTenantFormValues = {
   serviceChargeFrequency: "one_time",
   securityDeposit: "50,000",
   leaseOption: "auto",
-  sendPortalInvite: false,
 };
 
 export const AddTenantModal = ({
@@ -133,6 +187,8 @@ export const AddTenantModal = ({
   const [applicants, setApplicants] = React.useState<Applicant[]>([]);
   const [applicantsLoading, setApplicantsLoading] = React.useState(false);
   const [selectedApplicantId, setSelectedApplicantId] = React.useState<string | null>(null);
+  /** True after Continue from step 1 on the "New Tenant" tab — auto lease is turned off */
+  const [newTenantStep1Complete, setNewTenantStep1Complete] = React.useState(false);
 
   const fromPropertyPage = Boolean(units?.length && !unitId);
   const effectiveUnitId = unitId ?? selectedUnitId;
@@ -151,6 +207,16 @@ export const AddTenantModal = ({
 
   const formValues = watch();
 
+  const leaseAutoDisabled =
+    Boolean(selectedApplicantId) ||
+    (activeTab === "new" && step >= 2 && newTenantStep1Complete);
+
+  React.useEffect(() => {
+    if (leaseAutoDisabled) {
+      setValue("leaseOption", "upload");
+    }
+  }, [leaseAutoDisabled, setValue]);
+
   const displayLabel = React.useMemo(() => {
     if (unitLabel) return unitLabel;
     if (selectedUnit) return `${selectedUnit.unitId} • ${selectedUnit.type}`;
@@ -167,6 +233,7 @@ export const AddTenantModal = ({
     setActiveTab("new");
     setSelectedUnitId(null);
     setSelectedApplicantId(null);
+    setNewTenantStep1Complete(false);
     setApplicants([]);
     setSubmitError(null);
     setIdDocumentId(null);
@@ -335,6 +402,7 @@ export const AddTenantModal = ({
   const handleContinueFromApplicants = React.useCallback(() => {
     const applicant = applicants.find((a) => a.id === selectedApplicantId);
     if (!applicant) return;
+    setNewTenantStep1Complete(false);
     setValue("fullName", applicant.fullName);
     setValue("email", applicant.email);
     setValue("phoneNumber", applicant.phoneNumber ?? "");
@@ -441,7 +509,12 @@ export const AddTenantModal = ({
                   <div className="mb-4 flex gap-2 rounded-lg bg-gray-100 p-1">
                     <button
                       type="button"
-                      onClick={() => setActiveTab("new")}
+                      onClick={() => {
+                        setActiveTab("new");
+                        setSelectedApplicantId(null);
+                        setNewTenantStep1Complete(false);
+                        setValue("leaseOption", "auto");
+                      }}
                       className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
                         activeTab === "new"
                           ? "bg-white text-gray-900 shadow-sm"
@@ -452,7 +525,10 @@ export const AddTenantModal = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTab("applicants")}
+                      onClick={() => {
+                        setActiveTab("applicants");
+                        setNewTenantStep1Complete(false);
+                      }}
                       className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
                         activeTab === "applicants"
                           ? "bg-white text-gray-900 shadow-sm"
@@ -468,7 +544,10 @@ export const AddTenantModal = ({
                       id="assign-tenant-step1"
                       onSubmit={(e) => {
                         e.preventDefault();
-                        if (step1Valid) setStep(2);
+                        if (step1Valid) {
+                          setNewTenantStep1Complete(true);
+                          setStep(2);
+                        }
                       }}
                       className="space-y-6"
                     >
@@ -952,46 +1031,13 @@ export const AddTenantModal = ({
                             name="leaseStartDate"
                             control={control}
                             rules={{ required: "Lease start date is required" }}
-                            render={({ field }) => {
-                              const [open, setOpen] = React.useState(false);
-                              return (
-                                <Popover.Root open={open} onOpenChange={setOpen}>
-                                  <Popover.Trigger asChild>
-                                    <button
-                                      type="button"
-                                      className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                                    >
-                                      <span className={field.value ? "" : "text-gray-400"}>
-                                        {field.value
-                                          ? format(parseISO(field.value), "MMM d, yyyy")
-                                          : "Select date"}
-                                      </span>
-                                      <Calendar className="h-4 w-4 text-gray-400" />
-                                    </button>
-                                  </Popover.Trigger>
-                                  <Popover.Portal>
-                                    <Popover.Content
-                                      className="z-[200] rounded-lg border border-gray-200 bg-white p-4 shadow-lg"
-                                      align="start"
-                                      sideOffset={4}
-                                    >
-                                      <DayPicker
-                                        mode="single"
-                                        selected={field.value ? parseISO(field.value) : undefined}
-                                        onSelect={(date) => {
-                                          if (date) {
-                                            field.onChange(format(date, "yyyy-MM-dd"));
-                                            setOpen(false);
-                                          }
-                                        }}
-                                        defaultMonth={field.value ? parseISO(field.value) : new Date()}
-                                        className="text-gray-900"
-                                      />
-                                    </Popover.Content>
-                                  </Popover.Portal>
-                                </Popover.Root>
-                              );
-                            }}
+                            render={({ field }) => (
+                              <LeaseDatePickerField
+                                id="lease-start-date"
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            )}
                           />
                           {errors.leaseStartDate && (
                             <p className="mt-1 text-xs text-red-600">
@@ -1007,46 +1053,13 @@ export const AddTenantModal = ({
                             name="leaseEndDate"
                             control={control}
                             rules={{ required: "Lease end date is required" }}
-                            render={({ field }) => {
-                              const [open, setOpen] = React.useState(false);
-                              return (
-                                <Popover.Root open={open} onOpenChange={setOpen}>
-                                  <Popover.Trigger asChild>
-                                    <button
-                                      type="button"
-                                      className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                                    >
-                                      <span className={field.value ? "" : "text-gray-400"}>
-                                        {field.value
-                                          ? format(parseISO(field.value), "MMM d, yyyy")
-                                          : "Select date"}
-                                      </span>
-                                      <Calendar className="h-4 w-4 text-gray-400" />
-                                    </button>
-                                  </Popover.Trigger>
-                                  <Popover.Portal>
-                                    <Popover.Content
-                                      className="z-[200] rounded-lg border border-gray-200 bg-white p-4 shadow-lg"
-                                      align="start"
-                                      sideOffset={4}
-                                    >
-                                      <DayPicker
-                                        mode="single"
-                                        selected={field.value ? parseISO(field.value) : undefined}
-                                        onSelect={(date) => {
-                                          if (date) {
-                                            field.onChange(format(date, "yyyy-MM-dd"));
-                                            setOpen(false);
-                                          }
-                                        }}
-                                        defaultMonth={field.value ? parseISO(field.value) : new Date()}
-                                        className="text-gray-900"
-                                      />
-                                    </Popover.Content>
-                                  </Popover.Portal>
-                                </Popover.Root>
-                              );
-                            }}
+                            render={({ field }) => (
+                              <LeaseDatePickerField
+                                id="lease-end-date"
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            )}
                           />
                           {errors.leaseEndDate && (
                             <p className="mt-1 text-xs text-red-600">
@@ -1150,12 +1163,26 @@ export const AddTenantModal = ({
                         Lease Documents
                       </h3>
                       <div className="space-y-3">
-                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-4 hover:bg-gray-50/50">
+                        {leaseAutoDisabled && (
+                          <p className="text-xs text-gray-600">
+                            {selectedApplicantId
+                              ? "This applicant is already in your pipeline. Upload a signed lease—auto-generated leases are not available when assigning from applicants."
+                              : "Tenant details are saved for this assignment. Upload a signed lease—auto-generated leases are not available after tenant details are entered."}
+                          </p>
+                        )}
+                        <label
+                          className={`flex items-start gap-3 rounded-lg border border-gray-200 p-4 ${
+                            leaseAutoDisabled
+                              ? "cursor-not-allowed bg-gray-50 opacity-60"
+                              : "cursor-pointer hover:bg-gray-50/50"
+                          }`}
+                        >
                           <input
                             type="radio"
                             value="auto"
                             {...register("leaseOption")}
-                            className="mt-1 h-4 w-4 text-brand-main focus:ring-brand-main"
+                            disabled={leaseAutoDisabled}
+                            className="mt-1 h-4 w-4 text-brand-main focus:ring-brand-main disabled:cursor-not-allowed"
                           />
                           <div>
                             <p className="font-medium text-gray-900">
@@ -1297,19 +1324,9 @@ export const AddTenantModal = ({
                     </div>
 
                     <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                      <label className="flex cursor-pointer items-start gap-3">
-                        <input
-                          type="checkbox"
-                          {...register("sendPortalInvite")}
-                          className="mt-1 h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
-                        />
-                        <span className="text-sm text-gray-700">
-                          Send Tenant Portal Invite
-                        </span>
-                      </label>
-                      <p className="mt-2 text-xs text-gray-600">
-                        Tenant will receive an email to access their portal for rent
-                        payments and maintenance requests.
+                      <p className="text-sm text-gray-700">
+                        The tenant will receive an email invitation to access their portal for
+                        rent payments and maintenance requests.
                       </p>
                     </div>
 

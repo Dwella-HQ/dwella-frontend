@@ -27,6 +27,7 @@ export const mapPropertyDTOToProperty = (dto: PropertyDTO): Property => {
   const occupancy = units.length > 0 
     ? Math.round((occupiedUnits / units.length) * 100) 
     : 0;
+  const totalUnits = units.length > 0 ? units.length : dto.numberOfUnits;
 
   // Get image from property photos array, or use default placeholder
   let image = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop";
@@ -54,7 +55,7 @@ export const mapPropertyDTOToProperty = (dto: PropertyDTO): Property => {
     id: dto.id,
     name: dto.name,
     address,
-    units: dto.numberOfUnits,
+    units: totalUnits,
     occupancy,
     monthlyRent: 0, // Rent is now at unit level, not property level
     nextDue,
