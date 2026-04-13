@@ -1153,6 +1153,7 @@ const LandlordDashboard = () => {
 
 const DashboardPage: NextPageWithLayout = () => {
   const { user, isLoading } = useUser();
+  const router = useRouter();
 
   // Show loading state while checking user
   if (isLoading) {
@@ -1179,17 +1180,27 @@ const DashboardPage: NextPageWithLayout = () => {
     }
 
     switch (user.role) {
+      case "super_admin":
+        return (
+          <div className="py-12 text-center">
+            <p className="text-sm text-gray-500">Redirecting to admin dashboard...</p>
+          </div>
+        );
       case "property_manager":
         return <ManagerDashboard />;
       case "tenant":
         return <TenantDashboard />;
       case "landlord":
-      case "super_admin":
       default:
-        // Super admin sees landlord dashboard
         return <LandlordDashboard />;
     }
   };
+
+  React.useEffect(() => {
+    if (user?.role === "super_admin") {
+      router.replace("/dashboard/admin");
+    }
+  }, [router, user?.role]);
 
   return (
     <>

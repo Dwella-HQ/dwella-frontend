@@ -18,6 +18,7 @@ import { mockTenants } from "@/data/mockPropertyDetails";
 import { mockProperties } from "@/data/mockLandlordData";
 import type { Unit } from "@/data/mockLandlordData";
 import type { NextPageWithLayout } from "../_app";
+import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 
 const UnitsPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -43,7 +44,8 @@ const UnitsPage: NextPageWithLayout = () => {
   // Calculate summary stats
   const totalUnits = allUnits.length;
   const occupiedUnits = allUnits.filter((u) => u.status === "occupied").length;
-  const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
+  const occupancyRate =
+    totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
   const totalMonthlyRent = allUnits.reduce((sum, u) => sum + u.monthlyRent, 0);
   const outstandingRent = allUnits
     .filter((u) => u.rentStatus === "overdue")
@@ -94,9 +96,7 @@ const UnitsPage: NextPageWithLayout = () => {
   const getRentStatusBadge = (status: Unit["rentStatus"]) => {
     switch (status) {
       case "paid":
-        return (
-          <span className="text-sm font-medium text-green-700">Paid</span>
-        );
+        return <span className="text-sm font-medium text-green-700">Paid</span>;
       case "overdue":
         return (
           <span className="text-sm font-medium text-red-700">Overdue</span>
@@ -114,7 +114,9 @@ const UnitsPage: NextPageWithLayout = () => {
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">All Units</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              All Units
+            </h1>
             <p className="mt-1 text-xs sm:text-sm text-gray-600">
               Manage individual units across all properties.
             </p>
@@ -138,48 +140,73 @@ const UnitsPage: NextPageWithLayout = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="rounded-lg border border-gray-200 bg-blue-50 p-4 lg:p-6 overflow-hidden"
+            className="rounded-lg border border-gray-200 p-4 lg:p-6 overflow-hidden"
+            style={{ backgroundColor: ADMIN_STAT_BG.blue }}
           >
             <div className="flex items-center gap-2 lg:gap-3 mb-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 flex-shrink-0">
-                <Home className="h-4 w-4 text-blue-600" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
+                <Home
+                  className="h-4 w-4"
+                  style={{ color: ADMIN_STAT_LABEL.blue }}
+                />
               </div>
             </div>
-            <p className="text-xs font-medium text-gray-600 uppercase mb-1 truncate">
+            <p
+              className="text-xs font-medium uppercase mb-1 truncate"
+              style={{ color: ADMIN_STAT_LABEL.blue }}
+            >
               Total Units
             </p>
-            <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">{totalUnits}</p>
+            <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
+              {totalUnits}
+            </p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-lg border border-gray-200 bg-green-50 p-4 lg:p-6 overflow-hidden"
+            className="rounded-lg border border-gray-200 p-4 lg:p-6 overflow-hidden"
+            style={{ backgroundColor: ADMIN_STAT_BG.green }}
           >
             <div className="flex items-center gap-2 lg:gap-3 mb-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 flex-shrink-0">
-                <Users className="h-4 w-4 text-green-600" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
+                <Users
+                  className="h-4 w-4"
+                  style={{ color: ADMIN_STAT_LABEL.green }}
+                />
               </div>
             </div>
-            <p className="text-xs font-medium text-gray-600 uppercase mb-1 truncate">
+            <p
+              className="text-xs font-medium uppercase mb-1 truncate"
+              style={{ color: ADMIN_STAT_LABEL.green }}
+            >
               Occupancy
             </p>
-            <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">{occupancyRate}%</p>
+            <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
+              {occupancyRate}%
+            </p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="rounded-lg border border-gray-200 bg-purple-50 p-4 lg:p-6 overflow-hidden"
+            className="rounded-lg border border-gray-200 p-4 lg:p-6 overflow-hidden"
+            style={{ backgroundColor: ADMIN_STAT_BG.purple }}
           >
             <div className="flex items-center gap-2 lg:gap-3 mb-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 flex-shrink-0">
-                <DollarSign className="h-4 w-4 text-purple-600" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
+                <DollarSign
+                  className="h-4 w-4"
+                  style={{ color: ADMIN_STAT_LABEL.purple }}
+                />
               </div>
             </div>
-            <p className="text-xs font-medium text-gray-600 uppercase mb-1 truncate">
+            <p
+              className="text-xs font-medium uppercase mb-1 truncate"
+              style={{ color: ADMIN_STAT_LABEL.purple }}
+            >
               Total Monthly Rent
             </p>
             <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
@@ -191,14 +218,21 @@ const UnitsPage: NextPageWithLayout = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="rounded-lg border border-gray-200 bg-orange-50 p-4 lg:p-6 overflow-hidden"
+            className="rounded-lg border border-gray-200 p-4 lg:p-6 overflow-hidden"
+            style={{ backgroundColor: ADMIN_STAT_BG.orange }}
           >
             <div className="flex items-center gap-2 lg:gap-3 mb-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 flex-shrink-0">
-                <AlertCircle className="h-4 w-4 text-orange-600" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
+                <AlertCircle
+                  className="h-4 w-4"
+                  style={{ color: ADMIN_STAT_LABEL.orange }}
+                />
               </div>
             </div>
-            <p className="text-xs font-medium text-gray-600 uppercase mb-1 truncate">
+            <p
+              className="text-xs font-medium uppercase mb-1 truncate"
+              style={{ color: ADMIN_STAT_LABEL.orange }}
+            >
               Outstanding Rent
             </p>
             <p className="text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
@@ -212,7 +246,9 @@ const UnitsPage: NextPageWithLayout = () => {
           {/* Table Header */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between border-b border-gray-200 px-3 lg:px-6 py-4 gap-3">
             <div className="flex items-center gap-2 lg:gap-3">
-              <h2 className="text-lg lg:text-xl font-bold text-gray-900">Units List</h2>
+              <h2 className="text-lg lg:text-xl font-bold text-gray-900">
+                Units List
+              </h2>
               <span className="inline-flex items-center rounded-full bg-blue-100 px-2 lg:px-3 py-1 text-xs lg:text-sm font-medium text-blue-700 whitespace-nowrap">
                 {totalUnits} Units
               </span>
@@ -271,7 +307,11 @@ const UnitsPage: NextPageWithLayout = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: index * 0.05 }}
-                    onClick={() => router.push(`/dashboard/properties/${unit.propertyId}/units/${unit.id}`)}
+                    onClick={() =>
+                      router.push(
+                        `/dashboard/properties/${unit.propertyId}/units/${unit.id}`,
+                      )
+                    }
                     className="hover:bg-gray-50 transition cursor-pointer"
                   >
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -295,7 +335,9 @@ const UnitsPage: NextPageWithLayout = () => {
                           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
                             {getInitials(unit.tenantName)}
                           </div>
-                          <span className="text-sm text-gray-900">{unit.tenantName}</span>
+                          <span className="text-sm text-gray-900">
+                            {unit.tenantName}
+                          </span>
                         </div>
                       ) : (
                         <span className="text-sm text-gray-500">—</span>
@@ -310,12 +352,15 @@ const UnitsPage: NextPageWithLayout = () => {
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {unit.nextDueDate}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <td
+                      className="px-3 sm:px-6 py-4 whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         type="button"
                         onClick={() =>
                           router.push(
-                            `/dashboard/properties/${unit.propertyId}/units/${unit.id}`
+                            `/dashboard/properties/${unit.propertyId}/units/${unit.id}`,
                           )
                         }
                         className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
@@ -333,7 +378,9 @@ const UnitsPage: NextPageWithLayout = () => {
           {/* Pagination */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t border-gray-200 px-3 sm:px-6 py-4 gap-4">
             <div className="flex items-center gap-2 sm:gap-4">
-              <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Items per page</span>
+              <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">
+                Items per page
+              </span>
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
@@ -349,7 +396,8 @@ const UnitsPage: NextPageWithLayout = () => {
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
               <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">
-                {startIndex + 1}-{Math.min(endIndex, allUnits.length)} of {allUnits.length} items
+                {startIndex + 1}-{Math.min(endIndex, allUnits.length)} of{" "}
+                {allUnits.length} items
               </span>
               <div className="flex items-center gap-2">
                 <motion.button
@@ -362,25 +410,29 @@ const UnitsPage: NextPageWithLayout = () => {
                 >
                   &lt;
                 </motion.button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <motion.button
-                    key={page}
-                    type="button"
-                    onClick={() => setCurrentPage(page)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                      currentPage === page
-                        ? "bg-brand-main text-white"
-                        : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
-                    }`}
-                  >
-                    {page}
-                  </motion.button>
-                ))}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (page) => (
+                    <motion.button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                        currentPage === page
+                          ? "bg-brand-main text-white"
+                          : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
+                      }`}
+                    >
+                      {page}
+                    </motion.button>
+                  ),
+                )}
                 <motion.button
                   type="button"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   disabled={currentPage === totalPages}
                   whileHover={{ scale: currentPage === totalPages ? 1 : 1.05 }}
                   whileTap={{ scale: currentPage === totalPages ? 1 : 0.95 }}
@@ -410,4 +462,3 @@ const UnitsPage: NextPageWithLayout = () => {
 UnitsPage.getLayout = (page) => <DashboardLayout>{page}</DashboardLayout>;
 
 export default UnitsPage;
-

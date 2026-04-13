@@ -68,6 +68,10 @@ const PropertiesPage: NextPageWithLayout = () => {
 
   // Fetch properties from API - using same logic as dashboard
   React.useEffect(() => {
+    if (user?.role === "super_admin") {
+      router.replace("/dashboard/admin/properties");
+      return;
+    }
     const fetchProperties = async () => {
       setIsLoading(true);
       setError(null);

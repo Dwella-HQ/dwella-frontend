@@ -35,14 +35,17 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
 
   switch (role) {
     case "landlord":
-    case "super_admin":
-      // Super admin has same navigation as landlord
       return [
         ...baseItems,
         { name: "Properties", href: "/dashboard/properties", icon: Home },
         { name: "Rent", href: "/dashboard/rent", icon: CreditCard },
         { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
+      ];
+    case "super_admin":
+      return [
+        { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
+        { name: "Properties", href: "/dashboard/admin/properties", icon: Home },
       ];
     case "property_manager":
       // Property manager navigation will be updated based on Figma designs
@@ -78,8 +81,6 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
 
   switch (role) {
     case "landlord":
-    case "super_admin":
-      // Super admin has same menu as landlord
       return [
         { name: "Managers", href: "/dashboard/managers", icon: Users },
         { name: "Units", href: "/dashboard/units", icon: FileText },
@@ -92,6 +93,11 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
         { name: "Finance", href: "/dashboard/finance", icon: ArrowDownToLine },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
+      ];
+    case "super_admin":
+      return [
+        { name: "Reports", href: "/dashboard/admin", icon: BarChart3 },
+        { name: "Settings", href: "/dashboard/admin", icon: Settings },
       ];
     case "property_manager":
       // Property manager "More" menu will be updated based on Figma designs
