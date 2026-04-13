@@ -2,6 +2,11 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { Building2, Home, DollarSign, AlertCircle } from "lucide-react";
 import type { DashboardStats } from "@/data/mockLandlordData";
+import {
+  ADMIN_STAT_BG,
+  ADMIN_STAT_CYCLE,
+  ADMIN_STAT_LABEL,
+} from "@/lib/adminDesignTokens";
 
 export type DashboardSummaryCardsProps = {
   stats: DashboardStats;
@@ -83,6 +88,7 @@ export const DashboardSummaryCards = ({
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {cards.map((card, index) => {
         const Icon = card.icon;
+        const tint = ADMIN_STAT_CYCLE[index % ADMIN_STAT_CYCLE.length];
         return (
           <motion.div
             key={card.title}
@@ -93,8 +99,14 @@ export const DashboardSummaryCards = ({
             className="rounded-lg border border-gray-200 bg-white p-3 lg:p-5 shadow-sm overflow-hidden"
           >
             <div className="flex items-center gap-2 lg:gap-4">
-              <div className="rounded-lg bg-blue-50 p-1.5 lg:p-2 flex-shrink-0">
-                <Icon className="h-4 w-4 lg:h-5 lg:w-5 text-brand-main" />
+              <div
+                className="rounded-lg p-1.5 lg:p-2 flex-shrink-0"
+                style={{ backgroundColor: ADMIN_STAT_BG[tint] }}
+              >
+                <Icon
+                  className="h-4 w-4 lg:h-5 lg:w-5 flex-shrink-0"
+                  style={{ color: ADMIN_STAT_LABEL[tint] }}
+                />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs lg:text-sm font-medium text-gray-600 truncate">
@@ -103,7 +115,9 @@ export const DashboardSummaryCards = ({
                 <p className="mt-1 lg:mt-2 text-xl lg:text-3xl font-bold text-gray-900 break-words leading-tight">
                   {card.value}
                 </p>
-                <p className="mt-1 text-xs text-gray-500 line-clamp-2">{card.subtitle}</p>
+                <p className="mt-1 text-xs text-gray-500 line-clamp-2">
+                  {card.subtitle}
+                </p>
               </div>
             </div>
           </motion.div>

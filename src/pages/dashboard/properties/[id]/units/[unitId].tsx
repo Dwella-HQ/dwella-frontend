@@ -17,6 +17,7 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useUser } from "@/contexts/UserContext";
 import { AddTenantModal } from "@/components/AddTenantModal";
 import { EditUnitModal } from "@/components/EditUnitModal";
 import { NewMaintenanceRequestModal } from "@/components/NewMaintenanceRequestModal";
@@ -28,11 +29,13 @@ import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
 import type { Unit, Tenant } from "@/data/mockLandlordData";
 
 import type { NextPageWithLayout } from "@/pages/_app";
+import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 
 type NestedProperty = { id?: string; name?: string };
 
 const UnitDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { user } = useUser();
   const { id, unitId } = router.query;
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [isEditUnitOpen, setIsEditUnitOpen] = React.useState(false);
@@ -42,22 +45,38 @@ const UnitDetailPage: NextPageWithLayout = () => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  const loadUnit = React.useCallback(async (quiet = false) => {
-    if (!unitId || typeof unitId !== "string") return;
-    if (!quiet) setIsLoading(true);
-    setError(null);
-    const result = await getUnit(unitId);
-    if (result.success) {
-      const data = result.data;
-      const property = data.property as NestedProperty | undefined;
-      const propertyId = property?.id ?? data.propertyId ?? (id as string) ?? "";
-      setPropertyName(property?.name ?? "Property");
-      setUnit(mapUnitDTOToUnit(data, propertyId));
-    } else {
-      setError(result.error);
+  React.useEffect(() => {
+    if (
+      user?.role === "super_admin" &&
+      id &&
+      unitId &&
+      typeof id === "string" &&
+      typeof unitId === "string"
+    ) {
+      router.replace(`/dashboard/admin/properties/${id}/units/${unitId}`);
     }
-    if (!quiet) setIsLoading(false);
-  }, [unitId, id]);
+  }, [id, router, unitId, user?.role]);
+
+  const loadUnit = React.useCallback(
+    async (quiet = false) => {
+      if (!unitId || typeof unitId !== "string") return;
+      if (!quiet) setIsLoading(true);
+      setError(null);
+      const result = await getUnit(unitId);
+      if (result.success) {
+        const data = result.data;
+        const property = data.property as NestedProperty | undefined;
+        const propertyId =
+          property?.id ?? data.propertyId ?? (id as string) ?? "";
+        setPropertyName(property?.name ?? "Property");
+        setUnit(mapUnitDTOToUnit(data, propertyId));
+      } else {
+        setError(result.error);
+      }
+      if (!quiet) setIsLoading(false);
+    },
+    [unitId, id],
+  );
 
   React.useEffect(() => {
     loadUnit();
@@ -90,7 +109,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
   const unitMaintenance = React.useMemo(() => {
     if (!unit) return [];
     return mockMaintenanceRequestDetails.filter(
-      (m) => m.unitId === unit.unitId
+      (m) => m.unitId === unit.unitId,
     );
   }, [unit]);
 
@@ -222,26 +241,58 @@ const UnitDetailPage: NextPageWithLayout = () => {
 
               {/* Unit Details Cards */}
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="rounded-lg bg-blue-50 p-4">
-                  <p className="text-xs text-gray-500 uppercase">BEDROOMS</p>
+                <div
+                  className="rounded-lg p-4"
+                  style={{ backgroundColor: ADMIN_STAT_BG.blue }}
+                >
+                  <p
+                    className="text-xs font-medium uppercase"
+                    style={{ color: ADMIN_STAT_LABEL.blue }}
+                  >
+                    Bedrooms
+                  </p>
                   <p className="mt-1 text-xl font-bold text-gray-900">
                     {unit.bedrooms}
                   </p>
                 </div>
-                <div className="rounded-lg bg-green-50 p-4">
-                  <p className="text-xs text-gray-500 uppercase">BATHROOMS</p>
+                <div
+                  className="rounded-lg p-4"
+                  style={{ backgroundColor: ADMIN_STAT_BG.green }}
+                >
+                  <p
+                    className="text-xs font-medium uppercase"
+                    style={{ color: ADMIN_STAT_LABEL.green }}
+                  >
+                    Bathrooms
+                  </p>
                   <p className="mt-1 text-xl font-bold text-gray-900">
                     {unit.bathrooms}
                   </p>
                 </div>
-                <div className="rounded-lg bg-purple-50 p-4">
-                  <p className="text-xs text-gray-500 uppercase">SIZE</p>
+                <div
+                  className="rounded-lg p-4"
+                  style={{ backgroundColor: ADMIN_STAT_BG.purple }}
+                >
+                  <p
+                    className="text-xs font-medium uppercase"
+                    style={{ color: ADMIN_STAT_LABEL.purple }}
+                  >
+                    Size
+                  </p>
                   <p className="mt-1 text-xl font-bold text-gray-900">
                     {unit.size} sqft
                   </p>
                 </div>
-                <div className="rounded-lg bg-orange-50 p-4">
-                  <p className="text-xs text-gray-500 uppercase">FLOOR</p>
+                <div
+                  className="rounded-lg p-4"
+                  style={{ backgroundColor: ADMIN_STAT_BG.orange }}
+                >
+                  <p
+                    className="text-xs font-medium uppercase"
+                    style={{ color: ADMIN_STAT_LABEL.orange }}
+                  >
+                    Floor
+                  </p>
                   <p className="mt-1 text-xl font-bold text-gray-900">
                     {unit.floor}
                   </p>

@@ -22,6 +22,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { mockTenants, mockPaymentHistory } from "@/data/mockPropertyDetails";
 import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
 import type { NextPageWithLayout } from "../../_app";
+import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 
 // Mock data for tenant documents
 const mockTenantDocuments = [
@@ -106,7 +107,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
 
   const tenantMaintenance = React.useMemo(() => {
     if (!tenant) return [];
-    return mockMaintenanceRequestDetails.filter((m) => m.tenantId === tenant.id);
+    return mockMaintenanceRequestDetails.filter(
+      (m) => m.tenantId === tenant.id,
+    );
   }, [tenant]);
 
   if (!tenant) {
@@ -127,8 +130,11 @@ const TenantProfilePage: NextPageWithLayout = () => {
   };
 
   // Calculate total paid (sum of all payments)
-  const totalPaid = tenantPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  
+  const totalPaid = tenantPayments.reduce(
+    (sum, payment) => sum + payment.amount,
+    0,
+  );
+
   // Get monthly rent - default to 120000 for Ada Emmanuel
   const monthlyRent = 120000;
 
@@ -157,7 +163,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Tenant Profile</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              Tenant Profile
+            </h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -193,7 +201,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
 
             {/* Tenant Details */}
             <div className="flex-1">
-              <h2 className="text-2xl font-bold text-gray-900">{tenant.name}</h2>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {tenant.name}
+              </h2>
               <p className="mt-1 text-sm text-gray-600">
                 Tenant • Unit {tenant.unitId}
               </p>
@@ -201,30 +211,54 @@ const TenantProfilePage: NextPageWithLayout = () => {
               {/* Contact Information */}
               <div className="mt-4 flex flex-wrap gap-6">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
-                    <Phone className="h-5 w-5 text-blue-600" />
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: ADMIN_STAT_BG.blue }}
+                  >
+                    <Phone
+                      className="h-5 w-5"
+                      style={{ color: ADMIN_STAT_LABEL.blue }}
+                    />
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Phone</p>
-                    <p className="text-sm font-medium text-gray-900">{tenant.phone}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {tenant.phone}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
-                    <Mail className="h-5 w-5 text-green-600" />
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: ADMIN_STAT_BG.green }}
+                  >
+                    <Mail
+                      className="h-5 w-5"
+                      style={{ color: ADMIN_STAT_LABEL.green }}
+                    />
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Email</p>
-                    <p className="text-sm font-medium text-gray-900">{tenant.email}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {tenant.email}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50">
-                    <Home className="h-5 w-5 text-purple-600" />
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: ADMIN_STAT_BG.purple }}
+                  >
+                    <Home
+                      className="h-5 w-5"
+                      style={{ color: ADMIN_STAT_LABEL.purple }}
+                    />
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Unit</p>
-                    <p className="text-sm font-medium text-gray-900">Unit {tenant.unitId}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      Unit {tenant.unitId}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -233,26 +267,59 @@ const TenantProfilePage: NextPageWithLayout = () => {
 
           {/* Financial/Lease Summary Cards */}
           <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-lg border border-gray-200 bg-blue-50 p-4">
-              <p className="text-xs font-medium text-blue-700 uppercase">Monthly Rent</p>
+            <div
+              className="rounded-lg border border-gray-200 p-4"
+              style={{ backgroundColor: ADMIN_STAT_BG.blue }}
+            >
+              <p
+                className="text-xs font-medium uppercase"
+                style={{ color: ADMIN_STAT_LABEL.blue }}
+              >
+                Monthly Rent
+              </p>
               <p className="mt-1 text-xl font-bold text-gray-900">
                 ₦{monthlyRent.toLocaleString()}
               </p>
             </div>
-            <div className="rounded-lg border border-gray-200 bg-green-50 p-4">
-              <p className="text-xs font-medium text-green-700 uppercase">Move-in Date</p>
+            <div
+              className="rounded-lg border border-gray-200 p-4"
+              style={{ backgroundColor: ADMIN_STAT_BG.green }}
+            >
+              <p
+                className="text-xs font-medium uppercase"
+                style={{ color: ADMIN_STAT_LABEL.green }}
+              >
+                Move-in Date
+              </p>
               <p className="mt-1 text-xl font-bold text-gray-900">
-                {tenant.leaseStart.split(" ")[1]} {tenant.leaseStart.split(" ")[2]}
+                {tenant.leaseStart.split(" ")[1]}{" "}
+                {tenant.leaseStart.split(" ")[2]}
               </p>
             </div>
-            <div className="rounded-lg border border-gray-200 bg-purple-50 p-4">
-              <p className="text-xs font-medium text-purple-700 uppercase">Lease Ends</p>
+            <div
+              className="rounded-lg border border-gray-200 p-4"
+              style={{ backgroundColor: ADMIN_STAT_BG.purple }}
+            >
+              <p
+                className="text-xs font-medium uppercase"
+                style={{ color: ADMIN_STAT_LABEL.purple }}
+              >
+                Lease Ends
+              </p>
               <p className="mt-1 text-xl font-bold text-gray-900">
                 {tenant.leaseEnd.split(" ")[1]} {tenant.leaseEnd.split(" ")[2]}
               </p>
             </div>
-            <div className="rounded-lg border border-gray-200 bg-orange-50 p-4">
-              <p className="text-xs font-medium text-orange-700 uppercase">Total Paid</p>
+            <div
+              className="rounded-lg border border-gray-200 p-4"
+              style={{ backgroundColor: ADMIN_STAT_BG.orange }}
+            >
+              <p
+                className="text-xs font-medium uppercase"
+                style={{ color: ADMIN_STAT_LABEL.orange }}
+              >
+                Total Paid
+              </p>
               <p className="mt-1 text-xl font-bold text-gray-900">
                 ₦{totalPaid.toLocaleString()}
               </p>
@@ -300,13 +367,17 @@ const TenantProfilePage: NextPageWithLayout = () => {
             >
               {/* Lease Information */}
               <div>
-                <h3 className="mb-4 text-lg font-semibold text-gray-900">Lease Information</h3>
+                <h3 className="mb-4 text-lg font-semibold text-gray-900">
+                  Lease Information
+                </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-lg border border-gray-200 bg-white p-4">
                     <div className="flex items-center gap-3">
                       <Calendar className="h-5 w-5 text-gray-400" />
                       <div>
-                        <p className="text-xs text-gray-500 uppercase">Lease Start</p>
+                        <p className="text-xs text-gray-500 uppercase">
+                          Lease Start
+                        </p>
                         <p className="mt-1 text-sm font-semibold text-gray-900">
                           {tenant.leaseStart}
                         </p>
@@ -317,7 +388,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
                     <div className="flex items-center gap-3">
                       <Calendar className="h-5 w-5 text-gray-400" />
                       <div>
-                        <p className="text-xs text-gray-500 uppercase">Lease End</p>
+                        <p className="text-xs text-gray-500 uppercase">
+                          Lease End
+                        </p>
                         <p className="mt-1 text-sm font-semibold text-gray-900">
                           {tenant.leaseEnd}
                         </p>
@@ -328,7 +401,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
                     <div className="flex items-center gap-3">
                       <DollarSign className="h-5 w-5 text-gray-400" />
                       <div>
-                        <p className="text-xs text-gray-500 uppercase">Monthly Rent</p>
+                        <p className="text-xs text-gray-500 uppercase">
+                          Monthly Rent
+                        </p>
                         <p className="mt-1 text-sm font-semibold text-gray-900">
                           ₦{monthlyRent.toLocaleString()}
                         </p>
@@ -339,7 +414,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
                     <div className="flex items-center gap-3">
                       <CheckCircle2 className="h-5 w-5 text-gray-400" />
                       <div>
-                        <p className="text-xs text-gray-500 uppercase">Payment Status</p>
+                        <p className="text-xs text-gray-500 uppercase">
+                          Payment Status
+                        </p>
                         <p className="mt-1">
                           <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
                             Paid
@@ -353,17 +430,25 @@ const TenantProfilePage: NextPageWithLayout = () => {
 
               {/* Emergency Contact */}
               <div>
-                <h3 className="mb-4 text-lg font-semibold text-gray-900">Emergency Contact</h3>
+                <h3 className="mb-4 text-lg font-semibold text-gray-900">
+                  Emergency Contact
+                </h3>
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
-                  <p className="text-sm font-semibold text-gray-900">{mockEmergencyContact.name}</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {mockEmergencyContact.name}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-6">
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">{mockEmergencyContact.phone}</span>
+                      <span className="text-sm text-gray-600">
+                        {mockEmergencyContact.phone}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">{mockEmergencyContact.email}</span>
+                      <span className="text-sm text-gray-600">
+                        {mockEmergencyContact.email}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -381,7 +466,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
               className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
             >
               <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Payment History</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Payment History
+                </h3>
               </div>
               <div className="space-y-3">
                 {tenantPayments.length > 0 ? (
@@ -395,9 +482,12 @@ const TenantProfilePage: NextPageWithLayout = () => {
                           <CheckCircle2 className="h-5 w-5 text-green-600" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{payment.method}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {payment.method}
+                          </p>
                           <p className="text-xs text-gray-500">
-                            {payment.date} • {payment.transactionId.replace("TXN-", "TXN-2025-")}
+                            {payment.date} •{" "}
+                            {payment.transactionId.replace("TXN-", "TXN-2025-")}
                           </p>
                         </div>
                       </div>
@@ -416,7 +506,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
                     <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
                       <DollarSign className="h-8 w-8 text-gray-400" />
                     </div>
-                    <p className="text-sm font-medium text-gray-900">No payments found</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      No payments found
+                    </p>
                   </div>
                 )}
               </div>
@@ -433,7 +525,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
               className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
             >
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Documents</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Documents
+                </h3>
                 <button
                   type="button"
                   className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center gap-2"
@@ -453,7 +547,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
                         <FileText className="h-6 w-6 text-blue-600" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{doc.name}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {doc.name}
+                        </p>
                         <p className="mt-1 text-xs text-gray-500">
                           {doc.type} • {doc.size}
                         </p>
@@ -476,7 +572,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
               className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
             >
               <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Maintenance Requests</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Maintenance Requests
+                </h3>
               </div>
               <div className="space-y-3">
                 {tenantMaintenance.map((request) => (
@@ -489,11 +587,16 @@ const TenantProfilePage: NextPageWithLayout = () => {
                         <CheckCircle2 className="h-5 w-5 text-green-600" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{request.type}:</p>
-                        <p className="text-xs text-gray-500">{request.subType}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {request.type}:
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {request.subType}
+                        </p>
                         <p className="text-xs text-gray-500 mt-1">
                           Reported: {request.reportedDate}
-                          {request.resolvedDate && ` • Resolved: ${request.resolvedDate}`}
+                          {request.resolvedDate &&
+                            ` • Resolved: ${request.resolvedDate}`}
                         </p>
                       </div>
                     </div>
@@ -519,7 +622,9 @@ const TenantProfilePage: NextPageWithLayout = () => {
               className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
             >
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Communication History</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Communication History
+                </h3>
                 <button
                   type="button"
                   className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
@@ -539,9 +644,15 @@ const TenantProfilePage: NextPageWithLayout = () => {
                         <Icon className="h-5 w-5 text-gray-400" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{comm.subject}</p>
-                        <p className="mt-1 text-sm text-gray-600">{comm.message}</p>
-                        <p className="mt-2 text-xs text-gray-500">{comm.date}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {comm.subject}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {comm.message}
+                        </p>
+                        <p className="mt-2 text-xs text-gray-500">
+                          {comm.date}
+                        </p>
                       </div>
                     </div>
                   );
@@ -555,7 +666,8 @@ const TenantProfilePage: NextPageWithLayout = () => {
   );
 };
 
-TenantProfilePage.getLayout = (page) => <DashboardLayout>{page}</DashboardLayout>;
+TenantProfilePage.getLayout = (page) => (
+  <DashboardLayout>{page}</DashboardLayout>
+);
 
 export default TenantProfilePage;
-

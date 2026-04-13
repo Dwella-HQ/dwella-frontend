@@ -41,6 +41,7 @@ import {
   mockRecentPayments,
   mockMaintenanceRequests,
 } from "@/data/mockLandlordData";
+import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import type {
   MaintenanceRequest,
   MaintenanceRequestDetail,
@@ -95,6 +96,12 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     yearlyRentGracePeriod: "NO_GRACE_PERIOD",
   });
   const [isSavingGracePeriod, setIsSavingGracePeriod] = React.useState(false);
+
+  React.useEffect(() => {
+    if (user?.role === "super_admin" && id && typeof id === "string") {
+      router.replace(`/dashboard/admin/properties/${id}`);
+    }
+  }, [id, router, user?.role]);
 
   // Fetch property from API
   React.useEffect(() => {
@@ -287,20 +294,28 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   };
 
   const totalUnitsCount = units.length > 0 ? units.length : property.units;
-  const occupiedUnitsCount = units.filter((u) => u.status === "occupied").length;
+  const occupiedUnitsCount = units.filter(
+    (u) => u.status === "occupied",
+  ).length;
   const occupancyPercent =
-    totalUnitsCount > 0 ? Math.round((occupiedUnitsCount / totalUnitsCount) * 100) : 0;
+    totalUnitsCount > 0
+      ? Math.round((occupiedUnitsCount / totalUnitsCount) * 100)
+      : 0;
   const monthlyRentTotal = units.reduce((sum, unit) => {
     const rentValue = (unit as any).rent ?? unit.monthlyRent ?? 0;
     const rent = Number.parseFloat(String(rentValue));
     return sum + (Number.isFinite(rent) ? rent : 0);
   }, 0);
   const managerName =
-    ((propertyDTO as any)?.propertyManager?.user?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.propertyManager?.user?.fullName as
+      | string
+      | undefined) ||
     ((propertyDTO as any)?.propertyManager?.fullName as string | undefined) ||
     ((propertyDTO as any)?.manager?.user?.fullName as string | undefined) ||
     ((propertyDTO as any)?.manager?.fullName as string | undefined) ||
-    ((propertyDTO as any)?.assignedManager?.user?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.assignedManager?.user?.fullName as
+      | string
+      | undefined) ||
     ((propertyDTO as any)?.assignedManager?.fullName as string | undefined) ||
     "Not assigned";
 
@@ -436,45 +451,91 @@ const PropertyDetailPage: NextPageWithLayout = () => {
             {/* Statistics Cards - 2x2 Grid */}
             <div className="grid grid-cols-2 gap-4">
               {/* Total Units */}
-              <div className="rounded-lg border border-gray-200 bg-blue-50 p-4">
+              <div
+                className="rounded-lg border border-gray-200 p-4"
+                style={{ backgroundColor: ADMIN_STAT_BG.blue }}
+              >
                 <div className="flex items-center gap-2 mb-2">
-                  <Home className="h-4 w-4 text-blue-600" />
+                  <Home
+                    className="h-4 w-4"
+                    style={{ color: ADMIN_STAT_LABEL.blue }}
+                  />
                 </div>
-                <p className="text-xs text-gray-600 mb-1">Total Units</p>
+                <p
+                  className="text-xs font-medium mb-1"
+                  style={{ color: ADMIN_STAT_LABEL.blue }}
+                >
+                  Total Units
+                </p>
                 <p className="text-2xl font-bold text-gray-900">
                   {totalUnitsCount}
                 </p>
               </div>
 
               {/* Monthly Rent */}
-              <div className="rounded-lg border border-gray-200 bg-purple-50 p-4">
+              <div
+                className="rounded-lg border border-gray-200 p-4"
+                style={{ backgroundColor: ADMIN_STAT_BG.purple }}
+              >
                 <div className="flex items-center gap-2 mb-2">
-                  <DollarSign className="h-4 w-4 text-purple-600" />
+                  <DollarSign
+                    className="h-4 w-4"
+                    style={{ color: ADMIN_STAT_LABEL.purple }}
+                  />
                 </div>
-                <p className="text-xs text-gray-600 mb-1">Monthly Rent</p>
+                <p
+                  className="text-xs font-medium mb-1"
+                  style={{ color: ADMIN_STAT_LABEL.purple }}
+                >
+                  Monthly Rent
+                </p>
                 <p className="text-2xl font-bold text-gray-900">
                   ₦{monthlyRentTotal.toLocaleString()}
                 </p>
               </div>
 
               {/* Occupancy */}
-              <div className="rounded-lg border border-gray-200 bg-green-50 p-4">
+              <div
+                className="rounded-lg border border-gray-200 p-4"
+                style={{ backgroundColor: ADMIN_STAT_BG.green }}
+              >
                 <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-green-600" />
+                  <Users
+                    className="h-4 w-4"
+                    style={{ color: ADMIN_STAT_LABEL.green }}
+                  />
                 </div>
-                <p className="text-xs text-gray-600 mb-1">Occupancy</p>
+                <p
+                  className="text-xs font-medium mb-1"
+                  style={{ color: ADMIN_STAT_LABEL.green }}
+                >
+                  Occupancy
+                </p>
                 <p className="text-2xl font-bold text-gray-900">
                   {occupancyPercent}%
                 </p>
               </div>
 
               {/* Manager */}
-              <div className="rounded-lg border border-gray-200 bg-orange-50 p-4">
+              <div
+                className="rounded-lg border border-gray-200 p-4"
+                style={{ backgroundColor: ADMIN_STAT_BG.orange }}
+              >
                 <div className="flex items-center gap-2 mb-2">
-                  <User className="h-4 w-4 text-orange-600" />
+                  <User
+                    className="h-4 w-4"
+                    style={{ color: ADMIN_STAT_LABEL.orange }}
+                  />
                 </div>
-                <p className="text-xs text-gray-600 mb-1">Manager</p>
-                <p className="text-lg font-semibold text-gray-900">{managerName}</p>
+                <p
+                  className="text-xs font-medium mb-1"
+                  style={{ color: ADMIN_STAT_LABEL.orange }}
+                >
+                  Manager
+                </p>
+                <p className="text-lg font-semibold text-gray-900">
+                  {managerName}
+                </p>
               </div>
             </div>
 
