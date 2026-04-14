@@ -5,9 +5,9 @@ import { registerResponseSchema } from "./auth.schema";
 
 const REGISTER_ROUTE = "/auth/register";
 
-type RegisterResult = 
+type RegisterResult =
   | { success: true; data: RegisterResponseDTO }
-  | { success: false; error: string };
+  | { success: false; error: string; statusCode?: number };
 
 export const register = async (data: RegisterRequestDTO): Promise<RegisterResult> => {
   const result = await apiPost<RegisterResponseDTO>(REGISTER_ROUTE, data, {
@@ -15,7 +15,11 @@ export const register = async (data: RegisterRequestDTO): Promise<RegisterResult
   });
 
   if (!result.success) {
-    return result;
+    return {
+      success: false,
+      error: result.error,
+      statusCode: result.statusCode,
+    };
   }
 
   // Validate response with Zod

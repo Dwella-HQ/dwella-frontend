@@ -2,10 +2,18 @@ import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
 import * as React from "react";
-import { ChevronDown, MoreVertical, Search, SlidersHorizontal } from "lucide-react";
+import {
+  ChevronDown,
+  MoreVertical,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { adminTenantRows, type AdminTenantRow } from "@/data/mockAdminDashboard";
+import {
+  adminTenantRows,
+  type AdminTenantRow,
+} from "@/data/mockAdminDashboard";
 import { deleteTenant, getTenants } from "@/api/tenants";
 
 const DEFAULT_LEASE_END = "7/7/2024";
@@ -15,10 +23,12 @@ const DEFAULT_UNITS = 11;
 const AdminTenantsPage: NextPageWithLayout = () => {
   const [rows, setRows] = React.useState<AdminTenantRow[]>(adminTenantRows);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState<"All" | "Active" | "Inactive">(
-    "All",
+  const [statusFilter, setStatusFilter] = React.useState<
+    "All" | "Active" | "Inactive"
+  >("All");
+  const [openActionRowId, setOpenActionRowId] = React.useState<string | null>(
+    null,
   );
-  const [openActionRowId, setOpenActionRowId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -79,7 +89,8 @@ const AdminTenantsPage: NextPageWithLayout = () => {
         row.id === id
           ? {
               ...row,
-              accountStatus: row.accountStatus === "Active" ? "Inactive" : "Active",
+              accountStatus:
+                row.accountStatus === "Active" ? "Inactive" : "Active",
             }
           : row,
       ),
@@ -88,7 +99,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
   };
 
   const handleBan = async (id: string) => {
-    const confirmed = window.confirm("Ban this tenant? This will delete the tenant account.");
+    const confirmed = window.confirm(
+      "Ban this tenant? This will delete the tenant account.",
+    );
     if (!confirmed) return;
     const result = await deleteTenant(id);
     if (result.success) {
@@ -132,7 +145,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                 className="rounded-[10px] border border-[#E2E8F0] bg-white px-3 py-2.5"
               >
                 <p className="text-[12px] text-[#64748B]">{item.label}</p>
-                <p className="mt-1 text-[32px] font-semibold leading-none">{item.value}</p>
+                <p className="mt-1 text-[32px] font-semibold leading-none">
+                  {item.value}
+                </p>
               </div>
             ))}
           </div>
@@ -152,7 +167,11 @@ const AdminTenantsPage: NextPageWithLayout = () => {
               className="flex items-center justify-between rounded-md border border-[#E2E8F0] px-3 py-2 text-[12px] text-[#64748B]"
               onClick={() =>
                 setStatusFilter((prev) =>
-                  prev === "All" ? "Active" : prev === "Active" ? "Inactive" : "All",
+                  prev === "All"
+                    ? "Active"
+                    : prev === "Active"
+                      ? "Inactive"
+                      : "All",
                 )
               }
             >
@@ -167,7 +186,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
           </div>
 
           <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
-            <p className="text-[20px] font-semibold leading-none">Tenant List</p>
+            <p className="text-[20px] font-semibold leading-none">
+              Tenant List
+            </p>
             <p className="mb-4 mt-1 text-[12px] text-[#64748B]">
               View and manage all Tenant on the platform
             </p>
@@ -175,22 +196,35 @@ const AdminTenantsPage: NextPageWithLayout = () => {
               <table className="w-full min-w-[1260px] text-[11px]">
                 <thead className="text-[#64748B]">
                   <tr>
-                    <th className="py-2.5 text-center font-medium">Serial Number</th>
+                    <th className="py-2.5 text-center font-medium">
+                      Serial Number
+                    </th>
                     <th className="py-2.5 text-center font-medium">Image</th>
                     <th className="py-2.5 text-left font-medium">Name</th>
                     <th className="py-2.5 text-left font-medium">Number</th>
                     <th className="py-2.5 text-center font-medium">Units</th>
-                    <th className="py-2.5 text-left font-medium">Monthly Rent</th>
+                    <th className="py-2.5 text-left font-medium">
+                      Monthly Rent
+                    </th>
                     <th className="py-2.5 text-left font-medium">Lease Ends</th>
-                    <th className="py-2.5 text-left font-medium">Rent Status</th>
-                    <th className="py-2.5 text-left font-medium">Date Joined</th>
-                    <th className="py-2.5 text-left font-medium">Account Status</th>
+                    <th className="py-2.5 text-left font-medium">
+                      Rent Status
+                    </th>
+                    <th className="py-2.5 text-left font-medium">
+                      Date Joined
+                    </th>
+                    <th className="py-2.5 text-left font-medium">
+                      Account Status
+                    </th>
                     <th className="py-2.5 text-center font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRows.map((row) => (
-                    <tr key={row.id} className="border-t border-[#F1F5F9] hover:bg-[#F8FAFC]">
+                    <tr
+                      key={row.id}
+                      className="border-t border-[#F1F5F9] hover:bg-[#F8FAFC]"
+                    >
                       <td className="py-2.5 text-center">{row.id}</td>
                       <td className="py-2.5">
                         <div className="mx-auto relative h-7 w-7 overflow-hidden rounded-full">
@@ -238,7 +272,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setOpenActionRowId((prev) => (prev === row.id ? null : row.id));
+                            setOpenActionRowId((prev) =>
+                              prev === row.id ? null : row.id,
+                            );
                           }}
                           className="rounded p-1 text-[#94A3B8] hover:bg-[#F1F5F9]"
                         >
@@ -254,7 +290,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                               className="w-full rounded px-2 py-1.5 text-left text-[11px] text-[#0F172A] hover:bg-[#F8FAFC]"
                               onClick={() => handleToggleStatus(row.id)}
                             >
-                              {row.accountStatus === "Active" ? "Suspend" : "Activate"}
+                              {row.accountStatus === "Active"
+                                ? "Suspend"
+                                : "Activate"}
                             </button>
                             <button
                               type="button"
@@ -279,7 +317,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
               </table>
             </div>
             {loading ? (
-              <p className="mt-3 text-[12px] text-[#64748B]">Loading tenants...</p>
+              <p className="mt-3 text-[12px] text-[#64748B]">
+                Loading tenants...
+              </p>
             ) : null}
 
             <div className="mt-4 flex items-center justify-between text-[12px] text-[#64748B]">
@@ -299,7 +339,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                 <button className="rounded-md border border-[#E2E8F0] px-2 py-1 text-[#64748B]">
                   1
                 </button>
-                <button className="rounded-md px-2 py-1 text-[#94A3B8]">2</button>
+                <button className="rounded-md px-2 py-1 text-[#94A3B8]">
+                  2
+                </button>
               </div>
             </div>
           </div>

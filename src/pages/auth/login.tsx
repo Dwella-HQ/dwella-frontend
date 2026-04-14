@@ -253,6 +253,9 @@ const LoginPage: NextPageWithLayout = () => {
         return;
       }
 
+      // Full JWT for backend debugging — remove or gate behind env when no longer needed.
+      console.log("[Dwella] Google ID token (full JWT for backend):", idToken);
+
       try {
         setError(null);
         setIsLoading(true);

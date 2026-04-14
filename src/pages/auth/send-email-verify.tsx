@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { useToast } from "@/components/Toast";
+import { resendVerificationEmail } from "@/api/auth";
 import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../_app";
@@ -16,14 +17,20 @@ const SendEmailVerifyPage: NextPageWithLayout = () => {
   const [email, setEmail] = React.useState<string>("");
   const [actualEmail, setActualEmail] = React.useState<string>("");
   const [isResending, setIsResending] = React.useState(false);
+  const [isExistingAccountFlow, setIsExistingAccountFlow] =
+    React.useState(false);
 
   React.useEffect(() => {
+    if (!router.isReady) return;
     const emailParam = router.query.email as string;
     if (emailParam) {
       // Decode URL-encoded email
       const decodedEmail = decodeURIComponent(emailParam);
       setEmail(decodedEmail);
     }
+
+    const existing = router.query.existing === "1";
+    setIsExistingAccountFlow(existing);
 
     // Get actual email from sessionStorage (for resend functionality)
     if (typeof window !== "undefined") {
@@ -32,7 +39,7 @@ const SendEmailVerifyPage: NextPageWithLayout = () => {
         setActualEmail(storedEmail);
       }
     }
-  }, [router.query.email]);
+  }, [router.isReady, router.query.email, router.query.existing]);
 
   const handleResendLink = async () => {
     if (!actualEmail) {
@@ -43,15 +50,16 @@ const SendEmailVerifyPage: NextPageWithLayout = () => {
 
     setIsResending(true);
     try {
-      // TODO: Implement resend verification email API call
-      // For now, we'll just show a success message
-      // const result = await resendVerificationEmail({ email: actualEmail });
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      showToast("Verification email sent successfully!", "success");
-    } catch (error) {
+      const result = await resendVerificationEmail({ email: actualEmail });
+      if (!result.success) {
+        showToast(result.error || "Failed to resend email.", "error");
+        return;
+      }
+      showToast(
+        result.message || "Verification email sent. Check your inbox.",
+        "success",
+      );
+    } catch {
       showToast("Failed to resend email. Please try again.", "error");
     } finally {
       setIsResending(false);
@@ -82,15 +90,46 @@ const SendEmailVerifyPage: NextPageWithLayout = () => {
 
         {/* Verification Card */}
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm w-full text-center">
-          <h1 className="mb-4 text-2xl font-bold text-gray-900">Check your email</h1>
-          
+          <h1 className="mb-4 text-2xl font-bold text-gray-900">
+            {isExistingAccountFlow
+              ? "Finish verifying your email"
+              : "Check your email"}
+          </h1>
+
           <div className="mb-6 space-y-2">
             <p className="text-sm text-gray-600">
-              We've sent you a verification link to{" "}
-              <span className="font-medium text-gray-900">{email || "your email"}</span>.
+              {isExistingAccountFlow ? (
+                <>
+                  An account with this email is already registered but may still
+                  need verification. We can send another link to{" "}
+                  <span className="font-medium text-gray-900">
+                    {email || "your email"}
+                  </span>
+                  .
+                </>
+              ) : (
+                <>
+                  We&apos;ve sent you a verification link to{" "}
+                  <span className="font-medium text-gray-900">
+                    {email || "your email"}
+                  </span>
+                  .
+                </>
+              )}
             </p>
             <p className="text-sm text-gray-600">
-              Click the link in the email to verify your account and finish setting things up.
+              Click the link in the email to verify your account and finish
+              setting things up.
+            </p>
+            <p className="text-sm text-gray-600">
+              Already verified?{" "}
+              <Link
+                href="/auth/login"
+                className="font-medium text-brand-main hover:text-brand-main/80 underline"
+              >
+                Sign in
+              </Link>
+              .
             </p>
           </div>
 

@@ -1,5 +1,6 @@
 export { login } from "./login";
 export { register } from "./register";
+export { resendVerificationEmail } from "./resendVerificationEmail";
 export { googleLogin, facebookLogin } from "./socialLogin";
 export { verifyEmail } from "./verifyEmail";
 export { logout } from "./logout";
