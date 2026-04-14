@@ -18,6 +18,11 @@ import Link from "next/link";
 import { AuthLayout } from "@/components/AuthLayout";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 import { register, googleLogin } from "@/api/auth";
+import {
+  formatRegistrationErrorForUser,
+  isDuplicateEmailRegistrationError,
+  maskEmailForDisplay,
+} from "@/utils/registrationErrors";
 import { useUser, type UserRole } from "@/contexts/UserContext";
 import { getLandlordByUser } from "@/api/landlord";
 import { getTenantByUser } from "@/api/tenants";
@@ -117,7 +122,22 @@ const SignUpPage: NextPageWithLayout = () => {
       const result = await register(payload);
 
       if (!result.success) {
-        setError(result.error);
+        const duplicateEmail =
+          isDuplicateEmailRegistrationError(result.error) ||
+          result.statusCode === 409;
+
+        if (duplicateEmail && typeof window !== "undefined") {
+          sessionStorage.setItem("pendingVerificationEmail", data.email);
+          const maskedEmail = maskEmailForDisplay(data.email);
+          await router.push({
+            pathname: "/auth/send-email-verify",
+            query: { email: maskedEmail, existing: "1" },
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        setError(formatRegistrationErrorForUser(result.error));
         setIsSubmitting(false);
         return;
       }
@@ -126,11 +146,7 @@ const SignUpPage: NextPageWithLayout = () => {
       sessionStorage.setItem("pendingVerificationEmail", data.email);
 
       // Create masked email for display
-      const maskedEmail = data.email.replace(
-        /(.{2})(.*)(@.*)/,
-        (_, start, middle, domain) =>
-          `${start}${"*".repeat(Math.min(middle.length, 4))}${domain}`,
-      );
+      const maskedEmail = maskEmailForDisplay(data.email);
 
       // Redirect to "check your email" page
       router.push({
@@ -182,6 +198,9 @@ const SignUpPage: NextPageWithLayout = () => {
           setError("Google sign-in failed. Please try again.");
           return;
         }
+
+        // Full JWT for backend debugging — remove or gate behind env when no longer needed.
+        console.log("[Dwella] Google ID token (full JWT for backend):", idToken);
 
         console.log("Google credential acquired:", {
           role: selectedRole,
