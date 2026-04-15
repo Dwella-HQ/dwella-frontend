@@ -1047,8 +1047,7 @@ const LandlordDashboard = () => {
     };
   }, [properties, allMaintenanceForStats]);
 
-  const summaryCardsLoading =
-    isLoadingProperties || maintenanceLoading;
+  const summaryCardsLoading = isLoadingProperties || maintenanceLoading;
 
   return (
     <>
@@ -1180,11 +1179,7 @@ const DashboardPage: NextPageWithLayout = () => {
 
     switch (user.role) {
       case "super_admin":
-        return (
-          <div className="py-12 text-center">
-            <p className="text-sm text-gray-500">Redirecting to admin dashboard...</p>
-          </div>
-        );
+        return null;
       case "property_manager":
         return <ManagerDashboard />;
       case "tenant":

@@ -111,35 +111,51 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
               View and manage all properties across the platform
             </p>
             <div className="overflow-auto">
-              <table className="w-full min-w-[1260px] text-[11px]">
+              <table className="w-full min-w-[1080px] table-fixed text-[11px]">
                 <thead className="text-[#64748B]">
                   <tr>
-                    <th className="py-2.5 text-center font-medium">
+                    <th className="w-[72px] py-2.5 text-center font-medium">
                       Serial Number
                     </th>
-                    <th className="py-2.5 text-center font-medium">Image</th>
-                    <th className="py-2.5 text-center font-medium">Name</th>
-                    <th className="py-2.5 text-center font-medium">Type</th>
-                    <th className="py-2.5 text-center font-medium">Address</th>
-                    <th className="py-2.5 text-center font-medium">Units</th>
-                    <th className="py-2.5 text-center font-medium">
+                    <th className="w-[56px] py-2.5 text-center font-medium">
+                      Image
+                    </th>
+                    <th className="w-[140px] py-2.5 text-center font-medium">
+                      Name
+                    </th>
+                    <th className="w-[100px] py-2.5 text-center font-medium">
+                      Type
+                    </th>
+                    <th className="w-[150px] py-2.5 text-center font-medium">
+                      Address
+                    </th>
+                    <th className="w-[56px] py-2.5 text-center font-medium">
+                      Units
+                    </th>
+                    <th className="w-[110px] py-2.5 text-center font-medium">
                       Monthly Rent
                     </th>
-                    <th className="py-2.5 text-center font-medium">
+                    <th className="w-[130px] py-2.5 text-center font-medium">
                       LandLord Name
                     </th>
-                    <th className="py-2.5 text-center font-medium">Image</th>
-                    <th className="py-2.5 text-center font-medium">
+                    <th className="w-[56px] py-2.5 text-center font-medium">
+                      Image
+                    </th>
+                    <th className="w-[96px] py-2.5 text-center font-medium">
                       Listing Date
                     </th>
-                    <th className="py-2.5 text-center font-medium">Status</th>
-                    <th className="py-2.5 text-center font-medium"></th>
+                    <th className="w-[120px] py-2.5 text-center font-medium">
+                      Status
+                    </th>
+                    <th className="w-[44px] py-2.5 text-center font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {adminPropertyRows.map((row) => (
                     <tr key={row.id} className="border-t border-[#F1F5F9]">
-                      <td className="py-2.5 text-center">{row.id}</td>
+                      <td className="whitespace-nowrap py-2.5 text-center">
+                        {row.id}
+                      </td>
                       <td className="py-2.5 text-center">
                         <div className="mx-auto h-7 w-7 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#0EA5E9]" />
                       </td>
@@ -153,15 +169,21 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
                       </td>
                       <td className="py-2.5 text-center">{row.type}</td>
                       <td className="py-2.5 text-center">{row.address}</td>
-                      <td className="py-2.5 text-center">{row.units}</td>
-                      <td className="py-2.5 text-center">{row.monthlyRent}</td>
+                      <td className="whitespace-nowrap py-2.5 text-center">
+                        {row.units}
+                      </td>
+                      <td className="truncate py-2.5 text-center">
+                        {row.monthlyRent}
+                      </td>
                       <td className="py-2.5 text-center">{row.landlordName}</td>
                       <td className="py-2.5 text-center">
                         <div className="mx-auto flex h-7 w-7 items-center justify-center rounded-full bg-[#FECACA] text-[10px] font-semibold text-[#7F1D1D]">
                           RI
                         </div>
                       </td>
-                      <td className="py-2.5 text-center">{row.listingDate}</td>
+                      <td className="whitespace-nowrap py-2.5 text-center">
+                        {row.listingDate}
+                      </td>
                       <td className="py-2.5 text-center">
                         {tab === "pending" ? (
                           <div className="flex justify-center gap-2">
