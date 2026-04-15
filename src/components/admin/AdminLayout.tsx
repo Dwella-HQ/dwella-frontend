@@ -10,11 +10,13 @@ import {
   ClipboardList,
   MessageSquare,
   Bell,
+  LogOut,
   ShieldAlert,
   Settings,
   Search,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
+import { logout as logoutRequest } from "@/api/auth";
 
 type AdminLayoutProps = {
   title: string;
@@ -44,7 +46,23 @@ const adminNav = [
 
 export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
   const router = useRouter();
-  const { user, isLoading } = useUser();
+  const { user, isLoading, logout } = useUser();
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+
+  const handleLogout = React.useCallback(async () => {
+    if (!user || isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logoutRequest(user.id);
+    } catch (error) {
+      // We still clear client session even when server logout fails.
+      console.error("Admin logout request failed:", error);
+    } finally {
+      logout();
+      await router.push("/auth/login");
+      setIsLoggingOut(false);
+    }
+  }, [isLoggingOut, logout, router, user]);
 
   React.useEffect(() => {
     if (isLoading) return;
@@ -61,8 +79,8 @@ export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
 
   return (
     <div className="min-h-screen bg-[#EEF2F6] text-[#0F172A]">
-      <div className="grid min-h-screen grid-cols-[196px_1fr]">
-        <aside className="bg-[#071738] px-4 py-6 text-white">
+      <div className="min-h-screen">
+        <aside className="fixed left-0 top-0 h-screen w-[196px] overflow-y-auto bg-[#071738] px-4 py-6 text-white">
           <div className="px-2 pb-6 text-[31px] font-bold tracking-wide">
             DWELLA.
           </div>
@@ -91,8 +109,8 @@ export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
           </nav>
         </aside>
 
-        <div className="flex flex-col">
-          <header className="flex h-[65px] items-center justify-between border-b border-[#E2E8F0] bg-white px-6">
+        <div className="min-h-screen pl-[196px]">
+          <header className="fixed left-[196px] right-0 top-0 z-30 flex h-[65px] items-center justify-between border-b border-[#E2E8F0] bg-white px-6">
             <div className="flex items-center gap-4">
               <h1 className="text-[15px] font-semibold">{title}</h1>
               <div className="hidden w-[306px] items-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1 md:flex">
@@ -105,15 +123,40 @@ export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
                 />
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-[12px] font-semibold">Admin User</p>
-              <p className="text-[10px] text-[#64748B]">System Admin</p>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                aria-label="Notifications"
+                onClick={() =>
+                  void router.push("/dashboard/admin/notifications")
+                }
+                className="relative rounded-md p-1.5 text-[#0F172A] transition hover:bg-[#F1F5F9]"
+              >
+                <Bell className="h-4 w-4" />
+                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#EF4444]" />
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E2E8F0] text-[11px] font-semibold text-[#0F172A]">
+                  AU
+                </div>
+                <div className="text-right leading-tight">
+                  <p className="text-[12px] font-semibold">Admin User</p>
+                  <p className="text-[10px] text-[#64748B]">System Admin</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Logout"
+                disabled={isLoggingOut}
+                onClick={() => void handleLogout()}
+                className="rounded-md p-1.5 text-[#EF4444] transition hover:bg-[#FEF2F2] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
           </header>
-          <main className="p-4">
-            <div className="mx-auto w-full max-w-[min(92vw,1320px)]">
-              {children}
-            </div>
+          <main className="mt-[65px] p-4">
+            <div className="mx-auto w-full max-w-[1320px]">{children}</div>
           </main>
         </div>
       </div>

@@ -38,7 +38,7 @@ const AdminTenantsPage: NextPageWithLayout = () => {
       const result = await getTenants({ limit: 100 });
       if (!mounted) return;
       if (result.success) {
-        const mapped: AdminTenantRow[] = result.data.map((tenant, index) => ({
+        const mapped: AdminTenantRow[] = result.data.map((tenant) => ({
           id: String(tenant.id),
           name: tenant.fullName || tenant.name || "Tenant",
           phone: tenant.phoneNumber || tenant.phone || "--",
@@ -193,30 +193,40 @@ const AdminTenantsPage: NextPageWithLayout = () => {
               View and manage all Tenant on the platform
             </p>
             <div className="overflow-auto">
-              <table className="w-full min-w-[1260px] text-[11px]">
+              <table className="w-full min-w-[1040px] table-fixed text-[11px]">
                 <thead className="text-[#64748B]">
                   <tr>
-                    <th className="py-2.5 text-center font-medium">
+                    <th className="w-[72px] py-2.5 text-center font-medium">
                       Serial Number
                     </th>
-                    <th className="py-2.5 text-center font-medium">Image</th>
-                    <th className="py-2.5 text-left font-medium">Name</th>
-                    <th className="py-2.5 text-left font-medium">Number</th>
-                    <th className="py-2.5 text-center font-medium">Units</th>
-                    <th className="py-2.5 text-left font-medium">
+                    <th className="w-[56px] py-2.5 text-center font-medium">
+                      Image
+                    </th>
+                    <th className="w-[130px] py-2.5 text-left font-medium">
+                      Name
+                    </th>
+                    <th className="w-[150px] py-2.5 text-left font-medium">
+                      Number
+                    </th>
+                    <th className="w-[56px] py-2.5 text-center font-medium">
+                      Units
+                    </th>
+                    <th className="w-[110px] py-2.5 text-left font-medium">
                       Monthly Rent
                     </th>
-                    <th className="py-2.5 text-left font-medium">Lease Ends</th>
-                    <th className="py-2.5 text-left font-medium">
+                    <th className="w-[92px] py-2.5 text-left font-medium">
+                      Lease Ends
+                    </th>
+                    <th className="w-[90px] py-2.5 text-left font-medium">
                       Rent Status
                     </th>
-                    <th className="py-2.5 text-left font-medium">
+                    <th className="w-[92px] py-2.5 text-left font-medium">
                       Date Joined
                     </th>
-                    <th className="py-2.5 text-left font-medium">
+                    <th className="w-[100px] py-2.5 text-left font-medium">
                       Account Status
                     </th>
-                    <th className="py-2.5 text-center font-medium"></th>
+                    <th className="w-[44px] py-2.5 text-center font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -225,7 +235,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                       key={row.id}
                       className="border-t border-[#F1F5F9] hover:bg-[#F8FAFC]"
                     >
-                      <td className="py-2.5 text-center">{row.id}</td>
+                      <td className="whitespace-nowrap py-2.5 text-center">
+                        {row.id}
+                      </td>
                       <td className="py-2.5">
                         <div className="mx-auto relative h-7 w-7 overflow-hidden rounded-full">
                           <Image
@@ -244,10 +256,16 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                           {row.name}
                         </Link>
                       </td>
-                      <td className="py-2.5">{row.phone}</td>
-                      <td className="py-2.5 text-center">{row.units}</td>
-                      <td className="py-2.5">{row.monthlyRent}</td>
-                      <td className="py-2.5">{row.leaseEnds}</td>
+                      <td className="truncate py-2.5">{row.phone}</td>
+                      <td className="whitespace-nowrap py-2.5 text-center">
+                        {row.units}
+                      </td>
+                      <td className="whitespace-nowrap py-2.5">
+                        {row.monthlyRent}
+                      </td>
+                      <td className="whitespace-nowrap py-2.5">
+                        {row.leaseEnds}
+                      </td>
                       <td className="py-2.5">
                         <span
                           className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${statusPill(
@@ -257,7 +275,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                           {row.rentStatus}
                         </span>
                       </td>
-                      <td className="py-2.5">{row.dateJoined}</td>
+                      <td className="whitespace-nowrap py-2.5">
+                        {row.dateJoined}
+                      </td>
                       <td className="py-2.5">
                         <span
                           className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${accountPill(
@@ -267,49 +287,51 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                           {row.accountStatus}
                         </span>
                       </td>
-                      <td className="relative py-2.5 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenActionRowId((prev) =>
-                              prev === row.id ? null : row.id,
-                            );
-                          }}
-                          className="rounded p-1 text-[#94A3B8] hover:bg-[#F1F5F9]"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
-                        {openActionRowId === row.id ? (
-                          <div
-                            className="absolute z-10 mt-1 w-32 rounded-md border border-[#E2E8F0] bg-white p-1 shadow-lg"
-                            onClick={(e) => e.stopPropagation()}
+                      <td className="py-2.5 text-center">
+                        <div className="relative inline-block text-left">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenActionRowId((prev) =>
+                                prev === row.id ? null : row.id,
+                              );
+                            }}
+                            className="rounded p-1 text-[#94A3B8] hover:bg-[#F1F5F9]"
                           >
-                            <button
-                              type="button"
-                              className="w-full rounded px-2 py-1.5 text-left text-[11px] text-[#0F172A] hover:bg-[#F8FAFC]"
-                              onClick={() => handleToggleStatus(row.id)}
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                          {openActionRowId === row.id ? (
+                            <div
+                              className="absolute right-0 top-full z-20 mt-1 w-32 rounded-md border border-[#E2E8F0] bg-white p-1 shadow-lg"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {row.accountStatus === "Active"
-                                ? "Suspend"
-                                : "Activate"}
-                            </button>
-                            <button
-                              type="button"
-                              className="w-full rounded px-2 py-1.5 text-left text-[11px] text-[#B91C1C] hover:bg-[#FEF2F2]"
-                              onClick={() => void handleBan(row.id)}
-                            >
-                              Ban
-                            </button>
-                            <button
-                              type="button"
-                              className="w-full rounded px-2 py-1.5 text-left text-[11px] text-[#0F172A] hover:bg-[#F8FAFC]"
-                              onClick={() => handleMessage(row.name)}
-                            >
-                              Message
-                            </button>
-                          </div>
-                        ) : null}
+                              <button
+                                type="button"
+                                className="w-full rounded px-2 py-1.5 text-left text-[11px] text-[#0F172A] hover:bg-[#F8FAFC]"
+                                onClick={() => handleToggleStatus(row.id)}
+                              >
+                                {row.accountStatus === "Active"
+                                  ? "Suspend"
+                                  : "Activate"}
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full rounded px-2 py-1.5 text-left text-[11px] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                                onClick={() => void handleBan(row.id)}
+                              >
+                                Ban
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full rounded px-2 py-1.5 text-left text-[11px] text-[#0F172A] hover:bg-[#F8FAFC]"
+                                onClick={() => handleMessage(row.name)}
+                              >
+                                Message
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))}
