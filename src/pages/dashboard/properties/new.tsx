@@ -23,6 +23,7 @@ import {
   Wind,
   Coffee,
   Tv,
+  AlertTriangle,
 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -37,6 +38,8 @@ import { createProperty } from "@/api/properties";
 import { uploadFile, deleteFile } from "@/api/files";
 import { getAmenities } from "@/api/amenities";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
+import { useUser } from "@/contexts/UserContext";
+import { getLandlordByUser } from "@/api/landlord";
 import type { CreatePropertyRequestDTO } from "@/api/properties";
 import type { NextPageWithLayout } from "../../_app";
 
@@ -87,6 +90,7 @@ type Unit = {
 
 const AddPropertyPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { user } = useUser();
   const { selectedLandlord } = useSelectedLandlord();
   const { showToast } = useToast();
   const [currentStep, setCurrentStep] = React.useState(1);
@@ -178,11 +182,31 @@ const AddPropertyPage: NextPageWithLayout = () => {
     });
   }, []);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [isLandlordVerified, setIsLandlordVerified] = React.useState(true);
   const [createdPropertyId, setCreatedPropertyId] = React.useState<
     string | null
   >(null);
   const [createdPropertyName, setCreatedPropertyName] =
     React.useState<string>("");
+
+  React.useEffect(() => {
+    if (!user?.id || user.role !== "landlord") {
+      setIsLandlordVerified(true);
+      return;
+    }
+    let cancelled = false;
+    getLandlordByUser(String(user.id)).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setIsLandlordVerified(result.data.isApproved !== false);
+      } else {
+        setIsLandlordVerified(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
 
   const {
     register,
@@ -511,6 +535,14 @@ const AddPropertyPage: NextPageWithLayout = () => {
   };
 
   const handleCreateProperty = async () => {
+    if (user?.role === "landlord" && !isLandlordVerified) {
+      const message =
+        "Your landlord account is pending verification. You cannot create properties yet.";
+      setSubmitError(message);
+      showToast(message, "error");
+      return;
+    }
+
     const landlordIdFromStorage =
       typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
     const landlordId = selectedLandlord?.id || landlordIdFromStorage;
@@ -872,6 +904,15 @@ const AddPropertyPage: NextPageWithLayout = () => {
 
         {/* Step Content */}
         <div className="rounded-lg border border-gray-200 bg-white p-6">
+          {user?.role === "landlord" && !isLandlordVerified ? (
+            <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <p>
+                Your account has not been verified yet. Property creation is
+                disabled until verification is completed.
+              </p>
+            </div>
+          ) : null}
           <AnimatePresence mode="wait">
             {currentStep === 1 && (
               <motion.div

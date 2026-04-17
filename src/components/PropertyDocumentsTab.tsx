@@ -1,21 +1,41 @@
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Download, Eye, FileText, Plus, FolderOpen } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileText,
+  Plus,
+  FolderOpen,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import Image from "next/image";
+import { useUser } from "@/contexts/UserContext";
+import { useToast } from "@/components/Toast";
+import { uploadFile, deleteFile } from "@/api/files";
+import { updateProperty } from "@/api/properties";
 import type { PropertyDTO } from "@/api/properties";
 
 export type PropertyDocumentsTabProps = {
   documents: PropertyDTO["documents"] | undefined;
   propertyId: string;
   propertyDTO?: PropertyDTO | null;
+  onDocumentsUpdated?: () => void;
 };
 
 export const PropertyDocumentsTab = ({
   documents,
   propertyId,
   propertyDTO,
+  onDocumentsUpdated,
 }: PropertyDocumentsTabProps) => {
+  const { user } = useUser();
+  const { showToast } = useToast();
   const documentList = documents || [];
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [deletingDocId, setDeletingDocId] = React.useState<string | null>(null);
+  const canManageDocuments = user?.role === "landlord";
   
   const getDocumentTypeLabel = (label: string | undefined) => {
     if (!label) return "Document";
@@ -58,19 +78,152 @@ export const PropertyDocumentsTab = ({
     window.open(url, "_blank");
   };
 
+  const handleUpload = React.useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []);
+      if (files.length === 0) return;
+      if (!canManageDocuments) {
+        showToast("Only landlords can manage property documents.", "error");
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        const uploadedIds: string[] = [];
+        for (const file of files) {
+          const result = await uploadFile({
+            file,
+            folder: "property",
+            label: "property_other",
+            token: user?.token,
+          });
+          if (!result.success) {
+            showToast(result.error || `Failed to upload ${file.name}`, "error");
+            continue;
+          }
+          uploadedIds.push(result.data.id);
+        }
+
+        if (uploadedIds.length === 0) return;
+
+        const existingIds = new Set<string>([
+          ...(propertyDTO?.documentIds || []),
+          ...documentList.map((doc) => doc.id),
+        ]);
+        uploadedIds.forEach((docId) => existingIds.add(docId));
+
+        const updateResult = await updateProperty(propertyId, {
+          documentIds: Array.from(existingIds),
+        });
+
+        if (!updateResult.success) {
+          showToast(
+            updateResult.error || "Failed to attach uploaded documents.",
+            "error",
+          );
+          return;
+        }
+
+        showToast("Document(s) uploaded successfully", "success");
+        onDocumentsUpdated?.();
+      } finally {
+        setIsUploading(false);
+        event.target.value = "";
+      }
+    },
+    [
+      canManageDocuments,
+      documentList,
+      onDocumentsUpdated,
+      propertyDTO?.documentIds,
+      propertyId,
+      showToast,
+      user?.token,
+    ],
+  );
+
+  const handleDelete = React.useCallback(
+    async (docId: string) => {
+      if (!canManageDocuments) {
+        showToast("Only landlords can manage property documents.", "error");
+        return;
+      }
+
+      setDeletingDocId(docId);
+      try {
+        const deleteResult = await deleteFile(docId);
+        if (!deleteResult.success) {
+          showToast(
+            deleteResult.error || "Failed to delete document from server.",
+            "error",
+          );
+          return;
+        }
+
+        const existingIds = new Set<string>([
+          ...(propertyDTO?.documentIds || []),
+          ...documentList.map((doc) => doc.id),
+        ]);
+        existingIds.delete(docId);
+
+        const updateResult = await updateProperty(propertyId, {
+          documentIds: Array.from(existingIds),
+        });
+        if (!updateResult.success) {
+          showToast(
+            updateResult.error || "Document deleted but unlink failed.",
+            "error",
+          );
+          return;
+        }
+
+        showToast("Document deleted", "success");
+        onDocumentsUpdated?.();
+      } finally {
+        setDeletingDocId(null);
+      }
+    },
+    [
+      canManageDocuments,
+      documentList,
+      onDocumentsUpdated,
+      propertyDTO?.documentIds,
+      propertyId,
+      showToast,
+    ],
+  );
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-end">
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
-        >
-          <Plus className="h-4 w-4" />
-          Upload
-        </motion.button>
+        {canManageDocuments ? (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+              className="hidden"
+              onChange={handleUpload}
+            />
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {isUploading ? "Uploading..." : "Upload"}
+            </motion.button>
+          </>
+        ) : null}
       </div>
 
       {/* Documents Grid */}
@@ -135,6 +288,22 @@ export const PropertyDocumentsTab = ({
                     <Eye className="h-3 w-3" />
                     View
                   </motion.button>
+                  {canManageDocuments ? (
+                    <motion.button
+                      type="button"
+                      onClick={() => void handleDelete(doc.id)}
+                      disabled={deletingDocId === doc.id}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {deletingDocId === doc.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                    </motion.button>
+                  ) : null}
                 </div>
               </motion.div>
             );

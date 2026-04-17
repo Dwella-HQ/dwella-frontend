@@ -2,13 +2,14 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import * as Dialog from "@radix-ui/react-dialog";
 import { getPropertiesByLandlord } from "@/api/properties";
 import type { PropertyDTO } from "@/api/properties";
 import { invitePropertyManager } from "@/api/property-managers";
 import { useToast } from "@/components/Toast";
+import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 
 const inviteManagerSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
@@ -39,6 +40,7 @@ export const InviteManagerModal = ({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
     reset,
   } = useForm<InviteManagerFormValues>({
@@ -224,14 +226,26 @@ export const InviteManagerModal = ({
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Phone
                     </label>
-                    <input
-                      type="tel"
-                      placeholder="+2348000000000"
-                      {...register("phone")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                    <Controller
+                      name="phone"
+                      control={control}
+                      render={({ field }) => (
+                        <PhoneInputWithCountry
+                          id="phone"
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="801 234 5678"
+                          aria-invalid={!!errors.phone}
+                          aria-describedby={
+                            errors.phone ? "invite-manager-phone-error" : undefined
+                          }
+                        />
+                      )}
                     />
                     {errors.phone && (
-                      <p className="mt-1 text-xs text-red-600">{errors.phone.message}</p>
+                      <p id="invite-manager-phone-error" className="mt-1 text-xs text-red-600">
+                        {errors.phone.message}
+                      </p>
                     )}
                   </div>
                 </div>

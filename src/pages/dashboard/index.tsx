@@ -18,6 +18,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { getPropertiesByLandlord } from "@/api/properties";
 import { getTenantByUser } from "@/api/tenants";
+import { getLandlordByUser } from "@/api/landlord";
 import type { TenantByUserDTO } from "@/api/tenants";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import type {
@@ -911,6 +912,7 @@ const LandlordDashboard = () => {
   >([]);
   const [selectedAnnouncement, setSelectedAnnouncement] =
     React.useState<AnnouncementItemDTO | null>(null);
+  const [isLandlordVerified, setIsLandlordVerified] = React.useState(true);
 
   // Fetch properties for the landlord
   React.useEffect(() => {
@@ -932,6 +934,25 @@ const LandlordDashboard = () => {
 
     fetchProperties();
   }, []);
+
+  React.useEffect(() => {
+    if (!user?.id || user.role !== "landlord") {
+      setIsLandlordVerified(true);
+      return;
+    }
+    let cancelled = false;
+    getLandlordByUser(String(user.id)).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setIsLandlordVerified(result.data.isApproved !== false);
+      } else {
+        setIsLandlordVerified(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
 
   // Fetch maintenance for dashboard KPIs and recent list
   React.useEffect(() => {
@@ -1108,8 +1129,15 @@ const LandlordDashboard = () => {
             onAddProperty={handleAddProperty}
             onAssignTenant={handleAssignTenant}
             onSendAnnouncement={handleSendAnnouncement}
+            showAddProperty={isLandlordVerified}
           />
         </div>
+        {!isLandlordVerified ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Your landlord account is pending verification. You cannot create
+            properties until verification is complete.
+          </div>
+        ) : null}
 
         {/* Summary Cards */}
         <DashboardSummaryCards
