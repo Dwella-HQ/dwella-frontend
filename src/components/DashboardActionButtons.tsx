@@ -6,25 +6,29 @@ export type DashboardActionButtonsProps = {
   onAddProperty?: () => void;
   onAssignTenant?: () => void;
   onSendAnnouncement?: () => void;
+  showAddProperty?: boolean;
 };
 
 export const DashboardActionButtons = ({
   onAddProperty,
   onAssignTenant,
   onSendAnnouncement,
+  showAddProperty = true,
 }: DashboardActionButtonsProps) => {
   return (
     <div className="flex flex-wrap gap-3">
-      <motion.button
-        type="button"
-        onClick={onAddProperty}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
-      >
-        <Plus className="h-4 w-4" />
-        Add Property
-      </motion.button>
+      {showAddProperty ? (
+        <motion.button
+          type="button"
+          onClick={onAddProperty}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+        >
+          <Plus className="h-4 w-4" />
+          Add Property
+        </motion.button>
+      ) : null}
       <motion.button
         type="button"
         onClick={onAssignTenant}

@@ -13,6 +13,7 @@ import {
   getPropertiesByLandlord,
   type PropertyDTO,
 } from "@/api/properties";
+import { getLandlordByUser } from "@/api/landlord";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import { getUnitsByProperty } from "@/api/units";
 import { useUser } from "@/contexts/UserContext";
@@ -65,6 +66,7 @@ const PropertiesPage: NextPageWithLayout = () => {
   const [properties, setProperties] = React.useState<Property[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [isLandlordVerified, setIsLandlordVerified] = React.useState(true);
 
   // Fetch properties from API - using same logic as dashboard
   React.useEffect(() => {
@@ -129,6 +131,25 @@ const PropertiesPage: NextPageWithLayout = () => {
       fetchProperties();
     }
   }, [user, selectedLandlord?.id, router]);
+
+  React.useEffect(() => {
+    if (!user?.id || user.role !== "landlord") {
+      setIsLandlordVerified(true);
+      return;
+    }
+    let cancelled = false;
+    getLandlordByUser(String(user.id)).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setIsLandlordVerified(result.data.isApproved !== false);
+      } else {
+        setIsLandlordVerified(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
 
   const filteredProperties = React.useMemo(() => {
     let filtered = [...properties];
@@ -393,17 +414,26 @@ const PropertiesPage: NextPageWithLayout = () => {
             </div>
 
             {/* Add Property Button */}
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard/properties/new")}
-              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 whitespace-nowrap"
-            >
-              <Plus className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Add Property</span>
-              <span className="sm:hidden">Add</span>
-            </button>
+            {user?.role !== "landlord" || isLandlordVerified ? (
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/properties/new")}
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 whitespace-nowrap"
+              >
+                <Plus className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Add Property</span>
+                <span className="sm:hidden">Add</span>
+              </button>
+            ) : null}
           </div>
         </div>
+
+        {user?.role === "landlord" && !isLandlordVerified ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Your landlord account is pending verification. You cannot create
+            properties yet.
+          </div>
+        ) : null}
 
         {/* Filter Pills */}
         <div className="flex flex-wrap items-center gap-2">
@@ -488,14 +518,16 @@ const PropertiesPage: NextPageWithLayout = () => {
         {!isLoading && !error && filteredProperties.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-600">No properties found</p>
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard/properties/new")}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
-            >
-              <Plus className="h-4 w-4" />
-              Add Your First Property
-            </button>
+            {user?.role !== "landlord" || isLandlordVerified ? (
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/properties/new")}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+              >
+                <Plus className="h-4 w-4" />
+                Add Your First Property
+              </button>
+            ) : null}
           </div>
         )}
 

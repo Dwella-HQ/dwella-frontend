@@ -18,6 +18,7 @@ const addUnitSchema = z.object({
   bedrooms: z.string().min(1, "Bedrooms is required"),
   bathrooms: z.string().min(1, "Bathrooms is required"),
   monthlyRent: z.string().min(1, "Monthly rent is required"),
+  rentDuration: z.string().min(1, "Rent duration is required"),
   cautionFee: z.string().optional(),
   amenities: z.array(z.string()).optional(),
 });
@@ -81,6 +82,7 @@ export const AddUnitModal = ({
     resolver: zodResolver(addUnitSchema),
     defaultValues: {
       property: propertyId,
+      rentDuration: "monthly",
     },
   });
 
@@ -398,7 +400,7 @@ export const AddUnitModal = ({
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Monthly Rent
+                      Rent
                     </label>
                     <input
                       type="text"
@@ -409,6 +411,26 @@ export const AddUnitModal = ({
                     {errors.monthlyRent && (
                       <p className="mt-1 text-xs text-red-600">
                         {errors.monthlyRent.message}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Duration
+                    </label>
+                    <select
+                      {...register("rentDuration")}
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                    >
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="biannually">Biannually</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                    {errors.rentDuration && (
+                      <p className="mt-1 text-xs text-red-600">
+                        {errors.rentDuration.message}
                       </p>
                     )}
                   </div>

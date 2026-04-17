@@ -96,6 +96,19 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   });
   const [isSavingGracePeriod, setIsSavingGracePeriod] = React.useState(false);
 
+  const fetchProperty = React.useCallback(async () => {
+    if (!id || typeof id !== "string") return;
+    setIsLoading(true);
+    setError(null);
+    const result = await getProperty(id);
+    if (result.success) {
+      setPropertyDTO(result.data);
+    } else {
+      setError(result.error);
+    }
+    setIsLoading(false);
+  }, [id]);
+
   React.useEffect(() => {
     if (user?.role === "super_admin" && id && typeof id === "string") {
       router.replace(`/dashboard/admin/properties/${id}`);
@@ -104,22 +117,8 @@ const PropertyDetailPage: NextPageWithLayout = () => {
 
   // Fetch property from API
   React.useEffect(() => {
-    const fetchProperty = async () => {
-      if (!id || typeof id !== "string") return;
-
-      setIsLoading(true);
-      setError(null);
-      const result = await getProperty(id);
-      if (result.success) {
-        setPropertyDTO(result.data);
-      } else {
-        setError(result.error);
-      }
-      setIsLoading(false);
-    };
-
-    fetchProperty();
-  }, [id]);
+    void fetchProperty();
+  }, [fetchProperty]);
 
   // Fetch units from API
   React.useEffect(() => {
@@ -712,6 +711,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   documents={propertyDTO?.documents || []}
                   propertyId={id as string}
                   propertyDTO={propertyDTO}
+                  onDocumentsUpdated={() => void fetchProperty()}
                 />
               </motion.div>
             )}

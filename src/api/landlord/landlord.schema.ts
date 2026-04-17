@@ -5,6 +5,8 @@ export const createLandlordRequestSchema = z.object({
   userId: z.string().uuid(),
   landLordName: z.string().min(1, "Landlord name is required"),
   bvn: z.string().optional(),
+  isApproved: z.boolean().optional(),
+  isActive: z.boolean().optional(),
   profilePictureId: z.string().uuid().optional(),
   govermentIdDocumentId: z.string().uuid().optional(),
   landSurveyDocumentId: z.string().uuid().optional(),
@@ -45,6 +47,8 @@ export const landlordSchema = z.object({
     .nullish()
     .transform((value) => value ?? ""),
   bvn: z.string().optional(),
+  isApproved: z.boolean().optional(),
+  isActive: z.boolean().optional(),
   profilePictureId: z.string().uuid().optional(),
   profilePicture: profilePictureSchema,
   govermentIdDocumentId: z.string().uuid().optional(),
