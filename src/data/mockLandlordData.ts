@@ -20,6 +20,8 @@ export type Payment = {
   unit: string;
   amount: number;
   dueDate: string;
+  /** Present when mapped from API; used for filtering without matching display names */
+  propertyId?: string;
 };
 
 export type MaintenanceRequest = {

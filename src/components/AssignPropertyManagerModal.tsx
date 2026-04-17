@@ -2,7 +2,10 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { X, Search, UserPlus } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { getPropertyManagers } from "@/api/property-managers";
+import {
+  getPropertyManagers,
+  getPropertyManagersByLandlord,
+} from "@/api/property-managers";
 import type { PropertyManagerDTO } from "@/api/property-managers";
 import { useToast } from "@/components/Toast";
 
@@ -22,6 +25,7 @@ export const AssignPropertyManagerModal = ({
   onInviteNew,
 }: AssignPropertyManagerModalProps) => {
   const { showToast } = useToast();
+  void propertyId;
   const [selectedManager, setSelectedManager] = React.useState<string>("");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [managers, setManagers] = React.useState<PropertyManagerDTO[]>([]);
@@ -32,11 +36,37 @@ export const AssignPropertyManagerModal = ({
     if (isOpen) {
       const fetchManagers = async () => {
         setIsLoading(true);
-        const result = await getPropertyManagers();
+        const landlordId =
+          typeof window !== "undefined"
+            ? localStorage.getItem("landlordId")
+            : null;
+        const result = landlordId
+          ? await getPropertyManagersByLandlord(landlordId)
+          : await getPropertyManagers();
         if (result.success) {
           setManagers(result.data);
+          const unnamed = result.data.filter((manager) => {
+            const hasName = Boolean(
+              manager.user?.fullName ||
+                manager.fullName ||
+                manager.name ||
+                (manager.user as { firstName?: string } | undefined)
+                  ?.firstName ||
+                (manager.user as { lastName?: string } | undefined)?.lastName,
+            );
+            return !hasName;
+          });
+          if (unnamed.length > 0) {
+            console.warn(
+              "[AssignPropertyManagerModal] Managers missing name fields:",
+              unnamed,
+            );
+          }
         } else {
-          showToast(result.error || "Failed to fetch property managers", "error");
+          showToast(
+            result.error || "Failed to fetch property managers",
+            "error",
+          );
           setManagers([]);
         }
         setIsLoading(false);
@@ -45,8 +75,22 @@ export const AssignPropertyManagerModal = ({
     }
   }, [isOpen, showToast]);
 
-  const displayName = (manager: PropertyManagerDTO) =>
-    manager.user?.fullName ?? manager.fullName ?? manager.name ?? "Unknown";
+  const displayName = (manager: PropertyManagerDTO) => {
+    const userObj = manager.user as
+      | { firstName?: string | null; lastName?: string | null }
+      | undefined
+      | null;
+    const first = userObj?.firstName?.trim() || "";
+    const last = userObj?.lastName?.trim() || "";
+    const composed = [first, last].filter(Boolean).join(" ").trim();
+    return (
+      manager.user?.fullName?.trim() ||
+      manager.fullName?.trim() ||
+      manager.name?.trim() ||
+      composed ||
+      "Unknown"
+    );
+  };
   const displayEmail = (manager: PropertyManagerDTO) =>
     manager.user?.email ?? manager.email ?? "";
 
@@ -56,7 +100,7 @@ export const AssignPropertyManagerModal = ({
     return managers.filter(
       (manager) =>
         displayName(manager).toLowerCase().includes(query) ||
-        (displayEmail(manager) || "").toLowerCase().includes(query)
+        (displayEmail(manager) || "").toLowerCase().includes(query),
     );
   }, [searchQuery, managers]);
 
@@ -88,9 +132,7 @@ export const AssignPropertyManagerModal = ({
             className="fixed inset-0 z-50 bg-black/50"
           />
         </Dialog.Overlay>
-        <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-6 shadow-xl focus:outline-none"
-        >
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-6 shadow-xl focus:outline-none">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -132,7 +174,9 @@ export const AssignPropertyManagerModal = ({
                 <div className="flex items-center justify-center py-8">
                   <div className="text-center">
                     <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-brand-main border-r-transparent"></div>
-                    <p className="mt-2 text-sm text-gray-600">Loading managers...</p>
+                    <p className="mt-2 text-sm text-gray-600">
+                      Loading managers...
+                    </p>
                   </div>
                 </div>
               ) : filteredManagers.length > 0 ? (
@@ -154,7 +198,9 @@ export const AssignPropertyManagerModal = ({
                         {displayName(manager)}
                       </p>
                       {displayEmail(manager) && (
-                        <p className="text-xs text-gray-500">{displayEmail(manager)}</p>
+                        <p className="text-xs text-gray-500">
+                          {displayEmail(manager)}
+                        </p>
                       )}
                     </div>
                   </label>
@@ -164,7 +210,9 @@ export const AssignPropertyManagerModal = ({
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 mb-3">
                     <UserPlus className="h-6 w-6 text-gray-400" />
                   </div>
-                  <p className="text-sm font-medium text-gray-900 mb-1">No Property Managers</p>
+                  <p className="text-sm font-medium text-gray-900 mb-1">
+                    No Property Managers
+                  </p>
                   <p className="text-xs text-gray-500 text-center">
                     {searchQuery
                       ? "No managers found matching your search."
@@ -213,4 +261,3 @@ export const AssignPropertyManagerModal = ({
     </Dialog.Root>
   );
 };
-

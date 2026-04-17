@@ -7,6 +7,7 @@ export { updatePropertyGracePeriodSettings } from "./updatePropertyGracePeriodSe
 export { deleteProperty } from "./deleteProperty";
 export { approveProperty } from "./approveProperty";
 export { mapPropertyDTOToProperty } from "./mapProperty";
+export { mapPropertiesWithLiveUnitCounts } from "./mapPropertiesWithLiveUnitCounts";
 export type {
   PropertyDTO,
   PropertiesResponseDTO,

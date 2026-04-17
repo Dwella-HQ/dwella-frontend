@@ -37,10 +37,8 @@ import { AddTenantModal } from "@/components/AddTenantModal";
 import { AssignPropertyManagerModal } from "@/components/AssignPropertyManagerModal";
 import { InviteManagerModal } from "@/components/InviteManagerModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
-import {
-  mockRecentPayments,
-  mockMaintenanceRequests,
-} from "@/data/mockLandlordData";
+import { mockMaintenanceRequests } from "@/data/mockLandlordData";
+import type { Payment } from "@/data/mockLandlordData";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import type {
   MaintenanceRequest,
@@ -53,6 +51,7 @@ import {
   mockMaintenanceRequestDetails,
   mockPropertyDocuments,
 } from "@/data/mockPropertyDetails";
+import { getRentPayments } from "@/api/rent-payment";
 import { getProperty } from "@/api/properties";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import type { PropertyDTO } from "@/api/properties";
@@ -95,6 +94,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     yearlyRentGracePeriod: "NO_GRACE_PERIOD",
   });
   const [isSavingGracePeriod, setIsSavingGracePeriod] = React.useState(false);
+  const [overviewRentPayments, setOverviewRentPayments] = React.useState<
+    Payment[]
+  >([]);
 
   const fetchProperty = React.useCallback(async () => {
     if (!id || typeof id !== "string") return;
@@ -144,6 +146,33 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     if (!propertyDTO) return null;
     return mapPropertyDTOToProperty(propertyDTO);
   }, [propertyDTO]);
+
+  React.useEffect(() => {
+    if (!id || typeof id !== "string") return;
+    let cancelled = false;
+    void getRentPayments({ limit: 100 }).then((result) => {
+      if (cancelled) return;
+      setOverviewRentPayments(result.success ? result.data : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const propertyPayments = React.useMemo(() => {
+    if (!property || !id || typeof id !== "string") return [];
+    const baseName = property.name
+      .split(" — ")[0]
+      .split(" —")[0]
+      .trim()
+      .toLowerCase();
+    return overviewRentPayments
+      .filter((p) => {
+        if (p.propertyId && p.propertyId === id) return true;
+        return p.propertyName.trim().toLowerCase() === baseName;
+      })
+      .slice(0, 5);
+  }, [overviewRentPayments, property, id]);
 
   // Maintenance for Overview: from API, mapped to MaintenanceRequest[]
   const propertyMaintenance = React.useMemo((): MaintenanceRequest[] => {
@@ -226,12 +255,6 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     { id: "documents", label: "Documents" },
     { id: "grace-period", label: "Grace Period Preference" },
   ];
-
-  // Filter payments and maintenance for this property
-  const propertyNameBase = property.name.split(" — ")[0].split(" —")[0];
-  const propertyPayments = mockRecentPayments.filter(
-    (p) => p.propertyName === propertyNameBase,
-  );
 
   // Helper function to get amenity icon
   const getAmenityIcon = (amenity: string) => {

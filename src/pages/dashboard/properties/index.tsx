@@ -11,11 +11,10 @@ import { PropertyTable } from "@/components/PropertyTable";
 import {
   getProperties,
   getPropertiesByLandlord,
+  mapPropertiesWithLiveUnitCounts,
   type PropertyDTO,
 } from "@/api/properties";
 import { getLandlordByUser } from "@/api/landlord";
-import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
-import { getUnitsByProperty } from "@/api/units";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 
@@ -23,35 +22,6 @@ import type { NextPageWithLayout } from "../../_app";
 
 type ViewMode = "grid" | "list";
 type FilterStatus = "all" | "active" | "inactive" | "pending" | "occupied" | "commercial" | "residential";
-
-/** When list payloads omit `units` but `numberOfUnits` is stale, resolve real counts from the units API. */
-const mapPropertiesWithLiveUnitCounts = async (
-  dtos: PropertyDTO[],
-): Promise<Property[]> => {
-  return Promise.all(
-    dtos.map(async (dto) => {
-      const base = mapPropertyDTOToProperty(dto);
-      const embedded =
-        Array.isArray(dto.units) && dto.units.length > 0
-          ? dto.units.length
-          : 0;
-      if (embedded > 0) {
-        return base;
-      }
-      const res = await getUnitsByProperty(dto.id);
-      if (!res.success || res.data.length === 0) {
-        return base;
-      }
-      const list = res.data;
-      const occupied = list.filter((u) => !u.isAvailable).length;
-      const occupancy =
-        list.length > 0
-          ? Math.round((occupied / list.length) * 100)
-          : base.occupancy;
-      return { ...base, units: list.length, occupancy };
-    }),
-  );
-};
 
 const PropertiesPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -84,7 +54,9 @@ const PropertiesPage: NextPageWithLayout = () => {
         if (landlordId) {
           const result = await getPropertiesByLandlord(landlordId);
           if (result.success) {
-            const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+            const mappedProperties = await mapPropertiesWithLiveUnitCounts(
+              result.data as PropertyDTO[],
+            );
             setProperties(mappedProperties);
           } else {
             setError(result.error);
@@ -99,7 +71,9 @@ const PropertiesPage: NextPageWithLayout = () => {
         if (landlordId) {
           const result = await getPropertiesByLandlord(landlordId);
           if (result.success) {
-            const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+            const mappedProperties = await mapPropertiesWithLiveUnitCounts(
+              result.data as PropertyDTO[],
+            );
             setProperties(mappedProperties);
           } else {
             setError(result.error);
@@ -112,7 +86,9 @@ const PropertiesPage: NextPageWithLayout = () => {
       else {
         const result = await getProperties();
         if (result.success) {
-          const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+          const mappedProperties = await mapPropertiesWithLiveUnitCounts(
+            result.data as PropertyDTO[],
+          );
           setProperties(mappedProperties);
         } else {
           setError(result.error);

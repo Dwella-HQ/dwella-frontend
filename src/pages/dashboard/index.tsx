@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { format, parseISO } from "date-fns";
+import { format, isValid, parse, parseISO } from "date-fns";
 import * as React from "react";
 import { Building2 } from "lucide-react";
 
@@ -17,17 +17,18 @@ import { useToast } from "@/components/Toast";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { getPropertiesByLandlord } from "@/api/properties";
+import { mapPropertiesWithLiveUnitCounts } from "@/api/properties";
 import { getTenantByUser } from "@/api/tenants";
 import { getLandlordByUser } from "@/api/landlord";
 import type { TenantByUserDTO } from "@/api/tenants";
-import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import type {
   Property,
   MaintenanceRequest,
   DashboardStats,
+  Payment,
 } from "@/data/mockLandlordData";
-import { mockRecentPayments } from "@/data/mockLandlordData";
 import { getMaintenanceRequests } from "@/api/maintenance";
+import { getRentPayments } from "@/api/rent-payment";
 import {
   type AnnouncementItemDTO,
   createAnnouncementLandlord,
@@ -58,6 +59,41 @@ const keepExistingWhenIncomingEmpty = (
     return previous;
   }
   return incoming;
+};
+
+const parsePaymentDueDate = (payment: Payment): Date | null => {
+  const s = payment.dueDate;
+  if (!s || s === "—") return null;
+  try {
+    const d = parseISO(s);
+    if (isValid(d)) return d;
+  } catch {
+    /* ignore */
+  }
+  try {
+    const d = parse(s, "dd MMM yyyy", new Date());
+    if (isValid(d)) return d;
+  } catch {
+    /* ignore */
+  }
+  const fallback = new Date(s);
+  return isValid(fallback) ? fallback : null;
+};
+
+const filterPaymentsForProperties = (
+  payments: Payment[],
+  properties: Property[],
+): Payment[] => {
+  if (properties.length === 0) return [];
+  const idSet = new Set(properties.map((p) => p.id).filter(Boolean));
+  const nameSet = new Set(
+    properties.map((p) => p.name.trim().toLowerCase()),
+  );
+  return payments.filter((pay) => {
+    if (pay.propertyId && idSet.has(pay.propertyId)) return true;
+    const key = pay.propertyName.trim().toLowerCase();
+    return nameSet.has(key);
+  });
 };
 
 type LiveAnnouncementsCardProps = {
@@ -147,6 +183,8 @@ const ManagerDashboard = () => {
     MaintenanceRequest[]
   >([]);
   const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
+  const [allRentPayments, setAllRentPayments] = React.useState<Payment[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = React.useState(true);
   const [liveAnnouncements, setLiveAnnouncements] = React.useState<
     AnnouncementItemDTO[]
   >([]);
@@ -171,10 +209,12 @@ const ManagerDashboard = () => {
     }
     let cancelled = false;
     setPropertiesLoading(true);
-    getPropertiesByLandlord(selectedLandlord.id).then((result) => {
+    getPropertiesByLandlord(selectedLandlord.id).then(async (result) => {
       if (cancelled) return;
       if (result.success) {
-        setLandlordProperties(result.data.map(mapPropertyDTOToProperty));
+        const mapped = await mapPropertiesWithLiveUnitCounts(result.data);
+        if (cancelled) return;
+        setLandlordProperties(mapped);
       } else {
         setLandlordProperties([]);
       }
@@ -214,6 +254,19 @@ const ManagerDashboard = () => {
   }, []);
 
   React.useEffect(() => {
+    let cancelled = false;
+    setPaymentsLoading(true);
+    getRentPayments({ limit: 100 }).then((result) => {
+      if (cancelled) return;
+      setAllRentPayments(result.success ? result.data : []);
+      setPaymentsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
     if (!user?.token) return;
     const subscription = subscribeAnnouncements({
       token: user.token,
@@ -245,12 +298,10 @@ const ManagerDashboard = () => {
     return null;
   }
 
-  // Filter payments for the selected landlord's properties (by property name)
-  const landlordPayments = React.useMemo(() => {
-    return mockRecentPayments.filter((payment) =>
-      landlordProperties.some((prop) => prop.name === payment.propertyName),
-    );
-  }, [landlordProperties]);
+  const landlordPayments = React.useMemo(
+    () => filterPaymentsForProperties(allRentPayments, landlordProperties),
+    [allRentPayments, landlordProperties],
+  );
 
   // Calculate stats for selected landlord
   const landlordStats = React.useMemo(() => {
@@ -277,8 +328,10 @@ const ManagerDashboard = () => {
       rentCollectedPeriod: "This month",
       overdueAmount: landlordPayments
         .filter((p) => {
-          const dueDate = new Date(p.dueDate);
+          const dueDate = parsePaymentDueDate(p);
+          if (!dueDate) return false;
           const today = new Date();
+          today.setHours(0, 0, 0, 0);
           return dueDate < today;
         })
         .reduce((sum, p) => sum + p.amount, 0),
@@ -366,10 +419,21 @@ const ManagerDashboard = () => {
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent Payments */}
-        <RecentPayments
-          payments={landlordPayments.slice(0, 3)}
-          onViewAll={() => router.push("/dashboard/rent")}
-        />
+        {paymentsLoading ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm flex items-center justify-center">
+            <div className="text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent" />
+              <p className="mt-4 text-sm text-gray-600">
+                Loading recent payments...
+              </p>
+            </div>
+          </div>
+        ) : (
+          <RecentPayments
+            payments={landlordPayments.slice(0, 3)}
+            onViewAll={() => router.push("/dashboard/rent")}
+          />
+        )}
 
         {/* Maintenance Requests */}
         <MaintenanceRequests
@@ -908,12 +972,19 @@ const LandlordDashboard = () => {
     MaintenanceRequest[]
   >([]);
   const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
+  const [allRentPayments, setAllRentPayments] = React.useState<Payment[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = React.useState(true);
   const [liveAnnouncements, setLiveAnnouncements] = React.useState<
     AnnouncementItemDTO[]
   >([]);
   const [selectedAnnouncement, setSelectedAnnouncement] =
     React.useState<AnnouncementItemDTO | null>(null);
   const [isLandlordVerified, setIsLandlordVerified] = React.useState(true);
+
+  const landlordRecentPayments = React.useMemo(
+    () => filterPaymentsForProperties(allRentPayments, properties),
+    [allRentPayments, properties],
+  );
 
   // Fetch properties for the landlord
   React.useEffect(() => {
@@ -926,7 +997,9 @@ const LandlordDashboard = () => {
       if (landlordId) {
         const result = await getPropertiesByLandlord(landlordId);
         if (result.success) {
-          const mappedProperties = result.data.map(mapPropertyDTOToProperty);
+          const mappedProperties = await mapPropertiesWithLiveUnitCounts(
+            result.data,
+          );
           setProperties(mappedProperties);
         }
       }
@@ -979,6 +1052,19 @@ const LandlordDashboard = () => {
         setRecentMaintenance([]);
       }
       setMaintenanceLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setPaymentsLoading(true);
+    getRentPayments({ limit: 100 }).then((result) => {
+      if (cancelled) return;
+      setAllRentPayments(result.success ? result.data : []);
+      setPaymentsLoading(false);
     });
     return () => {
       cancelled = true;
@@ -1155,10 +1241,21 @@ const LandlordDashboard = () => {
         {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Recent Payments */}
-          <RecentPayments
-            payments={mockRecentPayments.slice(0, 3)}
-            onViewAll={() => router.push("/dashboard/rent")}
-          />
+          {paymentsLoading ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm flex items-center justify-center">
+              <div className="text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent" />
+                <p className="mt-4 text-sm text-gray-600">
+                  Loading recent payments...
+                </p>
+              </div>
+            </div>
+          ) : (
+            <RecentPayments
+              payments={landlordRecentPayments.slice(0, 3)}
+              onViewAll={() => router.push("/dashboard/rent")}
+            />
+          )}
 
           {/* Maintenance Requests */}
           {maintenanceLoading ? (

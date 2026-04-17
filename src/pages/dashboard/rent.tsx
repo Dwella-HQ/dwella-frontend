@@ -2,6 +2,7 @@ import Head from "next/head";
 import * as React from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
+import { isValid, parse, parseISO } from "date-fns";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
   Download,
@@ -14,8 +15,8 @@ import {
   AlertTriangle,
   ArrowLeft,
 } from "lucide-react";
-import { mockRentPayments } from "@/data/mockLandlordData";
-import type { RentPayment } from "@/data/mockLandlordData";
+import { getRentPayments } from "@/api/rent-payment";
+import type { Payment } from "@/data/mockLandlordData";
 import {
   mockTenantPayments,
   getTenantPaymentSummary,
@@ -24,6 +25,58 @@ import type { TenantPayment } from "@/data/mockTenantData";
 import { useUser } from "@/contexts/UserContext";
 import type { NextPageWithLayout } from "../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
+
+type LandlordRentStatus = "paid" | "due" | "overdue";
+
+type LandlordRentRow = {
+  id: string;
+  tenantName: string;
+  propertyName: string;
+  unit: string;
+  rentAmount: number;
+  dueDate: string;
+  lastPayment?: string;
+  status: LandlordRentStatus;
+  balance?: number;
+};
+
+const parsePaymentDate = (value: string): Date | null => {
+  if (!value || value === "—") return null;
+  try {
+    const iso = parseISO(value);
+    if (isValid(iso)) return iso;
+  } catch {
+    // ignore parse error and try known UI format
+  }
+  try {
+    const formatted = parse(value, "dd MMM yyyy", new Date());
+    if (isValid(formatted)) return formatted;
+  } catch {
+    // ignore parse error and try Date fallback
+  }
+  const fallback = new Date(value);
+  return isValid(fallback) ? fallback : null;
+};
+
+const mapPaymentToRentRow = (payment: Payment): LandlordRentRow => {
+  const dueDateObj = parsePaymentDate(payment.dueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const status: LandlordRentStatus =
+    dueDateObj && dueDateObj < today ? "overdue" : "paid";
+
+  return {
+    id: payment.id,
+    tenantName: payment.tenantName || "Tenant",
+    propertyName: payment.propertyName || "Property",
+    unit: payment.unit || "—",
+    rentAmount: payment.amount || 0,
+    dueDate: payment.dueDate || "—",
+    lastPayment: payment.dueDate || "—",
+    status,
+    balance: status === "overdue" ? payment.amount : undefined,
+  };
+};
 
 // Tenant Payment History Component
 const TenantPaymentHistory = () => {
@@ -238,33 +291,66 @@ const TenantPaymentHistory = () => {
 // Landlord/Manager Rent Page (existing)
 const LandlordRentPage = () => {
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [selectedPeriod, setSelectedPeriod] = React.useState("2025");
+  const [selectedPeriod, setSelectedPeriod] = React.useState("all");
+  const [rows, setRows] = React.useState<LandlordRentRow[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  // Calculate summary stats
-  const collectedThisMonth = mockRentPayments
+  React.useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    getRentPayments({ limit: 200 }).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setRows(result.data.map(mapPaymentToRentRow));
+      } else {
+        setRows([]);
+      }
+      setIsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const availableYears = React.useMemo(() => {
+    const years = new Set<string>();
+    rows.forEach((row) => {
+      const date = parsePaymentDate(row.dueDate);
+      if (date) years.add(String(date.getFullYear()));
+    });
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [rows]);
+
+  const periodFiltered = React.useMemo(() => {
+    if (selectedPeriod === "all") return rows;
+    return rows.filter((row) => {
+      const date = parsePaymentDate(row.dueDate);
+      return date ? String(date.getFullYear()) === selectedPeriod : false;
+    });
+  }, [rows, selectedPeriod]);
+
+  const filteredPayments = periodFiltered.filter(
+    (payment) =>
+      payment.tenantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payment.propertyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payment.unit.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  // Calculate summary stats from API-backed rows
+  const collectedThisMonth = periodFiltered
     .filter((p) => p.status === "paid")
     .reduce((sum, p) => sum + p.rentAmount, 0);
 
-  const pendingPayments = mockRentPayments.filter((p) => p.status === "due");
+  const pendingPayments = periodFiltered.filter((p) => p.status === "due");
   const pendingAmount = pendingPayments.reduce(
     (sum, p) => sum + p.rentAmount,
     0,
   );
 
-  const overduePayments = mockRentPayments.filter(
-    (p) => p.status === "overdue",
-  );
+  const overduePayments = periodFiltered.filter((p) => p.status === "overdue");
   const overdueAmount = overduePayments.reduce(
     (sum, p) => sum + (p.balance || 0),
     0,
-  );
-
-  // Filter payments based on search
-  const filteredPayments = mockRentPayments.filter(
-    (payment) =>
-      payment.tenantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.propertyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.unit.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const formatCurrency = (amount: number) => {
@@ -280,7 +366,7 @@ const LandlordRentPage = () => {
       .slice(0, 2);
   };
 
-  const getStatusBadge = (status: RentPayment["status"]) => {
+  const getStatusBadge = (status: LandlordRentStatus) => {
     switch (status) {
       case "paid":
         return (
@@ -437,9 +523,12 @@ const LandlordRentPage = () => {
               onChange={(e) => setSelectedPeriod(e.target.value)}
               className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
             >
-              <option value="2025">2025</option>
-              <option value="2024">2024</option>
-              <option value="2023">2023</option>
+              <option value="all">All</option>
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
             </select>
           </div>
           <div className="relative min-w-[300px] max-w-[2048px]">
@@ -487,48 +576,68 @@ const LandlordRentPage = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredPayments.map((payment, index) => (
-              <motion.tr
-                key={payment.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2, delay: index * 0.03 }}
-                whileHover={{ x: 4, transition: { duration: 0.2 } }}
-                className="hover:bg-gray-50"
-              >
-                <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
-                      {getInitials(payment.tenantName)}
+            {isLoading ? (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-6 py-10 text-center text-sm text-gray-500"
+                >
+                  Loading rent payments...
+                </td>
+              </tr>
+            ) : filteredPayments.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-6 py-10 text-center text-sm text-gray-500"
+                >
+                  No rent payments found.
+                </td>
+              </tr>
+            ) : (
+              filteredPayments.map((payment, index) => (
+                <motion.tr
+                  key={payment.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.03 }}
+                  whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                  className="hover:bg-gray-50"
+                >
+                  <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
+                        {getInitials(payment.tenantName)}
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">
+                        {payment.tenantName}
+                      </span>
                     </div>
-                    <span className="text-sm font-medium text-gray-900">
-                      {payment.tenantName}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                  {payment.propertyName}
-                </td>
-                <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                  {payment.unit}
-                </td>
-                <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
-                  {formatCurrency(payment.rentAmount)}
-                </td>
-                <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                  {payment.dueDate}
-                </td>
-                <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                  {payment.lastPayment || "—"}
-                </td>
-                <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
-                  {getStatusBadge(payment.status)}
-                </td>
-                <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
-                  {payment.balance ? formatCurrency(payment.balance) : "—"}
-                </td>
-              </motion.tr>
-            ))}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                    {payment.propertyName}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                    {payment.unit}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                    {formatCurrency(payment.rentAmount)}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                    {payment.dueDate}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                    {payment.lastPayment || "—"}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
+                    {getStatusBadge(payment.status)}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                    {payment.balance ? formatCurrency(payment.balance) : "—"}
+                  </td>
+                </motion.tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
