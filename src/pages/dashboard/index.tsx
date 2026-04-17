@@ -2,6 +2,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { format, parseISO } from "date-fns";
 import * as React from "react";
+import { Building2 } from "lucide-react";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { DashboardSummaryCards } from "@/components/DashboardSummaryCards";
@@ -517,6 +518,7 @@ const TenantDashboard = () => {
     React.useState<TenantByUserDTO | null>(null);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [tenantError, setTenantError] = React.useState<string | null>(null);
+  const [isTenantUnassigned, setIsTenantUnassigned] = React.useState(false);
   const [liveAnnouncements, setLiveAnnouncements] = React.useState<
     AnnouncementItemDTO[]
   >([]);
@@ -531,11 +533,28 @@ const TenantDashboard = () => {
     let cancelled = false;
     setTenantLoading(true);
     setTenantError(null);
+    setIsTenantUnassigned(false);
     getTenantByUser(String(user.id))
       .then((result) => {
         if (cancelled) return;
-        if (result.success) setTenantDetails(result.data);
-        else setTenantError(result.error ?? "Failed to load tenant details");
+        if (result.success) {
+          setTenantDetails(result.data);
+          return;
+        }
+        const message = (result.error || "").toLowerCase();
+        const notAssigned =
+          result.statusCode === 404 ||
+          message.includes("tenant not found") ||
+          message.includes("not assigned");
+
+        if (notAssigned) {
+          setTenantDetails(null);
+          setIsTenantUnassigned(true);
+          setTenantError(null);
+          return;
+        }
+
+        setTenantError(result.error ?? "Failed to load tenant details");
       })
       .finally(() => {
         if (!cancelled) setTenantLoading(false);
@@ -618,6 +637,29 @@ const TenantDashboard = () => {
         </div>
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {tenantError}
+        </div>
+      </section>
+    );
+  }
+
+  if (isTenantUnassigned) {
+    return (
+      <section className="space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">Welcome back!</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center max-w-md mx-auto">
+          <Building2 className="mx-auto h-12 w-12 text-gray-400" />
+          <p className="mt-3 text-sm font-medium text-gray-900">
+            No unit assigned yet
+          </p>
+          <p className="mt-1 text-sm text-gray-600">
+            You have not been assigned to any unit yet. Please contact your
+            landlord or property manager.
+          </p>
         </div>
       </section>
     );
