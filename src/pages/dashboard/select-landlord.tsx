@@ -16,11 +16,12 @@ import logo from "@/assets/logo.png";
 import type { NextPageWithLayout } from "../_app";
 
 /** Maps API response to LandlordAccount. Uses landlord.id (landlord ID) for id — this is what we pass to GET /property/landlord/:landlordId. */
-function mapManagerToLandlordAccount(manager: PropertyManagerDTO): LandlordAccount | null {
+function mapManagerToLandlordAccount(
+  manager: PropertyManagerDTO,
+): LandlordAccount | null {
   const landlord = manager.landlord;
   if (!landlord?.id) return null;
-  const name =
-    landlord.landLordName ?? landlord.user?.fullName ?? "Landlord";
+  const name = landlord.landLordName ?? landlord.user?.fullName ?? "Landlord";
   const email = landlord.user?.email ?? "";
   return {
     id: landlord.id, // landlord ID (not manager.id = property-manager record id)
@@ -34,9 +35,11 @@ function mapManagerToLandlordAccount(manager: PropertyManagerDTO): LandlordAccou
 
 const SelectLandlordPage: NextPageWithLayout = () => {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, logout } = useUser();
   const { setSelectedLandlord } = useSelectedLandlord();
-  const [landlordAccounts, setLandlordAccounts] = React.useState<LandlordAccount[]>([]);
+  const [landlordAccounts, setLandlordAccounts] = React.useState<
+    LandlordAccount[]
+  >([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -74,11 +77,14 @@ const SelectLandlordPage: NextPageWithLayout = () => {
           const data = res.data;
           const properties = data.map((p) => ({ id: p.id, name: p.name }));
           const totalUnits = data.reduce(
-            (sum, p) => sum + (p.numberOfUnits ?? (Array.isArray(p.units) ? p.units.length : 0)),
-            0
+            (sum, p) =>
+              sum +
+              (p.numberOfUnits ??
+                (Array.isArray(p.units) ? p.units.length : 0)),
+            0,
           );
           return { ...a, properties, totalUnits };
-        })
+        }),
       );
       setLandlordAccounts(enriched);
       setIsLoading(false);
@@ -98,8 +104,11 @@ const SelectLandlordPage: NextPageWithLayout = () => {
             ...landlord,
             properties: data.map((p) => ({ id: p.id, name: p.name })),
             totalUnits: data.reduce(
-              (sum, p) => sum + (p.numberOfUnits ?? (Array.isArray(p.units) ? p.units.length : 0)),
-              0
+              (sum, p) =>
+                sum +
+                (p.numberOfUnits ??
+                  (Array.isArray(p.units) ? p.units.length : 0)),
+              0,
             ),
           };
         }
@@ -110,7 +119,7 @@ const SelectLandlordPage: NextPageWithLayout = () => {
       }
       router.push("/dashboard");
     },
-    [setSelectedLandlord, router]
+    [setSelectedLandlord, router],
   );
 
   const getInitials = (name: string) => {
@@ -122,7 +131,10 @@ const SelectLandlordPage: NextPageWithLayout = () => {
       .slice(0, 2);
   };
 
-  if (!user || (user.role !== "property_manager" && user.role !== "super_admin")) {
+  if (
+    !user ||
+    (user.role !== "property_manager" && user.role !== "super_admin")
+  ) {
     return null;
   }
 
@@ -145,13 +157,18 @@ const SelectLandlordPage: NextPageWithLayout = () => {
                   height={32}
                   className="object-contain"
                 />
-                <span className="text-xl font-bold text-gray-900">DWELLA NG</span>
+                <span className="text-xl font-bold text-gray-900">
+                  DWELLA NG
+                </span>
               </div>
               <button
-                onClick={() => router.push("/auth/login")}
+                onClick={() => {
+                  logout();
+                  void router.push("/auth/login");
+                }}
                 className="text-sm text-gray-600 hover:text-gray-900 transition"
               >
-                Sign In
+                Sign Out
               </button>
             </div>
           </div>
@@ -173,7 +190,9 @@ const SelectLandlordPage: NextPageWithLayout = () => {
             <div className="flex justify-center py-12">
               <div className="text-center">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-brand-main border-r-transparent" />
-                <p className="mt-3 text-sm text-gray-600">Loading landlord accounts...</p>
+                <p className="mt-3 text-sm text-gray-600">
+                  Loading landlord accounts...
+                </p>
               </div>
             </div>
           ) : error ? (
@@ -183,9 +202,12 @@ const SelectLandlordPage: NextPageWithLayout = () => {
           ) : landlordAccounts.length === 0 ? (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center max-w-md mx-auto">
               <Building2 className="mx-auto h-12 w-12 text-gray-400" />
-              <p className="mt-3 text-sm font-medium text-gray-900">No landlord accounts</p>
+              <p className="mt-3 text-sm font-medium text-gray-900">
+                No landlord accounts
+              </p>
               <p className="mt-1 text-sm text-gray-600">
-                You are not assigned to any landlord yet. Ask your landlord to invite you.
+                You are not assigned to any landlord yet. Ask your landlord to
+                invite you.
               </p>
             </div>
           ) : (
@@ -220,7 +242,9 @@ const SelectLandlordPage: NextPageWithLayout = () => {
                       <h3 className="text-lg font-semibold text-gray-900 truncate">
                         {landlord.name}
                       </h3>
-                      <p className="text-sm text-gray-600 truncate">{landlord.email}</p>
+                      <p className="text-sm text-gray-600 truncate">
+                        {landlord.email}
+                      </p>
                     </div>
                   </div>
 
@@ -231,7 +255,9 @@ const SelectLandlordPage: NextPageWithLayout = () => {
                         <Building2 className="h-4 w-4 text-gray-500" />
                         <span className="text-sm text-gray-600">
                           {landlord.properties.length}{" "}
-                          {landlord.properties.length === 1 ? "Property" : "Properties"}
+                          {landlord.properties.length === 1
+                            ? "Property"
+                            : "Properties"}
                         </span>
                       </div>
                       {landlord.totalUnits > 0 && (
@@ -243,7 +269,10 @@ const SelectLandlordPage: NextPageWithLayout = () => {
                     {landlord.properties.length > 0 && (
                       <div className="space-y-1">
                         {landlord.properties.map((property) => (
-                          <div key={property.id} className="text-sm text-gray-700">
+                          <div
+                            key={property.id}
+                            className="text-sm text-gray-700"
+                          >
                             • {property.name}
                           </div>
                         ))}
@@ -276,4 +305,3 @@ const SelectLandlordPage: NextPageWithLayout = () => {
 SelectLandlordPage.getLayout = (page) => page;
 
 export default SelectLandlordPage;
-

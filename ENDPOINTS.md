@@ -1,216 +1,294 @@
-# API Endpoints Implementation Status
+﻿# API Endpoints (OpenAPI Synced)
 
-This document tracks all API endpoints needed for the Dwella NG application, organized by role and feature.
+This file reflects the backend OpenAPI JSON shared on 2026-04-17.
 
 ## Base URL
-<!-- `http://dwella-dev.us-east-1.elasticbeanstalk.com` -->
-<!-- `https://dwella-dev-3041b654dfb0581b.elb.us-east-1.amazonaws.com` -->
+
 `https://api-dev.dwella-ng.com`
 
 ---
 
-## 🔐 Authentication Endpoints
+## Auth
 
-### ✅ Implemented
-- **POST** `/auth/register` - User registration
-- **POST** `/auth/login` - User login
-- **GET** `/auth/verify-email?token={token}&email={email}` - Email verification (via redirect)
-- **POST** `/auth/forgot-password` - Request password reset
-- **POST** `/auth/reset-password` - Reset password with OTP
-
-### ❌ Not Implemented
-- **POST** `/auth/resend-verification-email` - Resend verification email
-- **POST** `/auth/refresh-token` - Refresh access token
-- **POST** `/auth/logout` - Logout (if needed server-side)
-
----
-
-## 👤 Landlord Endpoints
-
-### ✅ Implemented
-- **POST** `/landlord` - Create landlord (onboarding)
-- **GET** `/landlord/user/{userId}` - Get landlord by user ID
-- **GET** `/landlord/{landlordId}` - Get landlord by ID
-- **GET** `/property/landlord/{landlordId}` - Get all properties for a landlord
-- **GET** `/property/{propertyId}` - Get single property details
-- **GET** `/property/{propertyId}/units` - Get units for a property
-- **POST** `/property` - Create property
-- **POST** `/property/{propertyId}/unit` - Create unit for a property
-- **POST** `/file` - Upload file (photos, documents)
-- **DELETE** `/file/{fileId}` - Delete file
-
-### ❌ Not Implemented
-- **PATCH** `/landlord/{landlordId}` - Update landlord profile
-- **GET** `/landlord/{landlordId}/properties` - Alternative endpoint (if different from `/property/landlord/{landlordId}`)
-- **PATCH** `/property/{propertyId}` - Update property
-- **DELETE** `/property/{propertyId}` - Delete property
-- **PATCH** `/property/{propertyId}/unit/{unitId}` - Update unit
-- **DELETE** `/property/{propertyId}/unit/{unitId}` - Delete unit
-- **GET** `/property/{propertyId}/tenants` - Get tenants for a property
-- **POST** `/property/{propertyId}/tenant` - Assign tenant to property/unit
-- **GET** `/property/{propertyId}/payments` - Get payment history for property
-- **GET** `/property/{propertyId}/maintenance` - Get maintenance requests for property
-- **GET** `/property/{propertyId}/documents` - Get documents for property
-- **POST** `/property/{propertyId}/document` - Upload document to property
-- **GET** `/unit/{unitId}` - Get single unit details
-- **GET** `/unit/{unitId}/tenant` - Get tenant assigned to unit
-- **GET** `/unit/{unitId}/payments` - Get payment history for unit
-- **GET** `/unit/{unitId}/maintenance` - Get maintenance requests for unit
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/google-login`
+- `POST /auth/facebook-login`
+- `GET /auth/verify-email-token?email=...` **(resend verification token/link)**
+- `GET /auth/verify-email?token=...&email=...`
+- `GET /auth/forgot-password?email=...`
+- `POST /auth/reset-password`
+- `GET /auth/refresh-token`
+- `DELETE /auth/logout/{userId}`
 
 ---
 
-## 🏢 Property Manager Endpoints
+## User / RBAC
 
-### ✅ Implemented
-- **GET** `/property` - Get all properties (for managers with access)
-- **GET** `/property/{propertyId}` - Get property details
-- **GET** `/property/{propertyId}/units` - Get units for a property
+### User
 
-### ❌ Not Implemented
-- **GET** `/manager/{managerId}/landlords` - Get landlords assigned to manager
-- **GET** `/manager/{managerId}/properties` - Get properties managed by manager
-- **POST** `/manager/invite` - Invite new property manager
-- **GET** `/manager/{managerId}/tenants` - Get all tenants across managed properties
-- **GET** `/manager/{managerId}/payments` - Get all payments across managed properties
-- **GET** `/manager/{managerId}/maintenance` - Get all maintenance requests
-- **POST** `/property/{propertyId}/assign-manager` - Assign manager to property
+- `GET /user/me`
+- `POST /user`
+- `GET /user`
+- `GET /user/query`
+- `GET /user/{id}`
+- `PATCH /user/{id}`
+- `DELETE /user/{id}`
+- `PATCH /user/{id}/password`
 
----
+### RBAC
 
-## 👥 Tenant Endpoints
-
-### ❌ Not Implemented
-- **GET** `/tenant/{tenantId}` - Get tenant profile
-- **GET** `/tenant/{tenantId}/unit` - Get unit assigned to tenant
-- **GET** `/tenant/{tenantId}/payments` - Get payment history
-- **GET** `/tenant/{tenantId}/maintenance` - Get maintenance requests
-- **POST** `/tenant/{tenantId}/maintenance` - Create maintenance request
-- **POST** `/tenant/{tenantId}/payment` - Make payment
-- **GET** `/tenant/{tenantId}/notifications` - Get notifications
+- `POST /rbac/permission`
+- `POST /rbac/roles`
+- `GET /rbac/roles`
+- `POST /rbac/roles/with-permissions`
+- `GET /rbac/permissions`
+- `GET /rbac/roles/{id}`
+- `DELETE /rbac/roles/{id}`
+- `GET /rbac/permissions/{id}`
+- `DELETE /rbac/permissions/{id}`
+- `POST /rbac/roles/{roleId}/permissions`
+- `DELETE /rbac/roles/{roleId}/permissions`
 
 ---
 
-## 💰 Payment Endpoints
+## Property / Units / Amenities
 
-### ❌ Not Implemented
-- **GET** `/payment` - Get all payments (filtered by role)
-- **GET** `/payment/{paymentId}` - Get payment details
-- **POST** `/payment` - Create payment record
-- **PATCH** `/payment/{paymentId}` - Update payment status
-- **GET** `/payment/overdue` - Get overdue payments
-- **GET** `/payment/upcoming` - Get upcoming payments
+### Amenities
 
----
+- `POST /amenities`
+- `GET /amenities`
+- `GET /amenities/{id}`
+- `PATCH /amenities/{id}`
+- `DELETE /amenities/{id}`
 
-## 🔧 Maintenance Endpoints
+### Property
 
-### ❌ Not Implemented
-- **GET** `/maintenance` - Get all maintenance requests (filtered by role)
-- **GET** `/maintenance/{requestId}` - Get maintenance request details
-- **POST** `/maintenance` - Create maintenance request
-- **PATCH** `/maintenance/{requestId}` - Update maintenance request
-- **PATCH** `/maintenance/{requestId}/status` - Update maintenance status
-- **POST** `/maintenance/{requestId}/comment` - Add comment to request
-- **GET** `/maintenance/{requestId}/comments` - Get comments for request
+- `POST /property`
+- `GET /property`
+- `GET /property/{id}`
+- `PATCH /property/{id}`
+- `DELETE /property/{id}`
+- `GET /property/query`
+- `GET /property/landlord/{landlordId}`
 
----
+### Property Settings
 
-## 📄 Document Endpoints
+- `GET /property/{id}/settings`
+- `PATCH /property/{id}/settings/grace-period`
+- `PATCH /property/{id}/settings/late-fee`
 
-### ✅ Implemented
-- **POST** `/file` - Upload file
-- **DELETE** `/file/{fileId}` - Delete file
+### Units via Property
 
-### ❌ Not Implemented
-- **GET** `/file/{fileId}` - Get file details
-- **GET** `/file/{fileId}/download` - Download file
-- **GET** `/property/{propertyId}/files` - Get all files for property
-- **GET** `/unit/{unitId}/files` - Get all files for unit
+- `POST /property/{id}/unit`
+- `GET /property/{id}/units`
+- `GET /property/unit/{unitId}`
+- `PATCH /property/unit/{unitId}`
+- `DELETE /property/unit/{unitId}`
 
 ---
 
-## 📢 Notification Endpoints
+## Landlord
 
-### ✅ Implemented (Partial)
-- **GET** `/notification` - Get notifications (used in DashboardHeader)
+- `POST /landlord`
+- `GET /landlord`
+- `GET /landlord/{id}`
+- `PATCH /landlord/{id}`
+- `DELETE /landlord/{id}`
+- `GET /landlord/user/{userId}`
+- `GET /landlord/query`
 
-### ❌ Not Implemented
-- **PATCH** `/notification/{notificationId}/read` - Mark notification as read
-- **PATCH** `/notification/read-all` - Mark all notifications as read
-- **POST** `/notification` - Create notification (for announcements)
-- **GET** `/notification/unread-count` - Get unread notification count
+### Landlord Settings / Profile / Documents
 
----
-
-## 👨‍💼 Admin/Super Admin Endpoints
-
-### ❌ Not Implemented
-- **GET** `/admin/users` - Get all users
-- **GET** `/admin/landlords` - Get all landlords
-- **GET** `/admin/properties` - Get all properties
-- **POST** `/admin/property/{propertyId}/approve` - Approve property
-- **POST** `/admin/property/{propertyId}/reject` - Reject property
-- **GET** `/admin/analytics` - Get platform analytics
-- **GET** `/admin/reports` - Generate reports
+- `GET /landlord/{id}/settings`
+- `PATCH /landlord/{id}/profile`
+- `PATCH /landlord/{id}/documents`
+- `PATCH /landlord/{id}/settings/platform-preferences`
+- `PATCH /landlord/{id}/settings/notification-preferences`
+- `PATCH /landlord/{id}/settings/grace-periods`
+- `PATCH /landlord/{id}/settings/late-fee`
 
 ---
 
-## 🔍 Search & Filter Endpoints
+## Tenant
 
-### ❌ Not Implemented
-- **GET** `/search/properties` - Search properties
-- **GET** `/search/tenants` - Search tenants
-- **GET** `/search/units` - Search units
+- `POST /tenant`
+- `GET /tenant`
+- `GET /tenant/{id}`
+- `PATCH /tenant/{id}`
+- `DELETE /tenant/{id}`
+- `GET /tenant/user/{userId}`
+
+### Tenant Invitations
+
+- `POST /tenant/invite`
+- `GET /tenant/invite/accept-invite?token=...`
+- `GET /tenant/invite/reject-invite?token=...`
 
 ---
 
-## 📊 Reporting Endpoints
+## Property Manager
 
-### ❌ Not Implemented
-- **GET** `/report/property/{propertyId}/occupancy` - Get occupancy report
-- **GET** `/report/property/{propertyId}/revenue` - Get revenue report
-- **GET** `/report/landlord/{landlordId}/summary` - Get landlord summary
-- **GET** `/report/maintenance/stats` - Get maintenance statistics
+- `POST /property-manager`
+- `GET /property-manager`
+- `GET /property-manager/{id}`
+- `PATCH /property-manager/{id}`
+- `DELETE /property-manager/{id}`
+- `GET /property-manager/landlord/{landlordId}`
+- `GET /property-manager/user/{userId}`
+- `POST /property-manager/invite/{landlordId}`
+- `GET /property-manager/invite/accept-invite?token=...`
+- `GET /property-manager/invite/reject-invite?token=...`
+
+---
+
+## Maintenance Requests
+
+### Request Types
+
+- `POST /maintenance-request-types`
+- `GET /maintenance-request-types`
+- `POST /maintenance-request-types/{typeId}/subtype`
+- `GET /maintenance-request-types/{typeId}/subtypes`
+- `GET /maintenance-request-types/{id}`
+- `PATCH /maintenance-request-types/{id}`
+- `DELETE /maintenance-request-types/{id}`
+- `PATCH /maintenance-request-types/subtype/{subTypeId}`
+- `DELETE /maintenance-request-types/subtype/{subTypeId}`
+- `GET /maintenance-request-types/name/{name}`
+- `DELETE /maintenance-request-types/subtype/{typeId}`
+
+### Maintenance Requests
+
+- `POST /maintenance-request`
+- `GET /maintenance-request`
+- `GET /maintenance-request/query`
+- `GET /maintenance-request/{id}`
+- `PATCH /maintenance-request/{id}`
+- `DELETE /maintenance-request/{id}`
+- `PATCH /maintenance-request/{id}/status`
+
+---
+
+## Address
+
+- `POST /address/user/{userId}`
+- `GET /address/user/{userId}`
+- `GET /address`
+- `GET /address/{id}`
+- `PATCH /address/{id}`
+- `DELETE /address/{id}`
+
+---
+
+## Wallet / Transactions / Payments
+
+### Wallet
+
+- `POST /wallet/landlord`
+- `POST /wallet/{id}/vba`
+- `GET /wallet`
+- `GET /wallet/{id}`
+- `GET /wallet/landlord/{landlordId}`
+- `POST /wallet/{id}/disable`
+
+### Transaction
+
+- `GET /transaction`
+- `GET /transaction/success?amount=...`
+- `GET /transaction/{id}`
+- `DELETE /transaction/{id}`
+
+### Deposit
+
+- `POST /deposit` _(requires `Idempotency-Key` header)_
+- `GET /deposit`
+- `GET /deposit/{id}`
+- `GET /deposit/reference/{reference}`
+- `GET /deposit/wallet-transaction/{walletTransactionId}`
+- `GET /deposit/wallet/{walletId}`
+
+### Withdrawal
+
+- `POST /withdrawal` _(requires `Idempotency-Key` header)_
+- `GET /withdrawal`
+- `GET /withdrawal/banks/{walletId}`
+- `POST /withdrawal/resolve-account`
+- `GET /withdrawal/{id}`
+- `PATCH /withdrawal/{id}`
+- `DELETE /withdrawal/{id}`
+
+### Rent Payment
+
+- `POST /rent-payment` _(requires `Idempotency-Key` header)_
+- `GET /rent-payment`
+- `GET /rent-payment/{id}`
+- `DELETE /rent-payment/{id}`
+
+---
+
+## File
+
+- `POST /file` _(multipart/form-data)_
+- `DELETE /file/{id}`
+
+---
+
+## Settings
+
+- `GET /settings`
+- `PATCH /settings/update`
+
+---
+
+## Verification
+
+- `POST /verification/lanlord/{landlordId}` _(note: backend path currently uses `lanlord` typo)_
+- `POST /verification/property/{propertyId}`
+- `GET /verification`
+- `GET /verification/query`
+- `GET /verification/{id}`
+- `DELETE /verification/{id}`
+- `PATCH /verification/{id}/landlord/status`
+- `PATCH /verification/{id}/property/status`
+
+---
+
+## Announcement
+
+- `POST /announcement/landlord/{landlordId}`
+- `POST /announcement/property/{propertyId}`
+- `GET /announcement`
+- `GET /announcement/{id}`
+- `PATCH /announcement/{id}/landlord`
+- `DELETE /announcement/{id}/landlord`
+- `PATCH /announcement/{id}/property`
+- `DELETE /announcement/{id}/property`
+
+---
+
+## Webhooks
+
+- `POST /webhooks/paystack`
+- `POST /webhooks/flutterwave`
+- `POST /webhooks/monnify`
+
+---
+
+## Other
+
+- `GET /` (App hello route)
+- Agent module:
+  - `POST /agent`
+  - `GET /agent`
+  - `GET /agent/{id}`
+  - `PATCH /agent/{id}`
+  - `DELETE /agent/{id}`
 
 ---
 
 ## Notes
 
-### Image Upload Status
-⚠️ **Backend Issue**: Property images are currently not being saved by the backend. Once fixed, we'll need to:
-- Update property creation to include `photoIds` array
-- Display property photos from the `photos` array in the API response
-- Remove placeholder images
-
-### Authentication
-- All endpoints (except auth endpoints) require Bearer token authentication
-- Token is automatically included via `apiClient`
-- 401 responses trigger automatic logout and redirect to login
-
-### Data Flow
-- Landlord onboarding: Details → Documents → Complete
-- Property creation: Basic Details → Photos → Documents → Units
-- Unit creation: Form with photos, amenities, and details
-
----
-
-## Priority Implementation Order
-
-1. **High Priority** (Core functionality)
-   - Property update/delete
-   - Unit update/delete
-   - Tenant assignment
-   - Payment tracking
-   - Maintenance requests
-
-2. **Medium Priority** (Enhanced features)
-   - Property manager assignment
-   - Document management
-   - Notification management
-   - Search functionality
-
-3. **Low Priority** (Advanced features)
-   - Reporting
-   - Analytics
-   - Admin features
-
+- This file is now an endpoint inventory from OpenAPI, not a frontend "implemented vs not implemented" tracker.
+- For auth resend verification, frontend should call:
+  - `GET /auth/verify-email-token?email={email}`
