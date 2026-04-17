@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import * as Dialog from "@radix-ui/react-dialog";
-import { mockProperties } from "@/data/mockLandlordData";
+import type { PropertyDTO } from "@/api/properties";
 import type { Manager } from "@/data/mockLandlordData";
 
 const editManagerSchema = z.object({
@@ -20,6 +20,9 @@ export type EditManagerModalProps = {
   isOpen: boolean;
   onClose: () => void;
   manager: Manager | null;
+  properties?: PropertyDTO[];
+  isLoadingProperties?: boolean;
+  isSaving?: boolean;
   onSave?: (data: EditManagerFormValues & { properties: string[]; permissions: string[] }) => void;
 };
 
@@ -27,6 +30,9 @@ export const EditManagerModal = ({
   isOpen,
   onClose,
   manager,
+  properties = [],
+  isLoadingProperties = false,
+  isSaving = false,
   onSave,
 }: EditManagerModalProps) => {
   const [selectedProperties, setSelectedProperties] = React.useState<string[]>([]);
@@ -62,17 +68,17 @@ export const EditManagerModal = ({
 
   const permissions = [
     {
-      id: "maintenance",
+      id: "manage_maintenance_requests",
       label: "Manage Maintenance",
       description: "Can view and manage maintenance requests",
     },
     {
-      id: "chat",
+      id: "manage_chat",
       label: "Chat with Tenants",
       description: "Can communicate with tenants via chat",
     },
     {
-      id: "payments",
+      id: "read_payment",
       label: "View Payments (Read-only)",
       description: "Can view payment information but cannot modify",
     },
@@ -200,22 +206,38 @@ export const EditManagerModal = ({
                 <h3 className="mb-4 text-sm font-semibold uppercase" style={{ color: '#99A1AF' }}>
                   Assign Properties
                 </h3>
-                <div className="space-y-2">
-                  {mockProperties.map((property) => (
-                    <label
-                      key={property.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedProperties.includes(property.id)}
-                        onChange={() => toggleProperty(property.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-2 focus:ring-brand-main focus:ring-offset-2"
-                      />
-                      <span className="text-sm font-medium text-gray-900">{property.name}</span>
-                    </label>
-                  ))}
-                </div>
+                {isLoadingProperties ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-brand-main border-r-transparent"></div>
+                      <p className="mt-2 text-sm text-gray-600">Loading properties...</p>
+                    </div>
+                  </div>
+                ) : properties.length > 0 ? (
+                  <div className="max-h-64 space-y-2 overflow-y-auto">
+                    {properties.map((property) => (
+                      <label
+                        key={property.id}
+                        className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedProperties.includes(property.id)}
+                          onChange={() => toggleProperty(property.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-2 focus:ring-brand-main focus:ring-offset-2"
+                        />
+                        <span className="text-sm font-medium text-gray-900">{property.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 px-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <p className="text-sm font-medium text-gray-900 mb-1">No Properties</p>
+                    <p className="text-xs text-gray-500 text-center">
+                      You don't have any properties yet. Create a property first to assign it to a manager.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Permissions */}
@@ -255,9 +277,10 @@ export const EditManagerModal = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={isSaving}
                   className="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                 >
-                  Save
+                  {isSaving ? "Saving..." : "Save"}
                 </button>
               </div>
             </form>

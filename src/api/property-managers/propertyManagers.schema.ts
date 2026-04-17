@@ -3,7 +3,7 @@ import { z } from "zod";
 // User nested in property manager response
 const propertyManagerUserSchema = z.object({
   id: z.string().uuid(),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().nullable(),
   fullName: z.string().optional().nullable(),
   phoneNumber: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
@@ -11,10 +11,13 @@ const propertyManagerUserSchema = z.object({
 });
 
 // Profile picture (landlord card avatar)
-const profilePictureRefSchema = z.object({
-  id: z.string().uuid(),
-  url: z.string().url(),
-}).optional().nullable();
+const profilePictureRefSchema = z
+  .object({
+    id: z.string().uuid(),
+    url: z.string().url(),
+  })
+  .optional()
+  .nullable();
 
 // Landlord nested in property manager response (for select-landlord flow)
 export const propertyManagerLandlordSchema = z.object({
@@ -25,20 +28,22 @@ export const propertyManagerLandlordSchema = z.object({
   user: z
     .object({
       id: z.string().uuid(),
-      email: z.string().email().optional(),
+      email: z.string().email().optional().nullable(),
       fullName: z.string().optional().nullable(),
     })
     .optional()
     .nullable(),
 });
-export type PropertyManagerLandlordDTO = z.infer<typeof propertyManagerLandlordSchema>;
+export type PropertyManagerLandlordDTO = z.infer<
+  typeof propertyManagerLandlordSchema
+>;
 
 // Property Manager Schema (matches API: id, user, landlord, permissions, etc.)
 export const propertyManagerSchema = z.object({
   id: z.string().uuid(),
   fullName: z.string().optional(),
   name: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().nullable(),
   phone: z.string().optional().nullable(),
   userId: z.string().uuid().optional(),
   user: propertyManagerUserSchema.optional().nullable(),
@@ -61,7 +66,9 @@ export const propertyManagersResponseSchema = z.union([
   }),
 ]);
 
-export type PropertyManagersResponseDTO = z.infer<typeof propertyManagersResponseSchema>;
+export type PropertyManagersResponseDTO = z.infer<
+  typeof propertyManagersResponseSchema
+>;
 
 // Create Property Manager Request (for invite endpoint)
 export const invitePropertyManagerRequestSchema = z.object({
@@ -72,7 +79,9 @@ export const invitePropertyManagerRequestSchema = z.object({
   permissions: z.array(z.string()).optional(),
 });
 
-export type InvitePropertyManagerRequestDTO = z.infer<typeof invitePropertyManagerRequestSchema>;
+export type InvitePropertyManagerRequestDTO = z.infer<
+  typeof invitePropertyManagerRequestSchema
+>;
 
 // Create Property Manager Request (legacy, kept for backward compatibility)
 export const createPropertyManagerRequestSchema = z.object({
@@ -83,7 +92,9 @@ export const createPropertyManagerRequestSchema = z.object({
   permissions: z.array(z.string()).optional(),
 });
 
-export type CreatePropertyManagerRequestDTO = z.infer<typeof createPropertyManagerRequestSchema>;
+export type CreatePropertyManagerRequestDTO = z.infer<
+  typeof createPropertyManagerRequestSchema
+>;
 
 // Property Manager Invitation Response
 export const propertyManagerInvitationSchema = z.object({
@@ -101,7 +112,9 @@ export const propertyManagerInvitationSchema = z.object({
   permissions: z.array(z.string()).optional(), // Array of permission strings
 });
 
-export type PropertyManagerInvitationDTO = z.infer<typeof propertyManagerInvitationSchema>;
+export type PropertyManagerInvitationDTO = z.infer<
+  typeof propertyManagerInvitationSchema
+>;
 
 // Invite Property Manager Response
 export const invitePropertyManagerResponseSchema = z.object({
@@ -110,7 +123,9 @@ export const invitePropertyManagerResponseSchema = z.object({
   data: propertyManagerInvitationSchema.optional(),
 });
 
-export type InvitePropertyManagerResponseDTO = z.infer<typeof invitePropertyManagerResponseSchema>;
+export type InvitePropertyManagerResponseDTO = z.infer<
+  typeof invitePropertyManagerResponseSchema
+>;
 
 // Create Property Manager Response (legacy)
 export const createPropertyManagerResponseSchema = z.object({
@@ -119,5 +134,6 @@ export const createPropertyManagerResponseSchema = z.object({
   data: propertyManagerSchema.optional(),
 });
 
-export type CreatePropertyManagerResponseDTO = z.infer<typeof createPropertyManagerResponseSchema>;
-
+export type CreatePropertyManagerResponseDTO = z.infer<
+  typeof createPropertyManagerResponseSchema
+>;

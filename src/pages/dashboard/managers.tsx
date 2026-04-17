@@ -4,8 +4,11 @@ import { Users } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { InviteManagerModal } from "@/components/InviteManagerModal";
 import { EditManagerModal } from "@/components/EditManagerModal";
-import { mockProperties, type Manager } from "@/data/mockLandlordData";
-import { getPropertyManagersByLandlord } from "@/api/property-managers";
+import type { PropertyDTO } from "@/api/properties";
+import { getPropertiesByLandlord } from "@/api/properties";
+import { getPropertyManagersByLandlord, updatePropertyManager } from "@/api/property-managers";
+import type { PropertyManagerDTO } from "@/api/property-managers";
+import type { Manager } from "@/data/mockLandlordData";
 import { useToast } from "@/components/Toast";
 
 const timeAgo = (iso?: string) => {
@@ -29,6 +32,47 @@ const ManagersPage = () => {
   const [selectedManager, setSelectedManager] = React.useState<Manager | null>(null);
   const [managers, setManagers] = React.useState<Manager[]>([]);
   const [isLoadingManagers, setIsLoadingManagers] = React.useState(false);
+  const [properties, setProperties] = React.useState<PropertyDTO[]>([]);
+  const [isLoadingProperties, setIsLoadingProperties] = React.useState(false);
+  const [isSavingManager, setIsSavingManager] = React.useState(false);
+
+  const mapPropertyManagerToManager = React.useCallback((pm: PropertyManagerDTO): Manager => {
+    const name =
+      pm.user?.fullName ||
+      pm.fullName ||
+      pm.name ||
+      pm.user?.email ||
+      "Manager";
+    const email = pm.user?.email || pm.email || "";
+    const phone = pm.user?.phoneNumber || pm.phone || "";
+    const status = pm.isActive ? "active" : "inactive";
+
+    const rawProperties = (pm as { properties?: unknown }).properties;
+    const assignedProperties =
+      Array.isArray(rawProperties)
+        ? rawProperties
+            .map((p) => {
+              if (typeof p === "string") return p;
+              if (p && typeof p === "object" && "id" in p) {
+                const id = (p as { id?: unknown }).id;
+                return typeof id === "string" ? id : null;
+              }
+              return null;
+            })
+            .filter((id): id is string => Boolean(id))
+        : [];
+
+    return {
+      id: pm.id,
+      name,
+      email,
+      phone,
+      status,
+      assignedProperties,
+      permissions: pm.permissions || [],
+      lastActive: timeAgo(pm.updatedAt || pm.createdAt),
+    };
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -42,7 +86,21 @@ const ManagersPage = () => {
       }
 
       setIsLoadingManagers(true);
-      const result = await getPropertyManagersByLandlord(landlordId);
+      setIsLoadingProperties(true);
+      const [managerResult, propertiesResult] = await Promise.all([
+        getPropertyManagersByLandlord(landlordId),
+        getPropertiesByLandlord(landlordId),
+      ]);
+      if (cancelled) return;
+
+      if (propertiesResult.success) {
+        setProperties(propertiesResult.data);
+      } else {
+        setProperties([]);
+      }
+      setIsLoadingProperties(false);
+
+      const result = managerResult;
       if (cancelled) return;
 
       if (!result.success) {
@@ -52,27 +110,7 @@ const ManagersPage = () => {
         return;
       }
 
-      const mapped: Manager[] = result.data.map((pm) => {
-        const name =
-          pm.user?.fullName ||
-          (pm as any).fullName ||
-          (pm as any).name ||
-          pm.user?.email ||
-          "Manager";
-        const email = pm.user?.email || (pm as any).email || "";
-        const phone = pm.user?.phoneNumber || (pm as any).phone || "";
-        const status = pm.isActive ? "active" : "inactive";
-        return {
-          id: pm.id,
-          name,
-          email,
-          phone,
-          status,
-          assignedProperties: [], // not returned by this endpoint (yet)
-          permissions: pm.permissions || [],
-          lastActive: timeAgo(pm.updatedAt || pm.createdAt),
-        };
-      });
+      const mapped: Manager[] = result.data.map(mapPropertyManagerToManager);
 
       setManagers(mapped);
       setIsLoadingManagers(false);
@@ -82,7 +120,7 @@ const ManagersPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [showToast]);
+  }, [showToast, mapPropertyManagerToManager]);
 
   const handleInvite = (data: {
     fullName: string;
@@ -105,26 +143,33 @@ const ManagersPage = () => {
     setManagers([...managers, newManager]);
   };
 
-  const handleEdit = (managerId: string, data: {
+  const handleEdit = async (managerId: string, data: {
     fullName: string;
     email: string;
     phone?: string;
     properties: string[];
     permissions: string[];
   }) => {
-    // In a real app, this would make an API call
-    setManagers(managers.map((m) =>
-      m.id === managerId
-        ? {
-            ...m,
-            name: data.fullName,
-            email: data.email,
-            phone: data.phone || "",
-            assignedProperties: data.properties,
-            permissions: data.permissions,
-          }
-        : m
-    ));
+    setIsSavingManager(true);
+    const result = await updatePropertyManager(managerId, {
+      fullName: data.fullName,
+      email: data.email,
+      phoneNumber: data.phone,
+      propertyIds: data.properties,
+      permissions: data.permissions,
+    });
+    setIsSavingManager(false);
+
+    if (!result.success) {
+      showToast(result.error || "Failed to update manager", "error");
+      return;
+    }
+
+    const mapped = mapPropertyManagerToManager(result.data);
+    setManagers((prev) =>
+      prev.map((m) => (m.id === managerId ? { ...m, ...mapped } : m)),
+    );
+    showToast("Manager updated successfully", "success");
   };
 
   const handleActivate = (managerId: string) => {
@@ -154,7 +199,7 @@ const ManagersPage = () => {
   };
 
   const getPropertyName = (propertyId: string) => {
-    return mockProperties.find((p) => p.id === propertyId)?.name || "Unknown";
+    return properties.find((p) => p.id === propertyId)?.name || "Unknown";
   };
 
   return (
@@ -350,9 +395,12 @@ const ManagersPage = () => {
           setSelectedManager(null);
         }}
         manager={selectedManager}
-        onSave={(data) => {
+        properties={properties}
+        isLoadingProperties={isLoadingProperties}
+        isSaving={isSavingManager}
+        onSave={async (data) => {
           if (selectedManager) {
-            handleEdit(selectedManager.id, data);
+            await handleEdit(selectedManager.id, data);
           }
         }}
       />

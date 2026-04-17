@@ -21,14 +21,14 @@ export const RecentPayments = ({
           <button
             type="button"
             onClick={onViewAll}
-            className="text-base font-bold text-brand-main hover:text-brand-main/80 transition"
+            className="text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
           >
             View All
           </button>
         ) : (
           <Link
             href="/dashboard/rent"
-            className="text-base font-bold text-brand-main hover:text-brand-main/80 transition"
+            className="text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
           >
             View All
           </Link>
@@ -74,9 +74,11 @@ export const RecentPayments = ({
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 mb-4">
             <DollarSign className="h-8 w-8 text-gray-400" />
           </div>
-          <p className="text-sm font-medium text-gray-900 mb-1">No Recent Payments</p>
+          <p className="text-sm font-medium text-gray-900 mb-1">
+            No Recent Payments
+          </p>
           <p className="text-xs text-gray-500 text-center">
-            Payment history will appear here when available.
+            Recent payments will appear here when available.
           </p>
         </motion.div>
       )}
