@@ -13,33 +13,215 @@ import {
   DollarSign,
   AlertCircle,
 } from "lucide-react";
-import { mockUnits } from "@/data/mockPropertyDetails";
-import { mockTenants } from "@/data/mockPropertyDetails";
-import { mockProperties } from "@/data/mockLandlordData";
 import type { Unit } from "@/data/mockLandlordData";
 import type { NextPageWithLayout } from "../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
+import { getPropertiesByLandlord } from "@/api/properties";
+import { getUnitsByProperty } from "@/api/units";
+import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
+import type { UnitDTO } from "@/api/units/units.schema";
+import { useToast } from "@/components/Toast";
+
+type UnitListRow = {
+  id: string;
+  propertyId: string;
+  propertyName: string;
+  unitId: string;
+  type: string;
+  status: Unit["status"];
+  tenantName: string | null;
+  monthlyRent: number;
+  rentStatus: Unit["rentStatus"];
+  nextDueDate: string;
+};
+
+function pickString(
+  source: Record<string, unknown>,
+  keys: string[],
+): string | null {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function extractTenantName(dto: UnitDTO): string | null {
+  const root = dto as unknown as Record<string, unknown>;
+  for (const key of [
+    "tenant",
+    "currentTenant",
+    "activeTenant",
+    "leaseTenant",
+  ]) {
+    const node = root[key];
+    if (node && typeof node === "object") {
+      const o = node as Record<string, unknown>;
+      const direct =
+        pickString(o, ["fullName", "name", "email", "userName"]) ?? null;
+      if (direct) return direct;
+      const userNode = o.user;
+      if (userNode && typeof userNode === "object") {
+        const fromUser = pickString(userNode as Record<string, unknown>, [
+          "fullName",
+          "name",
+          "email",
+        ]);
+        if (fromUser) return fromUser;
+      }
+    }
+  }
+  return null;
+}
+
+function buildUnitListRow(
+  dto: UnitDTO,
+  propertyId: string,
+  propertyName: string,
+): UnitListRow {
+  const mapped = mapUnitDTOToUnit(dto, propertyId);
+  return {
+    id: mapped.id,
+    propertyId: mapped.propertyId,
+    propertyName,
+    unitId: mapped.unitId,
+    type: mapped.type,
+    status: mapped.status,
+    tenantName: extractTenantName(dto),
+    monthlyRent: mapped.monthlyRent,
+    rentStatus: mapped.rentStatus,
+    nextDueDate: mapped.nextDueDate,
+  };
+}
 
 const UnitsPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { showToast } = useToast();
   const [isAddUnitOpen, setIsAddUnitOpen] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
   const [itemsPerPage, setItemsPerPage] = React.useState(12);
+  const [rows, setRows] = React.useState<UnitListRow[]>([]);
+  const [pickerProperties, setPickerProperties] = React.useState<
+    { id: string; name: string }[]
+  >([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [reloadToken, setReloadToken] = React.useState(0);
+  const [missingLandlordContext, setMissingLandlordContext] =
+    React.useState(false);
 
-  // Get all units with property and tenant info
-  const allUnits = React.useMemo(() => {
-    return mockUnits.map((unit) => {
-      const property = mockProperties.find((p) => p.id === unit.propertyId);
-      const tenant = unit.tenantId
-        ? mockTenants.find((t) => t.id === unit.tenantId)
-        : null;
-      return {
-        ...unit,
-        propertyName: property?.name || "Unknown Property",
-        tenantName: tenant?.name || null,
-      };
-    });
-  }, []);
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      const landlordId =
+        typeof window !== "undefined"
+          ? localStorage.getItem("landlordId")
+          : null;
+
+      if (!landlordId) {
+        setMissingLandlordContext(true);
+        setRows([]);
+        setPickerProperties([]);
+        setLoadError(null);
+        setIsLoading(false);
+        return;
+      }
+
+      setMissingLandlordContext(false);
+
+      setIsLoading(true);
+      setLoadError(null);
+
+      const propsResult = await getPropertiesByLandlord(landlordId);
+      if (cancelled) return;
+
+      if (!propsResult.success) {
+        setRows([]);
+        setPickerProperties([]);
+        setLoadError(propsResult.error);
+        showToast(propsResult.error || "Failed to load properties", "error");
+        setIsLoading(false);
+        return;
+      }
+
+      const properties = propsResult.data;
+      setPickerProperties(properties.map((p) => ({ id: p.id, name: p.name })));
+
+      const unitResults = await Promise.all(
+        properties.map((p) => getUnitsByProperty(p.id)),
+      );
+
+      if (cancelled) return;
+
+      const combined: UnitListRow[] = [];
+      properties.forEach((property, index) => {
+        const unitRes = unitResults[index];
+        if (!unitRes.success) return;
+        for (const dto of unitRes.data) {
+          combined.push(buildUnitListRow(dto, property.id, property.name));
+        }
+      });
+
+      setRows(combined);
+      setIsLoading(false);
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken, showToast]);
+
+  const allUnits = rows;
+
+  const handleExportCsv = React.useCallback(() => {
+    if (allUnits.length === 0) {
+      showToast("No units to export.", "error");
+      return;
+    }
+    const escapeCell = (value: string) => {
+      if (/[",\r\n]/.test(value)) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+    const header = [
+      "S/N",
+      "Unit ID",
+      "Property",
+      "Type",
+      "Status",
+      "Tenant",
+      "Rent",
+      "Rent Status",
+      "Next Due Date",
+    ];
+    const lines = allUnits.map((u, index) =>
+      [
+        String(index + 1),
+        u.unitId,
+        u.propertyName,
+        u.type,
+        u.status,
+        u.tenantName ?? "",
+        String(u.monthlyRent),
+        u.rentStatus,
+        u.nextDueDate,
+      ]
+        .map((cell) => escapeCell(String(cell)))
+        .join(","),
+    );
+    const csv = [header.join(","), ...lines].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `dwella-units-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [allUnits, showToast]);
 
   // Calculate summary stats
   const totalUnits = allUnits.length;
@@ -52,7 +234,7 @@ const UnitsPage: NextPageWithLayout = () => {
     .reduce((sum, u) => sum + u.monthlyRent, 0);
 
   // Pagination
-  const totalPages = Math.ceil(allUnits.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(allUnits.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const displayedUnits = allUnits.slice(startIndex, endIndex);
@@ -101,6 +283,14 @@ const UnitsPage: NextPageWithLayout = () => {
         return (
           <span className="text-sm font-medium text-red-700">Overdue</span>
         );
+      case "pending":
+        return (
+          <span className="text-sm font-medium text-gray-600">Pending</span>
+        );
+      default:
+        return (
+          <span className="text-sm font-medium text-gray-600">Pending</span>
+        );
     }
   };
 
@@ -133,6 +323,19 @@ const UnitsPage: NextPageWithLayout = () => {
             <span className="lg:hidden">Add</span>
           </motion.button>
         </div>
+
+        {missingLandlordContext ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Landlord context not found. Sign in again as a landlord to load
+            units.
+          </div>
+        ) : null}
+
+        {loadError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {loadError}
+          </div>
+        ) : null}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -255,7 +458,9 @@ const UnitsPage: NextPageWithLayout = () => {
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-2 text-xs lg:text-sm font-medium text-gray-700 hover:text-gray-900 transition whitespace-nowrap"
+              onClick={handleExportCsv}
+              disabled={isLoading || allUnits.length === 0}
+              className="inline-flex items-center gap-2 text-xs lg:text-sm font-medium text-gray-700 hover:text-gray-900 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="h-4 w-4" />
               <span className="hidden lg:inline">Export CSV</span>
@@ -301,76 +506,96 @@ const UnitsPage: NextPageWithLayout = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {displayedUnits.map((unit, index) => (
-                  <motion.tr
-                    key={unit.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: index * 0.05 }}
-                    onClick={() =>
-                      router.push(
-                        `/dashboard/properties/${unit.propertyId}/units/${unit.id}`,
-                      )
-                    }
-                    className="hover:bg-gray-50 transition cursor-pointer"
-                  >
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {String(startIndex + index + 1).padStart(2, "0")}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {unit.unitId}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
-                      {unit.propertyName}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {unit.type}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(unit.status)}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      {unit.tenantName ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
-                            {getInitials(unit.tenantName)}
-                          </div>
-                          <span className="text-sm text-gray-900">
-                            {unit.tenantName}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-500">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatCurrency(unit.monthlyRent)}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      {getRentStatusBadge(unit.rentStatus)}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {unit.nextDueDate}
-                    </td>
+                {isLoading ? (
+                  <tr>
                     <td
-                      className="px-3 sm:px-6 py-4 whitespace-nowrap"
-                      onClick={(e) => e.stopPropagation()}
+                      colSpan={10}
+                      className="px-6 py-12 text-center text-sm text-gray-500"
                     >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push(
-                            `/dashboard/properties/${unit.propertyId}/units/${unit.id}`,
-                          )
-                        }
-                        className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
-                      >
-                        View Details
-                        <ExternalLink className="h-3 w-3" />
-                      </button>
+                      Loading units...
                     </td>
-                  </motion.tr>
-                ))}
+                  </tr>
+                ) : displayedUnits.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={10}
+                      className="px-6 py-12 text-center text-sm text-gray-500"
+                    >
+                      No units yet. Add a unit to a property to see it here.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedUnits.map((unit, index) => (
+                    <motion.tr
+                      key={unit.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() =>
+                        router.push(
+                          `/dashboard/properties/${unit.propertyId}/units/${unit.id}`,
+                        )
+                      }
+                      className="hover:bg-gray-50 transition cursor-pointer"
+                    >
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {String(startIndex + index + 1).padStart(2, "0")}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {unit.unitId}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
+                        {unit.propertyName}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {unit.type}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(unit.status)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        {unit.tenantName ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
+                              {getInitials(unit.tenantName)}
+                            </div>
+                            <span className="text-sm text-gray-900">
+                              {unit.tenantName}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {formatCurrency(unit.monthlyRent)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        {getRentStatusBadge(unit.rentStatus)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {unit.nextDueDate}
+                      </td>
+                      <td
+                        className="px-3 sm:px-6 py-4 whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(
+                              `/dashboard/properties/${unit.propertyId}/units/${unit.id}`,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
+                        >
+                          View Details
+                          <ExternalLink className="h-3 w-3" />
+                        </button>
+                      </td>
+                    </motion.tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -450,9 +675,10 @@ const UnitsPage: NextPageWithLayout = () => {
         isOpen={isAddUnitOpen}
         onClose={() => setIsAddUnitOpen(false)}
         propertyId=""
+        pickerProperties={pickerProperties}
         onSuccess={() => {
           setIsAddUnitOpen(false);
-          // In a real app, refetch units here
+          setReloadToken((t) => t + 1);
         }}
       />
     </>

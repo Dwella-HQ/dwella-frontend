@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   Settings,
   Search,
+  BadgeCheck,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { logout as logoutRequest } from "@/api/auth";
@@ -28,6 +29,11 @@ const adminNav = [
   { name: "Properties", href: "/dashboard/admin/properties", icon: Home },
   { name: "Tenants", href: "/dashboard/admin/tenants", icon: Users },
   { name: "L & P", href: "/dashboard/admin/lp", icon: Crown },
+  {
+    name: "Verifications",
+    href: "/dashboard/admin/verifications",
+    icon: BadgeCheck,
+  },
   {
     name: "Audit Logs",
     href: "/dashboard/admin/audit-logs",

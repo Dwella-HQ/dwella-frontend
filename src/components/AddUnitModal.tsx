@@ -30,6 +30,8 @@ export type AddUnitModalProps = {
   onClose: () => void;
   propertyId: string;
   propertyLabel?: string;
+  /** When opening from global pages (e.g. All Units), lets the landlord pick which property to attach the unit to */
+  pickerProperties?: { id: string; name: string }[];
   onSuccess?: (data: AddUnitFormValues & { amenities: string[] }) => void;
 };
 
@@ -38,6 +40,7 @@ export const AddUnitModal = ({
   onClose,
   propertyId,
   propertyLabel,
+  pickerProperties,
   onSuccess,
 }: AddUnitModalProps) => {
   const { showToast } = useToast();
@@ -87,10 +90,21 @@ export const AddUnitModal = ({
   });
 
   React.useEffect(() => {
-    if (propertyId) {
+    if (propertyId && propertyId !== "temp-property-id") {
       setValue("property", propertyId);
     }
   }, [propertyId, setValue]);
+
+  React.useEffect(() => {
+    if (
+      isOpen &&
+      pickerProperties &&
+      pickerProperties.length > 0 &&
+      (!propertyId || propertyId === "")
+    ) {
+      setValue("property", pickerProperties[0].id);
+    }
+  }, [isOpen, pickerProperties, propertyId, setValue]);
 
   const toggleAmenity = (amenity: string) => {
     setSelectedAmenities((prev) =>
@@ -196,8 +210,24 @@ export const AddUnitModal = ({
   }, [isOpen]);
 
   const onSubmit = handleSubmit(async (data) => {
-    if (!propertyId || propertyId === "temp-property-id") {
-      // If propertyId is not valid, just call onSuccess callback (for property creation flow)
+    const preassigned =
+      propertyId && propertyId !== "" && propertyId !== "temp-property-id";
+
+    const pickedFromForm =
+      typeof data.property === "string" && data.property.trim().length > 0;
+
+    const effectivePropertyId = preassigned
+      ? propertyId
+      : pickedFromForm
+        ? data.property
+        : "";
+
+    const legacyNoApi =
+      !preassigned &&
+      !pickedFromForm &&
+      (!pickerProperties || pickerProperties.length === 0);
+
+    if (legacyNoApi) {
       const unitData = { ...data, amenities: selectedAmenities };
       if (onSuccess) {
         onSuccess(unitData);
@@ -205,6 +235,11 @@ export const AddUnitModal = ({
       reset();
       setSelectedAmenities([]);
       onClose();
+      return;
+    }
+
+    if (!effectivePropertyId) {
+      showToast("Please select a property.", "error");
       return;
     }
 
@@ -222,7 +257,7 @@ export const AddUnitModal = ({
         amenities: selectedAmenities,
       };
 
-      const result = await createUnit(propertyId, unitData);
+      const result = await createUnit(effectivePropertyId, unitData);
 
       if (result.success) {
         const unitFormData = { ...data, amenities: selectedAmenities };
@@ -337,12 +372,19 @@ export const AddUnitModal = ({
                       {...register("property")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     >
-                      <option value="">Placeholder</option>
-                      {propertyId && (
-                        <option value={propertyId}>
-                          {propertyLabel || "Selected Property"}
-                        </option>
-                      )}
+                      <option value="">Select property</option>
+                      {pickerProperties && pickerProperties.length > 0
+                        ? pickerProperties.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))
+                        : propertyId &&
+                          propertyId !== "temp-property-id" && (
+                            <option value={propertyId}>
+                              {propertyLabel || "Selected Property"}
+                            </option>
+                          )}
                     </select>
                     {errors.property && (
                       <p className="mt-1 text-xs text-red-600">

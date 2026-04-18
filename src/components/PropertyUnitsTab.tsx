@@ -12,12 +12,19 @@ export type PropertyUnitsTabProps = {
   tenants?: Tenant[];
 };
 
-export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUnitsTabProps) => {
+export const PropertyUnitsTab = ({
+  units,
+  propertyId,
+  tenants = [],
+}: PropertyUnitsTabProps) => {
   const router = useRouter();
 
-  const handleRowClick = React.useCallback((unitId: string) => {
-    router.push(`/dashboard/properties/${propertyId}/units/${unitId}`);
-  }, [router, propertyId]);
+  const handleRowClick = React.useCallback(
+    (unitId: string) => {
+      router.push(`/dashboard/properties/${propertyId}/units/${unitId}`);
+    },
+    [router, propertyId],
+  );
   const getStatusColor = (status: Unit["status"]) => {
     switch (status) {
       case "occupied":
@@ -37,8 +44,23 @@ export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUn
         return "bg-brand-green text-white";
       case "overdue":
         return "bg-orange-500 text-white";
+      case "pending":
+        return "bg-gray-500 text-white";
       default:
         return "bg-gray-500 text-white";
+    }
+  };
+
+  const rentStatusLabel = (status: Unit["rentStatus"]) => {
+    switch (status) {
+      case "paid":
+        return "Paid";
+      case "overdue":
+        return "Overdue";
+      case "pending":
+        return "Pending";
+      default:
+        return "Pending";
     }
   };
 
@@ -110,12 +132,14 @@ export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUn
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {units.map((unit, index) => {
-                const tenant = unit.tenantId ? tenants.find((t) => t.id === unit.tenantId) : null;
+                const tenant = unit.tenantId
+                  ? tenants.find((t) => t.id === unit.tenantId)
+                  : null;
                 const tenantName = tenant ? tenant.name : "N/A";
                 const tenantInitials = tenant ? getInitials(tenantName) : "N";
                 const displayedAmenities = unit.amenities.slice(0, 2);
                 const remainingAmenities = unit.amenities.length - 2;
-                
+
                 return (
                   <motion.tr
                     key={unit.id}
@@ -148,10 +172,11 @@ export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUn
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(
-                          unit.status
+                          unit.status,
                         )}`}
                       >
-                        {unit.status.charAt(0).toUpperCase() + unit.status.slice(1)}
+                        {unit.status.charAt(0).toUpperCase() +
+                          unit.status.slice(1)}
                       </span>
                     </td>
                     <td className="px-3 sm:px-6 py-4">
@@ -176,22 +201,27 @@ export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUn
                         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
                           {tenantInitials}
                         </div>
-                        <span className="text-sm text-gray-700 whitespace-nowrap">{tenantName}</span>
+                        <span className="text-sm text-gray-700 whitespace-nowrap">
+                          {tenantName}
+                        </span>
                       </div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRentStatusColor(
-                          unit.rentStatus
+                          unit.rentStatus,
                         )}`}
                       >
-                        {unit.rentStatus === "paid" ? "Paid" : "Overdue"}
+                        {rentStatusLabel(unit.rentStatus)}
                       </span>
                     </td>
                     <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
                       {unit.nextDueDate}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <td
+                      className="px-3 sm:px-6 py-4 whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Link
                         href={`/dashboard/properties/${propertyId}/units/${unit.id}`}
                         className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
@@ -210,7 +240,9 @@ export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUn
         {/* Pagination */}
         <div className="px-3 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-2 sm:gap-4">
-            <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Items per page</span>
+            <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
+              Items per page
+            </span>
             <select className="rounded-lg border border-gray-300 bg-white px-3 sm:px-4 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-main">
               <option value="12">12</option>
               <option value="24">24</option>
@@ -254,4 +286,3 @@ export const PropertyUnitsTab = ({ units, propertyId, tenants = [] }: PropertyUn
     </div>
   );
 };
-

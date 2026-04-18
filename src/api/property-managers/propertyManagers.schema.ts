@@ -30,6 +30,7 @@ export const propertyManagerLandlordSchema = z.object({
       id: z.string().uuid(),
       email: z.string().email().optional().nullable(),
       fullName: z.string().optional().nullable(),
+      phoneNumber: z.string().optional().nullable(),
     })
     .optional()
     .nullable(),
@@ -43,7 +44,7 @@ export const propertyManagerSchema = z.object({
   id: z.string().uuid(),
   fullName: z.string().optional(),
   name: z.string().optional(),
-  email: z.string().email().optional().nullable(),
+  email: z.union([z.string().email(), z.null()]).optional(),
   phone: z.string().optional().nullable(),
   userId: z.string().uuid().optional(),
   user: propertyManagerUserSchema.optional().nullable(),

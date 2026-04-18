@@ -75,29 +75,30 @@ export function rentPaymentSortTimestamp(value: string | undefined): number {
 }
 
 export function mapRentPaymentItemToPayment(item: RentPaymentItemDTO): Payment {
-  const propertyId =
-    item.propertyId ?? item.property_id ?? undefined;
+  const propertyId = item.propertyId ?? item.property_id ?? undefined;
   const propertyName =
-    item.propertyName ??
-    item.property_name ??
-    extractName(item.property) ??
-    "";
+    item.propertyName ?? item.property_name ?? extractName(item.property) ?? "";
   const tenantName =
-    item.tenantName ??
-    item.tenant_name ??
-    extractName(item.tenant) ??
-    "Tenant";
+    item.tenantName ?? item.tenant_name ?? extractName(item.tenant) ?? "Tenant";
   const unit =
-    extractUnitLabel(item.unit) ||
-    item.unitNumber ||
-    item.unit_number ||
-    "";
+    extractUnitLabel(item.unit) || item.unitNumber || item.unit_number || "";
 
   const amount = coerceAmount(
     item.amount ?? item.paidAmount ?? item.paid_amount ?? item.total,
   );
 
   const rawDate = pickRawDate(item);
+
+  const paidSignal =
+    item.paidAt ?? item.paid_at ?? item.paymentDate ?? item.payment_date;
+  const statusRaw =
+    typeof (item as { status?: unknown }).status === "string"
+      ? String((item as { status?: string }).status)
+      : "";
+  const paymentReceived =
+    paidSignal != null && paidSignal !== ""
+      ? true
+      : /\b(paid|completed|success|cleared|confirmed)\b/i.test(statusRaw);
 
   return {
     id: item.id,
@@ -107,6 +108,7 @@ export function mapRentPaymentItemToPayment(item: RentPaymentItemDTO): Payment {
     amount,
     dueDate: formatPaymentDate(rawDate),
     propertyId,
+    paymentReceived,
   };
 }
 

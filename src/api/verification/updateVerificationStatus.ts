@@ -1,30 +1,55 @@
 import { apiPatch } from "@/lib/apiClient";
 
-import type { UpdateVerificationStatusRequestDTO, VerificationResponseDTO, VerificationDTO } from "./verification.schema";
-import { verificationResponseSchema } from "./verification.schema";
+import { logVerificationDebug } from "./debugLog";
+import type {
+  UpdateVerificationStatusRequestDTO,
+  VerificationDTO,
+} from "./verification.schema";
+import { parseVerificationDto } from "./parseVerification";
 
-type UpdateVerificationStatusResult = 
+type PatchVerificationStatusResult =
   | { success: true; data: VerificationDTO }
   | { success: false; error: string };
 
-export const updateVerificationStatus = async (
+export const patchLandlordVerificationStatus = async (
   id: string,
-  data: UpdateVerificationStatusRequestDTO
-): Promise<UpdateVerificationStatusResult> => {
-  const result = await apiPatch<VerificationResponseDTO>(`/verification/${id}/landlord/status`, data);
+  data: UpdateVerificationStatusRequestDTO,
+): Promise<PatchVerificationStatusResult> => {
+  logVerificationDebug(
+    `PATCH /verification/${id}/landlord/status request body`,
+    data,
+  );
+
+  const result = await apiPatch<unknown>(
+    `/verification/${id}/landlord/status`,
+    data,
+  );
 
   if (!result.success) {
+    logVerificationDebug(
+      `PATCH /verification/${id}/landlord/status failed`,
+      { error: result.error, statusCode: result.statusCode },
+    );
     return result;
   }
 
-  // Validate response with Zod
+  logVerificationDebug(
+    `PATCH /verification/${id}/landlord/status raw response`,
+    result.data,
+  );
+
   try {
-    const parsed = verificationResponseSchema.parse(result.data);
-    // Handle both direct verification object and object with data property
-    const verification = parsed.data || (parsed as unknown as VerificationDTO);
+    const verification = parseVerificationDto(result.data);
+    logVerificationDebug(
+      `PATCH /verification/${id}/landlord/status parsed`,
+      verification,
+    );
     return { success: true, data: verification };
   } catch (parseError) {
-    console.error("Update verification status schema validation error:", parseError);
+    console.error(
+      "Patch landlord verification status schema validation error:",
+      parseError,
+    );
     return {
       success: false,
       error: "Invalid response data format received",
@@ -32,7 +57,51 @@ export const updateVerificationStatus = async (
   }
 };
 
+export const patchPropertyVerificationStatus = async (
+  id: string,
+  data: UpdateVerificationStatusRequestDTO,
+): Promise<PatchVerificationStatusResult> => {
+  logVerificationDebug(
+    `PATCH /verification/${id}/property/status request body`,
+    data,
+  );
 
+  const result = await apiPatch<unknown>(
+    `/verification/${id}/property/status`,
+    data,
+  );
 
+  if (!result.success) {
+    logVerificationDebug(
+      `PATCH /verification/${id}/property/status failed`,
+      { error: result.error, statusCode: result.statusCode },
+    );
+    return result;
+  }
 
+  logVerificationDebug(
+    `PATCH /verification/${id}/property/status raw response`,
+    result.data,
+  );
 
+  try {
+    const verification = parseVerificationDto(result.data);
+    logVerificationDebug(
+      `PATCH /verification/${id}/property/status parsed`,
+      verification,
+    );
+    return { success: true, data: verification };
+  } catch (parseError) {
+    console.error(
+      "Patch property verification status schema validation error:",
+      parseError,
+    );
+    return {
+      success: false,
+      error: "Invalid response data format received",
+    };
+  }
+};
+
+/** @deprecated Prefer `patchLandlordVerificationStatus` — name kept for existing imports. */
+export const updateVerificationStatus = patchLandlordVerificationStatus;

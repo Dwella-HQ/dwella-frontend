@@ -1,0 +1,667 @@
+import Head from "next/head";
+import * as React from "react";
+import type { NextPageWithLayout } from "@/pages/_app";
+import { AdminLayout } from "@/components/admin/AdminLayout";
+import { useToast } from "@/components/Toast";
+import {
+  deleteVerification,
+  deriveVerificationKind,
+  entityLandlordId,
+  entityPropertyId,
+  formatReason,
+  getLandlordNested,
+  getPropertyNested,
+  getVerifiedByNested,
+  getVerificationById,
+  getVerifications,
+  patchLandlordVerificationStatus,
+  patchPropertyVerificationStatus,
+  type VerificationDTO,
+  type VerificationFileRef,
+  verificationSubjectLabel,
+} from "@/api/verification";
+import {
+  BadgeCheck,
+  ExternalLink,
+  FileText,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
+
+function formatShortId(id: string): string {
+  return id.length > 12 ? `${id.slice(0, 8)}…` : id;
+}
+
+function formatWhen(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function statusBadgeClass(status: string): string {
+  const u = status.toUpperCase();
+  if (u === "VERIFIED") return "bg-emerald-100 text-emerald-800";
+  if (u === "REJECTED") return "bg-red-100 text-red-800";
+  return "bg-amber-100 text-amber-900";
+}
+
+function kindLabel(kind: "landlord" | "property"): string {
+  return kind === "property" ? "Property" : "Landlord";
+}
+
+function DocLink({
+  label,
+  file,
+}: {
+  label: string;
+  file?: VerificationFileRef | null;
+}) {
+  if (!file?.url) return null;
+  return (
+    <a
+      href={file.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] text-[#1E66FF] transition hover:bg-[#F8FAFC]"
+    >
+      <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
+      <span className="min-w-0 flex-1 truncate">
+        <span className="font-medium text-[#0F172A]">{label}</span>
+        {file.fileName ? (
+          <span className="text-[#64748B]"> · {file.fileName}</span>
+        ) : null}
+      </span>
+      <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
+    </a>
+  );
+}
+
+const AdminVerificationsPage: NextPageWithLayout = () => {
+  const { showToast } = useToast();
+  const [rows, setRows] = React.useState<VerificationDTO[]>([]);
+  const [listLoading, setListLoading] = React.useState(true);
+  const [listError, setListError] = React.useState<string | null>(null);
+
+  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [detail, setDetail] = React.useState<VerificationDTO | null>(null);
+  const [detailLoading, setDetailLoading] = React.useState(false);
+
+  const [filterStatus, setFilterStatus] = React.useState<
+    "all" | "PENDING" | "VERIFIED" | "REJECTED"
+  >("all");
+  const [filterKind, setFilterKind] = React.useState<
+    "all" | "landlord" | "property"
+  >("all");
+
+  const [actionBusy, setActionBusy] = React.useState<
+    "verify" | "delete" | null
+  >(null);
+
+  const loadList = React.useCallback(async () => {
+    setListLoading(true);
+    setListError(null);
+    const result = await getVerifications();
+    setListLoading(false);
+    if (!result.success) {
+      setListError(result.error);
+      setRows([]);
+      return;
+    }
+    setRows(result.data);
+  }, []);
+
+  React.useEffect(() => {
+    void loadList();
+  }, [loadList]);
+
+  const loadDetail = React.useCallback(
+    async (id: string) => {
+      setDetailLoading(true);
+      setDetail(null);
+      const result = await getVerificationById(id);
+      setDetailLoading(false);
+      if (!result.success) {
+        showToast(result.error || "Could not load verification", "error");
+        return;
+      }
+      setDetail(result.data);
+    },
+    [showToast],
+  );
+
+  React.useEffect(() => {
+    if (!selectedId) {
+      setDetail(null);
+      return;
+    }
+    void loadDetail(selectedId);
+  }, [selectedId, loadDetail]);
+
+  const filteredRows = React.useMemo(() => {
+    return rows.filter((row) => {
+      const kind = deriveVerificationKind(row);
+      if (filterKind !== "all" && kind !== filterKind) return false;
+      const st = String(row.status).toUpperCase();
+      if (filterStatus !== "all" && st !== filterStatus) return false;
+      return true;
+    });
+  }, [rows, filterKind, filterStatus]);
+
+  const selectedKind = detail ? deriveVerificationKind(detail) : null;
+
+  const handleVerify = async () => {
+    if (!detail || !selectedKind || actionBusy) return;
+    const st = String(detail.status).toUpperCase();
+    if (st === "VERIFIED") {
+      showToast("Already verified", "info");
+      return;
+    }
+    setActionBusy("verify");
+    const patch =
+      selectedKind === "property"
+        ? patchPropertyVerificationStatus
+        : patchLandlordVerificationStatus;
+    const result = await patch(detail.id, { status: "VERIFIED" });
+    setActionBusy(null);
+    if (!result.success) {
+      showToast(result.error || "Verification failed", "error");
+      return;
+    }
+    showToast("Marked as verified", "success");
+    await loadList();
+    const refreshed = await getVerificationById(detail.id);
+    if (refreshed.success) {
+      setDetail(refreshed.data);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!detail || actionBusy) return;
+    const ok =
+      typeof window !== "undefined"
+        ? window.confirm(
+            "Delete this verification record? This cannot be undone.",
+          )
+        : false;
+    if (!ok) return;
+
+    setActionBusy("delete");
+    const result = await deleteVerification(detail.id);
+    setActionBusy(null);
+    if (!result.success) {
+      showToast(result.error || "Delete failed", "error");
+      return;
+    }
+    showToast("Verification deleted", "success");
+    setSelectedId(null);
+    setDetail(null);
+    await loadList();
+  };
+
+  return (
+    <>
+      <Head>
+        <title>DWELLA NG · Verifications</title>
+      </Head>
+      <AdminLayout title="Verifications">
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-white px-4 py-3">
+            <div>
+              <p className="text-[13px] font-semibold text-[#0F172A]">
+                Landlord &amp; property verification
+              </p>
+              <p className="text-[11px] text-[#64748B]">
+                List from GET /verification. Approve with PATCH using the
+                correct scope for the row type.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadList()}
+              disabled={listLoading}
+              className="inline-flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] font-medium text-[#0F172A] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+            >
+              {listLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Refresh
+            </button>
+          </div>
+
+          <div className="grid grid-cols-[minmax(280px,360px)_1fr] gap-3">
+            <div className="flex flex-col rounded-lg border border-[#E2E8F0] bg-white">
+              <div className="border-b border-[#E2E8F0] p-3">
+                <p className="mb-2 text-[12px] font-semibold text-[#0F172A]">
+                  Queue
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={filterStatus}
+                    onChange={(e) =>
+                      setFilterStatus(e.target.value as typeof filterStatus)
+                    }
+                    className="h-8 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-2 text-[11px]"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="VERIFIED">Verified</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                  <select
+                    value={filterKind}
+                    onChange={(e) =>
+                      setFilterKind(e.target.value as typeof filterKind)
+                    }
+                    className="h-8 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-2 text-[11px]"
+                  >
+                    <option value="all">All types</option>
+                    <option value="landlord">Landlord</option>
+                    <option value="property">Property</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="max-h-[min(640px,calc(100vh-220px))] overflow-y-auto p-2">
+                {listLoading && (
+                  <div className="flex justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#64748B]" />
+                  </div>
+                )}
+                {!listLoading && listError && (
+                  <p className="px-2 py-6 text-center text-[12px] text-red-600">
+                    {listError}
+                  </p>
+                )}
+                {!listLoading && !listError && filteredRows.length === 0 && (
+                  <p className="px-2 py-8 text-center text-[12px] text-[#64748B]">
+                    No verifications match these filters.
+                  </p>
+                )}
+                {!listLoading &&
+                  !listError &&
+                  filteredRows.map((row) => {
+                    const kind = deriveVerificationKind(row);
+                    const active = selectedId === row.id;
+                    return (
+                      <button
+                        key={row.id}
+                        type="button"
+                        onClick={() => setSelectedId(row.id)}
+                        className={`mb-2 w-full rounded-md border p-3 text-left text-[11px] transition ${
+                          active
+                            ? "border-[#BFDBFE] bg-[#EFF6FF]"
+                            : "border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                        }`}
+                      >
+                        <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-[#0F172A]">
+                          {verificationSubjectLabel(row)}
+                        </p>
+                        <div className="mt-1.5 flex items-start justify-between gap-2">
+                          <span className="font-mono text-[10px] text-[#64748B]">
+                            {formatShortId(row.id)}
+                          </span>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${statusBadgeClass(
+                              String(row.status),
+                            )}`}
+                          >
+                            {String(row.status)}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          <span className="rounded bg-[#EEF2FF] px-2 py-0.5 text-[10px] font-medium text-[#3730A3]">
+                            {kindLabel(kind)}
+                          </span>
+                          {row.type ? (
+                            <span className="rounded bg-[#F1F5F9] px-2 py-0.5 text-[10px] text-[#475569]">
+                              {row.type.replace(/_VERIFICATION$/, "")}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-[10px] text-[#94A3B8]">
+                          Updated {formatWhen(row.updatedAt)}
+                        </p>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
+            <div className="min-h-[420px] rounded-lg border border-[#E2E8F0] bg-white p-5">
+              {!selectedId && (
+                <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center text-[13px] text-[#64748B]">
+                  <BadgeCheck className="mb-3 h-10 w-10 text-[#CBD5E1]" />
+                  Select a verification to load details{" "}
+                  {"(GET /verification/{id})."}
+                </div>
+              )}
+              {selectedId && detailLoading && (
+                <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 text-[#64748B]">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span className="text-[12px]">Loading details…</span>
+                </div>
+              )}
+              {selectedId &&
+                !detailLoading &&
+                detail &&
+                (() => {
+                  const d = detail;
+                  const land = getLandlordNested(d);
+                  const prop = getPropertyNested(d);
+                  const admin = getVerifiedByNested(d);
+                  const reasonText = formatReason(d.reason);
+                  const landlordIdDisp = entityLandlordId(d);
+                  const propertyIdDisp = entityPropertyId(d);
+
+                  return (
+                    <div className="space-y-5">
+                      <div>
+                        <p className="text-[20px] font-semibold leading-tight text-[#0F172A]">
+                          {verificationSubjectLabel(d)}
+                        </p>
+                        <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-[#64748B]">
+                          Verification ID
+                        </p>
+                        <p className="font-mono text-[12px] text-[#334155]">
+                          {d.id}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-[#EEF2FF] px-2.5 py-1 text-[11px] font-medium text-[#3730A3]">
+                            {selectedKind ? kindLabel(selectedKind) : "—"}
+                          </span>
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${statusBadgeClass(
+                              String(d.status),
+                            )}`}
+                          >
+                            {String(d.status)}
+                          </span>
+                          {d.type ? (
+                            <span className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[11px] text-[#475569]">
+                              {String(d.type).replace(/_VERIFICATION$/, "")}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <dl className="grid gap-3 text-[13px] sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-md bg-[#F8FAFC] px-3 py-2">
+                          <dt className="text-[11px] text-[#64748B]">
+                            Landlord ID
+                          </dt>
+                          <dd className="mt-1 font-mono text-[12px] break-all">
+                            {landlordIdDisp ?? "—"}
+                          </dd>
+                        </div>
+                        <div className="rounded-md bg-[#F8FAFC] px-3 py-2">
+                          <dt className="text-[11px] text-[#64748B]">
+                            Property ID
+                          </dt>
+                          <dd className="mt-1 font-mono text-[12px] break-all">
+                            {propertyIdDisp ?? "—"}
+                          </dd>
+                        </div>
+                        <div className="rounded-md bg-[#F8FAFC] px-3 py-2">
+                          <dt className="text-[11px] text-[#64748B]">
+                            Verified at
+                          </dt>
+                          <dd className="mt-1">
+                            {formatWhen(d.verifiedAt ?? undefined)}
+                          </dd>
+                        </div>
+                        <div className="rounded-md bg-[#F8FAFC] px-3 py-2 sm:col-span-2 lg:col-span-3">
+                          <dt className="text-[11px] text-[#64748B]">Reason</dt>
+                          <dd className="mt-1 text-[#334155]">
+                            {reasonText ?? "—"}
+                          </dd>
+                        </div>
+                        <div className="rounded-md bg-[#F8FAFC] px-3 py-2">
+                          <dt className="text-[11px] text-[#64748B]">
+                            Created
+                          </dt>
+                          <dd className="mt-1">{formatWhen(d.createdAt)}</dd>
+                        </div>
+                        <div className="rounded-md bg-[#F8FAFC] px-3 py-2">
+                          <dt className="text-[11px] text-[#64748B]">
+                            Updated
+                          </dt>
+                          <dd className="mt-1">{formatWhen(d.updatedAt)}</dd>
+                        </div>
+                      </dl>
+
+                      {admin?.email || admin?.fullName ? (
+                        <div className="rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] p-4">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                            Verified by
+                          </p>
+                          <p className="mt-2 text-[14px] font-medium text-[#0F172A]">
+                            {admin.fullName ?? "—"}
+                          </p>
+                          <p className="text-[13px] text-[#475569]">
+                            {admin.email ?? "—"}
+                          </p>
+                          {admin.role?.name ? (
+                            <p className="mt-1 text-[11px] text-[#64748B]">
+                              Role: {admin.role.name}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {land ? (
+                        <div className="rounded-lg border border-[#E2E8F0] p-4">
+                          <p className="text-[12px] font-semibold text-[#0F172A]">
+                            Landlord
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-4">
+                            {land.profilePicture?.url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={land.profilePicture.url}
+                                alt=""
+                                className="h-16 w-16 shrink-0 rounded-lg border border-[#E2E8F0] object-cover"
+                              />
+                            ) : null}
+                            <div className="min-w-0 flex-1 space-y-1 text-[13px]">
+                              <p className="font-medium">
+                                {land.businessName ?? "—"}
+                              </p>
+                              <p className="text-[#475569]">
+                                {land.businessEmail ?? land.user?.email ?? "—"}
+                              </p>
+                              {(land.businessPhoneNumber ||
+                                land.user?.phoneNumber) && (
+                                <p className="text-[#475569]">
+                                  {land.businessPhoneNumber ??
+                                    land.user?.phoneNumber}
+                                </p>
+                              )}
+                              {land.address ? (
+                                <p className="flex gap-1.5 text-[12px] text-[#64748B]">
+                                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                  <span>
+                                    {[
+                                      land.address.address,
+                                      land.address.city,
+                                      land.address.state,
+                                      land.address.country,
+                                      land.address.postalCode,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(", ")}
+                                  </span>
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                            <DocLink
+                              label="Profile photo"
+                              file={land.profilePicture}
+                            />
+                            <DocLink
+                              label="Government ID"
+                              file={land.govermentIdDocument}
+                            />
+                            <DocLink
+                              label="Tax ID (TIN)"
+                              file={land.taxIdentificationNumberDocument}
+                            />
+                            <DocLink
+                              label="Land survey"
+                              file={land.landSurveyDocument}
+                            />
+                            <DocLink
+                              label="Proof of ownership"
+                              file={land.proofOfOwnershipDocument}
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {prop ? (
+                        <div className="rounded-lg border border-[#E2E8F0] p-4">
+                          <p className="text-[12px] font-semibold text-[#0F172A]">
+                            Property
+                          </p>
+                          <p className="mt-2 text-[15px] font-semibold">
+                            {prop.name ?? "—"}
+                          </p>
+                          {prop.description ? (
+                            <p className="mt-2 line-clamp-4 text-[13px] leading-relaxed text-[#334155]">
+                              {prop.description}
+                            </p>
+                          ) : null}
+                          <div className="mt-3 flex flex-wrap gap-3 text-[12px] text-[#64748B]">
+                            {prop.yearBuilt ? (
+                              <span>Built {prop.yearBuilt}</span>
+                            ) : null}
+                            {prop.numberOfUnits != null ? (
+                              <span>{prop.numberOfUnits} units</span>
+                            ) : null}
+                          </div>
+                          {prop.address ? (
+                            <p className="mt-2 flex gap-1.5 text-[13px] text-[#475569]">
+                              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#64748B]" />
+                              {[
+                                prop.address.address,
+                                prop.address.city,
+                                prop.address.state,
+                                prop.address.country,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </p>
+                          ) : null}
+                          {prop.amenities && prop.amenities.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {prop.amenities.map((a) => (
+                                <span
+                                  key={a}
+                                  className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[11px] text-[#334155]"
+                                >
+                                  {a}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {prop.photos && prop.photos.length > 0 ? (
+                            <div className="mt-4">
+                              <p className="mb-2 text-[11px] font-medium text-[#64748B]">
+                                Photos
+                              </p>
+                              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                {prop.photos.slice(0, 8).map((ph) =>
+                                  ph.url ? (
+                                    <a
+                                      key={ph.id ?? ph.url}
+                                      href={ph.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="relative block overflow-hidden rounded-md border border-[#E2E8F0] bg-[#F8FAFC]"
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={ph.url}
+                                        alt=""
+                                        className="h-20 w-full object-cover"
+                                      />
+                                    </a>
+                                  ) : null,
+                                )}
+                              </div>
+                            </div>
+                          ) : null}
+                          {prop.documents && prop.documents.length > 0 ? (
+                            <div className="mt-4 space-y-2">
+                              <p className="text-[11px] font-medium text-[#64748B]">
+                                Documents
+                              </p>
+                              {prop.documents.map((doc, i) =>
+                                doc.url ? (
+                                  <DocLink
+                                    key={doc.id ?? i}
+                                    label={
+                                      doc.label?.replace(/^property_/, "") ??
+                                      "Document"
+                                    }
+                                    file={doc}
+                                  />
+                                ) : null,
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <div className="flex flex-wrap gap-3 border-t border-[#E2E8F0] pt-5">
+                        <button
+                          type="button"
+                          disabled={
+                            actionBusy !== null ||
+                            String(d.status).toUpperCase() === "VERIFIED"
+                          }
+                          onClick={() => void handleVerify()}
+                          className="inline-flex items-center justify-center gap-2 rounded-md bg-[#111827] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-[#1E293B] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {actionBusy === "verify" ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <BadgeCheck className="h-4 w-4" />
+                          )}
+                          Mark verified
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionBusy !== null}
+                          onClick={() => void handleDelete()}
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2.5 text-[13px] font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {actionBusy === "delete" ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                          Delete record
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+            </div>
+          </div>
+        </section>
+      </AdminLayout>
+    </>
+  );
+};
+
+export default AdminVerificationsPage;

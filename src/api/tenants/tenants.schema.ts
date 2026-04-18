@@ -49,6 +49,15 @@ export const tenantsResponseSchema = z.object({
 
 export type TenantsResponseDTO = z.infer<typeof tenantsResponseSchema>;
 
+/** One row from `GET /tenant` (may include `user`, `leases`, `currentUnit`, etc.) */
+export const tenantRecordSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).transform(String),
+  })
+  .passthrough();
+
+export type TenantRecordDTO = z.infer<typeof tenantRecordSchema>;
+
 // Single Tenant Response
 export const tenantResponseSchema = z.object({
   success: z.boolean().optional(),

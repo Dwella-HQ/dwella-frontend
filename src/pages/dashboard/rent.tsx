@@ -62,8 +62,17 @@ const mapPaymentToRentRow = (payment: Payment): LandlordRentRow => {
   const dueDateObj = parsePaymentDate(payment.dueDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const status: LandlordRentStatus =
-    dueDateObj && dueDateObj < today ? "overdue" : "paid";
+
+  let status: LandlordRentStatus;
+  if (payment.paymentReceived === true) {
+    status = "paid";
+  } else if (!dueDateObj || payment.dueDate === "—") {
+    status = "due";
+  } else if (dueDateObj < today) {
+    status = "overdue";
+  } else {
+    status = "due";
+  }
 
   return {
     id: payment.id,
@@ -72,7 +81,7 @@ const mapPaymentToRentRow = (payment: Payment): LandlordRentRow => {
     unit: payment.unit || "—",
     rentAmount: payment.amount || 0,
     dueDate: payment.dueDate || "—",
-    lastPayment: payment.dueDate || "—",
+    lastPayment: payment.paymentReceived ? payment.dueDate || "—" : "—",
     status,
     balance: status === "overdue" ? payment.amount : undefined,
   };

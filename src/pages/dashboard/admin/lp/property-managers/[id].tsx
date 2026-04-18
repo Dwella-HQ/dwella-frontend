@@ -1,9 +1,15 @@
 import Head from "next/head";
+import Link from "next/link";
+import { useRouter } from "next/router";
 import * as React from "react";
-import { ArrowLeft, Mail, MapPin, Phone, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, MapPin, Phone, Shield } from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
+import {
+  getPropertyManager,
+  type PropertyManagerDTO,
+} from "@/api/property-managers";
 
 const tabs = [
   "properties",
@@ -11,51 +17,182 @@ const tabs = [
   "tenant interactions",
 ] as const;
 
+/** API often omits PM name/email; identity comes from the assigned landlord. */
+function primaryDisplayName(pm: PropertyManagerDTO): string {
+  const l = pm.landlord;
+  const fromLandlordUser =
+    l?.user?.fullName?.trim() ||
+    l?.landLordName?.trim() ||
+    l?.user?.email?.trim();
+  return (
+    pm.fullName?.trim() ||
+    pm.name?.trim() ||
+    pm.user?.fullName?.trim() ||
+    (typeof pm.email === "string" ? pm.email.trim() : "") ||
+    fromLandlordUser ||
+    "Property manager"
+  );
+}
+
+function contactEmail(pm: PropertyManagerDTO): string {
+  if (typeof pm.email === "string" && pm.email) return pm.email;
+  if (pm.user?.email) return pm.user.email;
+  if (pm.landlord?.user?.email) return pm.landlord.user.email;
+  return "—";
+}
+
+function contactPhone(pm: PropertyManagerDTO): string {
+  if (pm.phone) return pm.phone;
+  if (pm.user?.phoneNumber) return pm.user.phoneNumber;
+  if (pm.landlord?.user && "phoneNumber" in pm.landlord.user) {
+    const p = (pm.landlord.user as { phoneNumber?: string | null }).phoneNumber;
+    if (typeof p === "string" && p.trim()) return p;
+  }
+  return "—";
+}
+
+function avatarUrl(pm: PropertyManagerDTO): string | null {
+  return pm.landlord?.profilePicture?.url ?? null;
+}
+
 const PropertyManagerDetailPage: NextPageWithLayout = () => {
+  const router = useRouter();
+  const { id } = router.query;
+  const idStr = typeof id === "string" ? id : null;
+
   const [tab, setTab] = React.useState<(typeof tabs)[number]>("properties");
+  const [pm, setPm] = React.useState<PropertyManagerDTO | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!router.isReady || !idStr) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      const result = await getPropertyManager(idStr);
+      if (cancelled) return;
+      setLoading(false);
+      if (!result.success) {
+        setError(result.error);
+        setPm(null);
+        return;
+      }
+      setPm(result.data);
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [router.isReady, idStr]);
+
+  const title = pm ? primaryDisplayName(pm) : "Property Manager Details";
+  const photo = pm ? avatarUrl(pm) : null;
+  const assignedLandlordsCount = pm?.landlord ? 1 : 0;
+
   return (
     <>
       <Head>
-        <title>DWELLA NG · Property Manager Details</title>
+        <title>DWELLA NG · {title}</title>
       </Head>
       <AdminLayout title="L & P">
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium">
+            <Link
+              href="/dashboard/admin/lp"
+              className="flex items-center gap-2 text-sm font-medium text-[#0F172A] hover:text-[#1E66FF]"
+            >
               <ArrowLeft className="h-4 w-4" />
-              <span>Property Manager Details</span>
-            </div>
-            <button className="rounded-md bg-[#111827] px-5 py-1.5 text-xs text-white">
+              Property Manager Details
+            </Link>
+            <button
+              type="button"
+              className="rounded-md bg-[#111827] px-5 py-1.5 text-xs text-white opacity-60"
+              title="Messaging not wired yet"
+            >
               Message
             </button>
           </div>
 
+          {error ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-800">
+              {error}
+            </p>
+          ) : null}
+
           <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
             <div className="grid grid-cols-[72px_1fr_auto] items-start gap-4">
-              <div className="h-16 w-16 rounded-md bg-[url('https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300')] bg-cover bg-center" />
-              <div>
-                <h2 className="text-3xl font-semibold">Raman Ismail</h2>
-                <div className="mt-2 grid grid-cols-3 gap-4 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5 text-blue-600" />
-                    +234 812 345 6789
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-3.5 w-3.5 text-green-600" />
-                    RamanIsmail@email.com
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5 text-indigo-600" />
-                    Nigeria
-                  </div>
-                </div>
-                <p className="mt-1 flex items-center gap-2 text-xs text-[#334155]">
-                  <Send className="h-3.5 w-3.5 text-blue-600" />
-                  No. 52 Lifemore Street Okon Lagos
-                </p>
+              <div className="relative h-16 w-16 overflow-hidden rounded-md bg-[#E2E8F0]">
+                {photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photo}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : null}
               </div>
-              <span className="rounded-full bg-green-100 px-3 py-1 text-xs text-green-700">
-                Active
+              <div>
+                {loading ? (
+                  <div className="flex items-center gap-2 text-sm text-[#64748B]">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading profile…
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-[#64748B]">
+                      Assigned landlord
+                    </p>
+                    <h2 className="text-3xl font-semibold">{title}</h2>
+                    <div className="mt-2 grid grid-cols-3 gap-4 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+                        <span className="min-w-0 truncate">
+                          {pm ? contactPhone(pm) : "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                        <span className="min-w-0 truncate">
+                          {pm ? contactEmail(pm) : "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-indigo-600" />
+                        <span className="text-[#64748B]">—</span>
+                      </div>
+                    </div>
+                    {pm?.permissions && pm.permissions.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <Shield className="h-3.5 w-3.5 text-[#64748B]" />
+                        {pm.permissions.map((p) => (
+                          <span
+                            key={p}
+                            className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[10px] font-medium text-[#334155]"
+                          >
+                            {p.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {pm ? (
+                      <p className="mt-2 font-mono text-[10px] text-[#94A3B8]">
+                        PM id · {pm.id}
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs ${
+                  pm?.isActive !== false
+                    ? "bg-green-100 text-green-700"
+                    : "bg-[#E5E7EB] text-[#374151]"
+                }`}
+              >
+                {pm?.isActive !== false ? "Active" : "Inactive"}
               </span>
             </div>
 
@@ -70,7 +207,7 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
                 >
                   Properties managed
                 </p>
-                <p className="text-4xl font-semibold text-[#0F172A]">3</p>
+                <p className="text-4xl font-semibold text-[#0F172A]">—</p>
               </div>
               <div
                 className="rounded-md p-3"
@@ -82,7 +219,7 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
                 >
                   Total units
                 </p>
-                <p className="text-4xl font-semibold text-[#0F172A]">18</p>
+                <p className="text-4xl font-semibold text-[#0F172A]">—</p>
               </div>
               <div
                 className="rounded-md p-3"
@@ -94,7 +231,7 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
                 >
                   Active tenants
                 </p>
-                <p className="text-4xl font-semibold text-[#0F172A]">15</p>
+                <p className="text-4xl font-semibold text-[#0F172A]">—</p>
               </div>
               <div
                 className="rounded-md p-3"
@@ -106,9 +243,16 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
                 >
                   Assigned landlords
                 </p>
-                <p className="text-4xl font-semibold text-[#0F172A]">2</p>
+                <p className="text-4xl font-semibold text-[#0F172A]">
+                  {loading ? "—" : assignedLandlordsCount}
+                </p>
               </div>
             </div>
+            <p className="mt-3 text-[11px] text-[#64748B]">
+              Counts for properties, units, and tenants are not included on this
+              response — use list/query endpoints or nested expansions when the
+              API adds them.
+            </p>
           </div>
 
           <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
@@ -124,7 +268,7 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
                 </button>
               ))}
             </div>
-            <div className="overflow-auto">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full min-w-[1000px] text-xs">
                 <thead className="text-[#64748B]">
                   <tr>
@@ -139,32 +283,11 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <tr key={i} className="border-t border-[#F1F5F9]">
-                      <td className="py-2">{i + 1}</td>
-                      <td className="py-2">
-                        {tab === "tenant interactions"
-                          ? "John Okon"
-                          : "Harmony Court — 3BR Duplex"}
-                      </td>
-                      <td className="py-2">12 Iroko Street, Uyo, Akwa...</td>
-                      <td className="py-2">7/7/2024</td>
-                      <td className="py-2">
-                        {tab === "maintenance activity"
-                          ? "Maintenance"
-                          : tab === "tenant interactions"
-                            ? "Chat Message"
-                            : "Renting"}
-                      </td>
-                      <td className="py-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] ${i % 3 === 0 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}
-                        >
-                          {i % 3 === 0 ? "In Progress" : "Resolved"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  <tr className="border-t border-[#F1F5F9]">
+                    <td className="py-8 text-center text-[#64748B]" colSpan={6}>
+                      No records to display.
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>

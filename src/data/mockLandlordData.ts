@@ -22,6 +22,8 @@ export type Payment = {
   dueDate: string;
   /** Present when mapped from API; used for filtering without matching display names */
   propertyId?: string;
+  /** When true, row reflects money received (paidAt / payment status), not just a schedule */
+  paymentReceived?: boolean;
 };
 
 export type MaintenanceRequest = {
@@ -48,7 +50,7 @@ export type Unit = {
   monthlyRent: number;
   cautionFee: number;
   status: "occupied" | "vacant" | "maintenance";
-  rentStatus: "paid" | "overdue";
+  rentStatus: "paid" | "overdue" | "pending";
   amenities: string[];
   image: string;
   tenantId?: string;
