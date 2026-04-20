@@ -46,6 +46,66 @@ function listingDate(p: PropertyDTO): string {
     : d.toLocaleDateString("en-GB");
 }
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function inferRent(p: PropertyDTO): string {
+  const units = Array.isArray(p.units) ? p.units : [];
+  const rents = units
+    .map((unit) => {
+      if (!unit || typeof unit !== "object") return null;
+      const rent = (unit as Record<string, unknown>).rentAmount;
+      if (typeof rent === "number" && Number.isFinite(rent)) return rent;
+      if (typeof rent === "string") {
+        const parsed = Number(rent);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+      return null;
+    })
+    .filter((value): value is number => value !== null);
+
+  if (!rents.length) return "—";
+  const min = Math.min(...rents);
+  const max = Math.max(...rents);
+  if (min === max) return formatCurrency(min);
+  return `${formatCurrency(min)} - ${formatCurrency(max)}`;
+}
+
+function inferDuration(p: PropertyDTO): string {
+  const units = Array.isArray(p.units) ? p.units : [];
+  const durationValues = units
+    .map((unit) => {
+      if (!unit || typeof unit !== "object") return null;
+      const record = unit as Record<string, unknown>;
+      const raw =
+        record.rentFrequency ??
+        record.paymentFrequency ??
+        record.rentDuration ??
+        record.billingCycle;
+      return typeof raw === "string" ? raw : null;
+    })
+    .filter((value): value is string => !!value?.trim());
+
+  if (!durationValues.length) return "—";
+  const first = durationValues[0].trim().toLowerCase();
+  const normalized =
+    first === "month" || first === "monthly"
+      ? "Monthly"
+      : first === "year" || first === "yearly" || first === "annual"
+        ? "Yearly"
+        : first === "week" || first === "weekly"
+          ? "Weekly"
+          : first === "day" || first === "daily"
+            ? "Daily"
+            : durationValues[0];
+  return normalized;
+}
+
 const ACTION_MENU_WIDTH = 144;
 /** Two action rows + padding */
 const ACTION_MENU_HEIGHT = 76;
@@ -262,7 +322,10 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
                       Units
                     </th>
                     <th className="w-[110px] py-2.5 text-center font-medium">
-                      Monthly Rent
+                      Rent
+                    </th>
+                    <th className="w-[90px] py-2.5 text-center font-medium">
+                      Duration
                     </th>
                     <th className="w-[130px] py-2.5 text-center font-medium">
                       LandLord Name
@@ -325,7 +388,12 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
                           <td className="whitespace-nowrap py-2.5 text-center">
                             {row.numberOfUnits ?? "—"}
                           </td>
-                          <td className="truncate py-2.5 text-center">—</td>
+                          <td className="truncate py-2.5 text-center">
+                            {inferRent(row)}
+                          </td>
+                          <td className="truncate py-2.5 text-center">
+                            {inferDuration(row)}
+                          </td>
                           <td className="py-2.5 text-center">
                             {landlordDisplayName(row)}
                           </td>
