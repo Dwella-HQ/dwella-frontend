@@ -1,12 +1,11 @@
 import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 
 import { LoginForm } from "@/components/LoginForm";
 import { AuthLayout } from "@/components/AuthLayout";
 import { useUser, type UserRole } from "@/contexts/UserContext";
-import { googleLogin, login } from "@/api/auth";
+import { login } from "@/api/auth";
 import { getLandlordByUser } from "@/api/landlord";
 import { getTenantByUser } from "@/api/tenants";
 import { ensureLandlordWallet } from "@/api/wallet";
@@ -19,9 +18,6 @@ const LoginPage: NextPageWithLayout = () => {
   const { setUser } = useUser();
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [googleRole, setGoogleRole] = React.useState<
-    "tenant" | "landlord" | "manager" | null
-  >(null);
 
   const mapRoleNameToUserRole = React.useCallback(
     (roleName: string): UserRole => {
@@ -232,84 +228,6 @@ const LoginPage: NextPageWithLayout = () => {
     [completeLogin],
   );
 
-  const handleGoogleRoleSelected = React.useCallback(
-    async (role: "tenant" | "landlord" | "manager") => {
-      setError(null);
-      setGoogleRole(role);
-    },
-    [],
-  );
-
-  const handleGoogleCredential = React.useCallback(
-    async (cred: CredentialResponse) => {
-      if (!googleRole) {
-        setError("Please choose an account type for Google sign in.");
-        return;
-      }
-
-      const idToken = cred.credential;
-      if (!idToken) {
-        setError("Google sign-in failed. Please try again.");
-        return;
-      }
-
-      // Full JWT for backend debugging — remove or gate behind env when no longer needed.
-      console.log("[Dwella] Google ID token (full JWT for backend):", idToken);
-
-      try {
-        setError(null);
-        setIsLoading(true);
-
-        const roleNameMap: Record<
-          "tenant" | "landlord" | "manager",
-          "tenant" | "landlord" | "property_manager"
-        > = {
-          tenant: "tenant",
-          landlord: "landlord",
-          manager: "property_manager",
-        };
-
-        console.log("Google credential acquired:", {
-          role: googleRole,
-          idToken: `${idToken.slice(0, 10)}…${idToken.slice(-8)}`,
-        });
-
-        const result = await googleLogin({
-          token: idToken,
-          roleName: roleNameMap[googleRole],
-        });
-
-        if (!result.success) {
-          console.log("Google login failed:", result);
-          setError(result.error);
-          return;
-        }
-
-        console.log("Google login succeeded (parsed):", {
-          userId: result.data.data.user?.id,
-          roleName: result.data.data.user?.role?.name,
-          accessToken: result.data.data.accessToken
-            ? `${result.data.data.accessToken.slice(0, 6)}…${result.data.data.accessToken.slice(-4)}`
-            : "",
-        });
-
-        await completeLogin(
-          result.data.data.user,
-          result.data.data.accessToken,
-        );
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Google sign-in failed. Please try again.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [completeLogin, googleRole],
-  );
-
   return (
     <>
       <Head>
@@ -317,28 +235,9 @@ const LoginPage: NextPageWithLayout = () => {
       </Head>
       <LoginForm
         onSubmit={handleLogin}
-        onGoogleSignIn={handleGoogleRoleSelected}
         error={error}
         isLoading={isLoading}
       />
-      {/* Render the Google button only after role is chosen */}
-      {googleRole && (
-        <div className="mx-auto mt-4 w-full max-w-md">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-500">
-              Continue with Google as{" "}
-              {googleRole === "manager" ? "property manager" : googleRole}
-            </p>
-            <GoogleLogin
-              onSuccess={handleGoogleCredential}
-              onError={() =>
-                setError("Google sign-in failed. Please try again.")
-              }
-              useOneTap={false}
-            />
-          </div>
-        </div>
-      )}
     </>
   );
 };
