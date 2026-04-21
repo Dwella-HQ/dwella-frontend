@@ -297,8 +297,7 @@ export const AddTenantModal = ({
       if (canSelectProperty) setAvailableUnits([]);
       return;
     }
-    if (!canSelectProperty && (units?.length ?? 0) > 0)
-      return;
+    if (!canSelectProperty && (units?.length ?? 0) > 0) return;
     let cancelled = false;
     getUnitsByProperty(effectivePropertyId).then((result) => {
       if (cancelled || !result.success) return;
@@ -306,9 +305,13 @@ export const AddTenantModal = ({
         result.data.map((u) => ({
           id: u.id,
           unitId: resolveUnitLabel(
-            u as unknown as { id?: string; unitId?: string | null; name?: string | null },
+            u as unknown as {
+              id?: string;
+              unitId?: string | null;
+              name?: string | null;
+            },
           ),
-          type: u.type ?? "Unit",
+          type: (u as unknown as { type?: string | null }).type ?? "Unit",
           isAvailable: u.isAvailable,
         })),
       );
@@ -337,7 +340,8 @@ export const AddTenantModal = ({
 
   const displayLabel = React.useMemo(() => {
     if (unitLabel) return unitLabel;
-    if (selectedUnit) return `${resolveUnitLabel(selectedUnit)} • ${selectedUnit.type}`;
+    if (selectedUnit)
+      return `${resolveUnitLabel(selectedUnit)} • ${selectedUnit.type}`;
     if (unitId) return `Unit ${unitId.slice(0, 8)}...`;
     return "Select unit";
   }, [unitLabel, selectedUnit, unitId]);
@@ -777,7 +781,9 @@ export const AddTenantModal = ({
                               Select a unit
                             </p>
                           ) : null}
-                          {availableUnits.some((u) => u.isAvailable === false) && (
+                          {availableUnits.some(
+                            (u) => u.isAvailable === false,
+                          ) && (
                             <p className="mt-1 text-xs text-gray-500">
                               Occupied units are shown but cannot be selected.
                             </p>
@@ -943,11 +949,13 @@ export const AddTenantModal = ({
                             )}
                           </label>
                         )}
-                        {!idDocumentId && !idUploading && startedNewTenantDetails && (
-                          <p className="mt-1 text-xs text-red-600">
-                            ID document is required
-                          </p>
-                        )}
+                        {!idDocumentId &&
+                          !idUploading &&
+                          startedNewTenantDetails && (
+                            <p className="mt-1 text-xs text-red-600">
+                              ID document is required
+                            </p>
+                          )}
                       </div>
 
                       <div className="grid gap-4 sm:grid-cols-2">
@@ -1100,7 +1108,9 @@ export const AddTenantModal = ({
                               Select a unit
                             </p>
                           ) : null}
-                          {availableUnits.some((u) => u.isAvailable === false) && (
+                          {availableUnits.some(
+                            (u) => u.isAvailable === false,
+                          ) && (
                             <p className="mt-1 text-xs text-gray-500">
                               Occupied units are shown but cannot be selected.
                             </p>
@@ -1316,9 +1326,9 @@ export const AddTenantModal = ({
                           {!idDocumentId &&
                             !idUploading &&
                             startedApplicantVerification && (
-                            <p className="mt-1 text-xs text-red-600">
-                              ID document is required
-                            </p>
+                              <p className="mt-1 text-xs text-red-600">
+                                ID document is required
+                              </p>
                             )}
                         </div>
                         <div className="mt-4 grid gap-4 sm:grid-cols-2">
