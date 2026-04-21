@@ -2,13 +2,7 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import {
-  BriefcaseBusiness,
-  Building2,
-  Eye,
-  EyeOff,
-  Key,
-} from "lucide-react";
+import { BriefcaseBusiness, Building2, Eye, EyeOff, Key } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -51,21 +45,55 @@ const SignUpPage: NextPageWithLayout = () => {
     "tenant" | "landlord" | "manager" | null
   >(null);
 
+  const getTenantInviteIdFromQuery = React.useCallback((): string => {
+    const candidateKeys = [
+      "tenant-id",
+      "tenantId",
+      "tenant_id",
+      "inviteTenantId",
+    ];
+    for (const key of candidateKeys) {
+      const raw = router.query[key];
+      if (typeof raw === "string" && raw.trim().length > 0) {
+        return raw.trim();
+      }
+    }
+    return "";
+  }, [router.query]);
+
   // Read role from query params; when absent we show the role chooser
   React.useEffect(() => {
     if (!router.isReady) return;
     const role = router.query.role as string;
-    const tenantIdFromQuery = router.query["tenant-id"];
-    const hasTenantInvite =
-      typeof tenantIdFromQuery === "string" && tenantIdFromQuery.trim().length > 0;
-    const isTenantInviteRole = role === "tenant" && hasTenantInvite;
+    const tenantInviteId = getTenantInviteIdFromQuery();
+    const hasTenantInvite = tenantInviteId.length > 0;
+    const hasTenantInviteProfile =
+      typeof router.query.email === "string" ||
+      typeof router.query.tenantEmail === "string" ||
+      typeof router.query.inviteEmail === "string" ||
+      typeof router.query.fullName === "string" ||
+      typeof router.query.tenantName === "string";
+    const isTenantInviteRole =
+      role === "tenant" && (hasTenantInvite || hasTenantInviteProfile);
     const isAllowedSelfSignupRole = role === "landlord" || role === "manager";
     if (role && (isTenantInviteRole || isAllowedSelfSignupRole)) {
       setSelectedRole(role as "tenant" | "landlord" | "manager");
+    } else if (!role && hasTenantInvite) {
+      // Invite links may omit role but still carry tenant identifier.
+      setSelectedRole("tenant");
     } else {
       setSelectedRole(null);
     }
-  }, [router.isReady, router.query.role, router.query]);
+  }, [
+    getTenantInviteIdFromQuery,
+    router.isReady,
+    router.query.role,
+    router.query.email,
+    router.query.tenantEmail,
+    router.query.inviteEmail,
+    router.query.fullName,
+    router.query.tenantName,
+  ]);
 
   const {
     register: registerField,
@@ -122,7 +150,7 @@ const SignUpPage: NextPageWithLayout = () => {
         manager: "property_manager",
       };
 
-      const tenantIdFromQuery = router.query["tenant-id"] as string | undefined;
+      const tenantIdFromQuery = getTenantInviteIdFromQuery();
 
       const payload: Parameters<typeof register>[0] = {
         email: data.email,
@@ -185,8 +213,8 @@ const SignUpPage: NextPageWithLayout = () => {
     async (role: "tenant" | "landlord" | "manager") => {
       setError(null);
       const nextQuery: Record<string, string> = { role };
-      const tenantIdFromQuery = router.query["tenant-id"];
-      if (typeof tenantIdFromQuery === "string" && role === "tenant") {
+      const tenantIdFromQuery = getTenantInviteIdFromQuery();
+      if (tenantIdFromQuery && role === "tenant") {
         nextQuery["tenant-id"] = tenantIdFromQuery;
       }
       await router.push({
@@ -194,7 +222,7 @@ const SignUpPage: NextPageWithLayout = () => {
         query: nextQuery,
       });
     },
-    [router],
+    [getTenantInviteIdFromQuery, router],
   );
 
   if (!selectedRole) {
