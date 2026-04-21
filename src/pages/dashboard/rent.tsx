@@ -16,12 +16,8 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { getRentPayments } from "@/api/rent-payment";
+import { getTenantByUser } from "@/api/tenants";
 import type { Payment } from "@/data/mockLandlordData";
-import {
-  mockTenantPayments,
-  getTenantPaymentSummary,
-} from "@/data/mockTenantData";
-import type { TenantPayment } from "@/data/mockTenantData";
 import { useUser } from "@/contexts/UserContext";
 import type { NextPageWithLayout } from "../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
@@ -38,6 +34,16 @@ type LandlordRentRow = {
   lastPayment?: string;
   status: LandlordRentStatus;
   balance?: number;
+};
+
+type TenantPaymentRow = {
+  id: string;
+  type: string;
+  date: string;
+  method?: string;
+  confirmationNumber: string;
+  amount: number;
+  status: "paid" | "pending";
 };
 
 const parsePaymentDate = (value: string): Date | null => {
@@ -89,14 +95,97 @@ const mapPaymentToRentRow = (payment: Payment): LandlordRentRow => {
 
 // Tenant Payment History Component
 const TenantPaymentHistory = () => {
+  const { user } = useUser();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = React.useState("");
-  const summary = getTenantPaymentSummary(mockTenantPayments);
+  const [tenantPayments, setTenantPayments] = React.useState<TenantPaymentRow[]>(
+    [],
+  );
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  const filteredPayments = mockTenantPayments.filter(
+  React.useEffect(() => {
+    if (!user?.id || user.role !== "tenant") {
+      setTenantPayments([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+
+    Promise.all([getTenantByUser(String(user.id)), getRentPayments({ limit: 200 })])
+      .then(([tenantResult, paymentsResult]) => {
+        if (cancelled) return;
+        if (!tenantResult.success || !paymentsResult.success) {
+          setTenantPayments([]);
+          return;
+        }
+
+        const tenant = tenantResult.data;
+        const tenantName =
+          tenant.user?.fullName?.trim().toLowerCase() ||
+          tenant.user?.email?.split("@")[0]?.toLowerCase() ||
+          "";
+        const unitName = tenant.currentUnit?.name?.trim().toLowerCase() || "";
+        const tenantId = tenant.id;
+
+        const rows = paymentsResult.data
+          .filter((payment) => {
+            const byTenantName = tenantName
+              ? payment.tenantName.trim().toLowerCase() === tenantName
+              : false;
+            const byTenantId =
+              tenantId &&
+              (((payment as unknown as { tenantId?: string }).tenantId ?? "") ===
+                tenantId);
+            const byUnit = unitName
+              ? payment.unit.trim().toLowerCase().includes(unitName)
+              : false;
+            return byTenantName || byTenantId || byUnit;
+          })
+          .map((payment): TenantPaymentRow => ({
+            id: payment.id,
+            type: "Rent Payment",
+            date: payment.dueDate || "—",
+            method: payment.paymentReceived ? "Completed" : undefined,
+            confirmationNumber: payment.id,
+            amount: payment.amount || 0,
+            status: payment.paymentReceived ? "paid" : "pending",
+          }));
+
+        setTenantPayments(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
+
+  const summary = React.useMemo(() => {
+    const paidPayments = tenantPayments.filter((p) => p.status === "paid");
+    const pendingPayments = tenantPayments.filter((p) => p.status === "pending");
+    const totalPaid = paidPayments.reduce((sum, p) => sum + p.amount, 0);
+    const averagePayment =
+      paidPayments.length > 0 ? totalPaid / paidPayments.length : 0;
+    const outstandingAmount = pendingPayments.reduce(
+      (sum, p) => sum + p.amount,
+      0,
+    );
+    return {
+      totalPaid,
+      totalPaidCount: paidPayments.length,
+      averagePayment,
+      outstandingAmount,
+    };
+  }, [tenantPayments]);
+
+  const filteredPayments = tenantPayments.filter(
     (payment) =>
       payment.date.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.method?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (payment.method || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       payment.confirmationNumber
         .toLowerCase()
         .includes(searchQuery.toLowerCase()),
@@ -228,7 +317,16 @@ const TenantPaymentHistory = () => {
 
       {/* Payment Transaction List */}
       <div className="space-y-3">
-        {filteredPayments.map((payment, index) => (
+        {isLoading ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+            Loading payment history...
+          </div>
+        ) : filteredPayments.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+            No payment history yet.
+          </div>
+        ) : (
+          filteredPayments.map((payment, index) => (
           <motion.div
             key={payment.id}
             initial={{ opacity: 0, y: 20 }}
@@ -291,7 +389,8 @@ const TenantPaymentHistory = () => {
               )}
             </div>
           </motion.div>
-        ))}
+          ))
+        )}
       </div>
     </section>
   );

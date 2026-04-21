@@ -86,9 +86,7 @@ const filterPaymentsForProperties = (
 ): Payment[] => {
   if (properties.length === 0) return [];
   const idSet = new Set(properties.map((p) => p.id).filter(Boolean));
-  const nameSet = new Set(
-    properties.map((p) => p.name.trim().toLowerCase()),
-  );
+  const nameSet = new Set(properties.map((p) => p.name.trim().toLowerCase()));
   return payments.filter((pay) => {
     if (pay.propertyId && idSet.has(pay.propertyId)) return true;
     const key = pay.propertyName.trim().toLowerCase();
@@ -581,6 +579,7 @@ const TenantDashboard = () => {
   const router = useRouter();
   const [tenantDetails, setTenantDetails] =
     React.useState<TenantByUserDTO | null>(null);
+  const [tenantPayments, setTenantPayments] = React.useState<Payment[]>([]);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [tenantError, setTenantError] = React.useState<string | null>(null);
   const [isTenantUnassigned, setIsTenantUnassigned] = React.useState(false);
@@ -602,6 +601,7 @@ const TenantDashboard = () => {
     getTenantByUser(String(user.id))
       .then((result) => {
         if (cancelled) return;
+        console.log("[TenantDashboard] getTenantByUser result:", result);
         if (result.success) {
           setTenantDetails(result.data);
           return;
@@ -624,6 +624,61 @@ const TenantDashboard = () => {
       .finally(() => {
         if (!cancelled) setTenantLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
+
+  React.useEffect(() => {
+    if (!user?.id || user.role !== "tenant") return;
+    let cancelled = false;
+    void Promise.all([
+      getTenantByUser(String(user.id)),
+      getRentPayments({ limit: 200 }),
+    ]).then(([tenantResult, paymentsResult]) => {
+      console.log("[TenantDashboard] tenant + rent raw results:", {
+        tenantResult,
+        paymentsResult,
+      });
+      if (cancelled || !tenantResult.success || !paymentsResult.success) {
+        if (!cancelled) setTenantPayments([]);
+        return;
+      }
+
+      const tenant = tenantResult.data;
+      const tenantName =
+        tenant.user?.fullName?.trim().toLowerCase() ||
+        tenant.user?.email?.split("@")[0]?.toLowerCase() ||
+        "";
+      const unitName = tenant.currentUnit?.name?.trim().toLowerCase() || "";
+      const tenantId = tenant.id;
+
+      const scoped = paymentsResult.data.filter((payment) => {
+        const byTenantName = tenantName
+          ? payment.tenantName.trim().toLowerCase() === tenantName
+          : false;
+        const byTenantId =
+          tenantId &&
+          ((payment as unknown as { tenantId?: string }).tenantId ?? "") ===
+            tenantId;
+        const byUnit = unitName
+          ? payment.unit.trim().toLowerCase().includes(unitName)
+          : false;
+        return byTenantName || byTenantId || byUnit;
+      });
+
+      console.log("[TenantDashboard] scoped tenant payments:", {
+        tenantName,
+        tenantId,
+        unitName,
+        totalPayments: paymentsResult.data.length,
+        matchedPayments: scoped.length,
+        scoped,
+      });
+
+      if (!cancelled) setTenantPayments(scoped);
+    });
+
     return () => {
       cancelled = true;
     };
@@ -666,9 +721,51 @@ const TenantDashboard = () => {
   const unitTypeLabel = currentUnit
     ? `${currentUnit.numberOfBedrooms ?? 0}BR Apartment`
     : "—";
-  const amenities = currentUnit?.amenities ?? [];
-  const defaultPropertyImage =
+  const amenities =
+    (Array.isArray(currentUnit?.amenities) ? currentUnit?.amenities : null) ??
+    currentUnit?.property?.amenities ??
+    [];
+  const unitImage =
+    currentUnit?.images?.[0]?.url ||
     "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop";
+  const sortedTenantPayments = React.useMemo(() => {
+    return [...tenantPayments].sort((a, b) => {
+      const ta = parsePaymentDueDate(a)?.getTime() ?? 0;
+      const tb = parsePaymentDueDate(b)?.getTime() ?? 0;
+      return tb - ta;
+    });
+  }, [tenantPayments]);
+  const lastPaidPayment = React.useMemo(
+    () => sortedTenantPayments.find((p) => p.paymentReceived),
+    [sortedTenantPayments],
+  );
+  const nextDuePayment = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return sortedTenantPayments.find((p) => {
+      if (p.paymentReceived) return false;
+      const due = parsePaymentDueDate(p);
+      if (!due) return false;
+      due.setHours(0, 0, 0, 0);
+      return due >= today;
+    });
+  }, [sortedTenantPayments]);
+  const hasOutstanding = React.useMemo(
+    () => sortedTenantPayments.some((p) => !p.paymentReceived),
+    [sortedTenantPayments],
+  );
+  const paymentStatusLabel = React.useMemo(() => {
+    if (sortedTenantPayments.length === 0) return "No payments yet";
+    return hasOutstanding ? "Pending" : "Paid";
+  }, [hasOutstanding, sortedTenantPayments.length]);
+  const formatDisplayDate = React.useCallback((value?: string) => {
+    if (!value || value === "—") return "—";
+    try {
+      return format(parseISO(value), "dd MMM yyyy");
+    } catch {
+      return value;
+    }
+  }, []);
 
   const handleSendMessage = (type: "manager" | "landlord") => {
     // Navigate to messages page with the appropriate contact
@@ -738,6 +835,14 @@ const TenantDashboard = () => {
     : "—";
   const rentAmount = latestLease?.rentAmount ?? currentUnit?.rentAmount ?? 0;
   const rentFrequency = latestLease?.rentFrequency ?? "monthly";
+  const rentFrequencyLabel =
+    rentFrequency === "weekly"
+      ? "Weekly"
+      : rentFrequency === "quarterly"
+        ? "Quarterly"
+        : rentFrequency === "yearly"
+          ? "Yearly"
+          : "Monthly";
   const monthlyRentDisplay =
     rentFrequency === "yearly"
       ? Math.round(rentAmount / 12)
@@ -774,7 +879,7 @@ const TenantDashboard = () => {
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
           <div className="relative h-48 w-full">
             <img
-              src={defaultPropertyImage}
+              src={unitImage}
               alt={currentUnit?.name ?? "Your unit"}
               className="w-full h-full object-cover"
             />
@@ -838,10 +943,12 @@ const TenantDashboard = () => {
           <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs sm:text-sm text-gray-600">
-                Monthly Rent
+                {rentFrequencyLabel} Rent
               </span>
               <span className="text-sm sm:text-base font-semibold text-gray-900">
-                ₦{monthlyRentDisplay.toLocaleString()}
+                {rentFrequency === "monthly"
+                  ? `₦${monthlyRentDisplay.toLocaleString()}`
+                  : `₦${rentAmount.toLocaleString()}`}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -849,15 +956,15 @@ const TenantDashboard = () => {
                 Next Payment Due
               </span>
               <span className="text-sm sm:text-base font-medium text-gray-900">
-                —
+                {nextDuePayment ? nextDuePayment.dueDate : "Not available yet"}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs sm:text-sm text-gray-600">
                 Payment Status
               </span>
-              <span className="text-sm sm:text-base font-medium text-gray-500">
-                —
+              <span className="text-sm sm:text-base font-medium text-gray-900">
+                {paymentStatusLabel}
               </span>
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-gray-200">
@@ -865,7 +972,9 @@ const TenantDashboard = () => {
                 Last Payment
               </span>
               <span className="text-sm sm:text-base font-medium text-gray-900">
-                —
+                {lastPaidPayment
+                  ? formatDisplayDate(lastPaidPayment.dueDate)
+                  : "No payment recorded yet"}
               </span>
             </div>
             <div className="flex items-center justify-between">

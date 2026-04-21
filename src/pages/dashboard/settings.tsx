@@ -19,6 +19,7 @@ import {
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
+import { getProfile } from "@/api/auth";
 import {
   getLandlordByUser,
   getLandlordSettings,
@@ -94,32 +95,59 @@ const SettingsPage: NextPageWithLayout = () => {
   // Fetch landlord profile for landlords
   React.useEffect(() => {
     const fetchLandlord = async () => {
-      if (user?.role === "landlord" && user?.id) {
-        setIsLoadingLandlord(true);
-        const result = await getLandlordByUser(user.id as string);
-        if (result.success) {
-          setLandlord(result.data);
-          setProfileForm({
-            businessName: result.data.landLordName ?? "",
-            businessEmail: result.data.user?.email ?? user?.email ?? "",
-            businessPhoneNumber: "",
-            address: result.data.address?.address ?? "",
-            city: result.data.address?.city ?? "",
-            state: result.data.address?.state ?? "",
-            postalCode: result.data.address?.postalCode ?? "",
-            country: result.data.address?.country ?? "Nigeria",
-          });
-          setDocumentsForm({
-            govermentIdDocumentId: result.data.govermentIdDocumentId ?? "",
-            landSurveyDocumentId: result.data.landSurveyDocumentId ?? "",
-            proofOfOwnershipDocumentId:
-              result.data.proofOfOwnershipDocumentId ?? "",
-            taxIdentificationNumberDocumentId:
-              result.data.taxIdentificationNumberDocumentId ?? "",
-          });
+      if (!user?.id) {
+        setIsLoadingLandlord(false);
+        return;
+      }
+
+      setIsLoadingLandlord(true);
+
+      // Tenant/manager/admin settings should still load live profile data
+      // instead of waiting on landlord-specific endpoints.
+      if (user.role !== "landlord") {
+        const profile = await getProfile(user.token);
+        if (profile.success) {
+          const p = profile.data.data;
+          setProfileForm((prev) => ({
+            ...prev,
+            businessName: p.fullName ?? p.name ?? user.name ?? "",
+            businessEmail: p.email ?? user.email ?? "",
+            businessPhoneNumber: p.phoneNumber ?? "",
+            address: "",
+            city: "",
+            state: "",
+            postalCode: "",
+            country: "Nigeria",
+          }));
         }
         setIsLoadingLandlord(false);
+        return;
       }
+
+      const result = await getLandlordByUser(user.id as string);
+      if (result.success) {
+        setLandlord(result.data);
+        setProfileForm({
+          businessName: result.data.landLordName ?? "",
+          businessEmail: result.data.user?.email ?? user?.email ?? "",
+          businessPhoneNumber: "",
+          address: result.data.address?.address ?? "",
+          city: result.data.address?.city ?? "",
+          state: result.data.address?.state ?? "",
+          postalCode: result.data.address?.postalCode ?? "",
+          country: result.data.address?.country ?? "Nigeria",
+        });
+        setDocumentsForm({
+          govermentIdDocumentId: result.data.govermentIdDocumentId ?? "",
+          landSurveyDocumentId: result.data.landSurveyDocumentId ?? "",
+          proofOfOwnershipDocumentId:
+            result.data.proofOfOwnershipDocumentId ?? "",
+          taxIdentificationNumberDocumentId:
+            result.data.taxIdentificationNumberDocumentId ?? "",
+        });
+      }
+
+      setIsLoadingLandlord(false);
     };
 
     fetchLandlord();

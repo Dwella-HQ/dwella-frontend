@@ -33,7 +33,13 @@ export type TenantByUserDTO = {
     rentAmount?: number;
     numberOfBedrooms?: number;
     numberOfBathrooms?: number;
-    amenities?: string[];
+    amenities?: string[] | null;
+    property?: {
+      id?: string;
+      name?: string;
+      amenities?: string[];
+    };
+    images?: Array<{ id?: string; url?: string }>;
   };
 };
 
