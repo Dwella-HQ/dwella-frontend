@@ -67,6 +67,14 @@ export const AddUnitModal = ({
     Record<number, number>
   >({});
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const resolvedPropertyLabel = React.useMemo(() => {
+    if (propertyLabel && propertyLabel.trim()) return propertyLabel;
+    if (pickerProperties && propertyId) {
+      const found = pickerProperties.find((p) => p.id === propertyId);
+      if (found) return found.name;
+    }
+    return "Select property";
+  }, [pickerProperties, propertyId, propertyLabel]);
 
   React.useEffect(() => {
     getAmenities().then((result) => {
@@ -295,7 +303,7 @@ export const AddUnitModal = ({
             className="fixed inset-0 z-50 bg-black/50"
           />
         </Dialog.Overlay>
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-6 shadow-xl focus:outline-none">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-0 shadow-xl focus:outline-none">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -303,7 +311,7 @@ export const AddUnitModal = ({
             transition={{ duration: 0.2 }}
           >
             {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
+            <div className="sticky top-0 z-20 mb-6 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
               <div className="flex items-center gap-3">
                 <Dialog.Close asChild>
                   <button
@@ -343,7 +351,11 @@ export const AddUnitModal = ({
             </div>
 
             {/* Form */}
-            <form id="add-unit-form" onSubmit={onSubmit} className="space-y-6">
+            <form
+              id="add-unit-form"
+              onSubmit={onSubmit}
+              className="space-y-6 px-6 pb-6"
+            >
               {/* Error Message */}
               {submitError && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-4">
@@ -382,7 +394,7 @@ export const AddUnitModal = ({
                         : propertyId &&
                           propertyId !== "temp-property-id" && (
                             <option value={propertyId}>
-                              {propertyLabel || "Selected Property"}
+                              {resolvedPropertyLabel}
                             </option>
                           )}
                     </select>
@@ -464,6 +476,7 @@ export const AddUnitModal = ({
                       {...register("rentDuration")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     >
+                      <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
                       <option value="monthly">Monthly</option>
                       <option value="quarterly">Quarterly</option>
@@ -525,10 +538,10 @@ export const AddUnitModal = ({
                 )}
               </div>
 
-              {/* Unit Photo */}
+              {/* Unit Photos */}
               <div>
                 <h3 className="mb-4 text-sm font-semibold uppercase text-gray-700">
-                  Unit Photo
+                  Unit Photos
                 </h3>
 
                 {/* Uploaded Photos Grid */}
@@ -585,7 +598,7 @@ export const AddUnitModal = ({
                   <div className="text-center">
                     <Upload className="mx-auto h-8 w-8 text-gray-400" />
                     <p className="mt-2 text-sm text-gray-600">
-                      Click to upload image
+                      Click to upload unit photos
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
                       PNG, JPG up to 10MB • Multiple images allowed

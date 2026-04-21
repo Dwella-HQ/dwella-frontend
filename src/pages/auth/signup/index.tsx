@@ -8,7 +8,6 @@ import {
   Eye,
   EyeOff,
   Key,
-  UserRound,
 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
@@ -17,16 +16,12 @@ import Link from "next/link";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
-import { register, googleLogin } from "@/api/auth";
+import { register } from "@/api/auth";
 import {
   formatRegistrationErrorForUser,
   isDuplicateEmailRegistrationError,
   maskEmailForDisplay,
 } from "@/utils/registrationErrors";
-import { useUser, type UserRole } from "@/contexts/UserContext";
-import { getLandlordByUser } from "@/api/landlord";
-import { getTenantByUser } from "@/api/tenants";
-import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../../_app";
@@ -48,7 +43,6 @@ export type SignUpValues = z.infer<typeof signUpSchema>;
 
 const SignUpPage: NextPageWithLayout = () => {
   const router = useRouter();
-  const { setUser } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showPassword, setShowPassword] = React.useState(false);
@@ -61,17 +55,23 @@ const SignUpPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     if (!router.isReady) return;
     const role = router.query.role as string;
-    if (role && ["tenant", "landlord", "manager"].includes(role)) {
+    const tenantIdFromQuery = router.query["tenant-id"];
+    const hasTenantInvite =
+      typeof tenantIdFromQuery === "string" && tenantIdFromQuery.trim().length > 0;
+    const isTenantInviteRole = role === "tenant" && hasTenantInvite;
+    const isAllowedSelfSignupRole = role === "landlord" || role === "manager";
+    if (role && (isTenantInviteRole || isAllowedSelfSignupRole)) {
       setSelectedRole(role as "tenant" | "landlord" | "manager");
     } else {
       setSelectedRole(null);
     }
-  }, [router.isReady, router.query.role]);
+  }, [router.isReady, router.query.role, router.query]);
 
   const {
     register: registerField,
     control,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<SignUpValues>({
     resolver: zodResolver(signUpSchema),
@@ -83,6 +83,24 @@ const SignUpPage: NextPageWithLayout = () => {
       confirmPassword: "",
     },
   });
+
+  React.useEffect(() => {
+    if (!router.isReady) return;
+    const pick = (keys: string[]): string => {
+      for (const key of keys) {
+        const raw = router.query[key];
+        if (typeof raw === "string" && raw.trim()) return raw.trim();
+      }
+      return "";
+    };
+    const prefillEmail = pick(["email", "tenantEmail", "inviteEmail"]);
+    const prefillName = pick(["fullName", "name", "tenantName"]);
+    const prefillPhone = pick(["phoneNumber", "phone", "tenantPhone"]);
+
+    if (prefillEmail) setValue("email", prefillEmail);
+    if (prefillName) setValue("fullName", prefillName);
+    if (prefillPhone) setValue("phoneNumber", prefillPhone);
+  }, [router.isReady, router.query, setValue]);
 
   const onSubmit = handleSubmit(async (data) => {
     if (!selectedRole) {
@@ -163,146 +181,6 @@ const SignUpPage: NextPageWithLayout = () => {
     }
   });
 
-  // Map backend role name to frontend UserRole
-  const mapRoleNameToUserRole = React.useCallback(
-    (roleName: string): UserRole => {
-      if (roleName === "super_admin" || roleName === "admin")
-        return "super_admin";
-      if (roleName === "property_manager" || roleName === "manager")
-        return "property_manager";
-      if (roleName === "tenant") return "tenant";
-      return "landlord";
-    },
-    [],
-  );
-
-  const handleGoogleCredential = React.useCallback(
-    async (cred: CredentialResponse) => {
-      try {
-        if (!selectedRole) {
-          setError("Please choose how you want to get started.");
-          return;
-        }
-
-        const roleNameMap: Record<
-          "tenant" | "landlord" | "manager",
-          "tenant" | "landlord" | "property_manager"
-        > = {
-          tenant: "tenant",
-          landlord: "landlord",
-          manager: "property_manager",
-        };
-
-        const idToken = cred.credential;
-        if (!idToken) {
-          setError("Google sign-in failed. Please try again.");
-          return;
-        }
-
-        // Full JWT for backend debugging — remove or gate behind env when no longer needed.
-        console.log("[Dwella] Google ID token (full JWT for backend):", idToken);
-
-        console.log("Google credential acquired:", {
-          role: selectedRole,
-          idToken: `${idToken.slice(0, 10)}…${idToken.slice(-8)}`,
-          fullStuff: cred,
-        });
-
-        const socialResult = await googleLogin({
-          token: idToken,
-          roleName: roleNameMap[selectedRole],
-        });
-
-        if (!socialResult.success) {
-          console.log("Google signup/login failed:", socialResult);
-          setError(socialResult.error);
-          return;
-        }
-
-        console.log("Google signup/login succeeded (parsed):", {
-          userId: socialResult.data.data.user?.id,
-          roleName: socialResult.data.data.user?.role?.name,
-          accessToken: socialResult.data.data.accessToken
-            ? `${socialResult.data.data.accessToken.slice(0, 6)}…${socialResult.data.data.accessToken.slice(-4)}`
-            : "",
-        });
-
-        const loginData = socialResult.data.data;
-        const apiUser = loginData.user;
-        const roleName = apiUser.role?.name || roleNameMap[selectedRole];
-        const role: UserRole = mapRoleNameToUserRole(roleName);
-
-        if (typeof window !== "undefined" && loginData.accessToken) {
-          localStorage.setItem("accessToken", loginData.accessToken);
-          localStorage.setItem("authToken", loginData.accessToken);
-          if (apiUser.id) {
-            localStorage.setItem("userId", apiUser.id);
-          }
-        }
-
-        const user = {
-          id: apiUser.id,
-          name:
-            apiUser.fullName ||
-            apiUser.name ||
-            apiUser.email?.split("@")[0] ||
-            "",
-          email: apiUser.email,
-          role,
-          token: loginData.accessToken,
-        };
-
-        setUser(user);
-
-        if (role === "property_manager") {
-          await router.push("/dashboard/select-landlord");
-          return;
-        }
-
-        if (role === "landlord") {
-          const landlordResult = await getLandlordByUser(apiUser.id);
-          if (landlordResult.success) {
-            if (typeof window !== "undefined" && landlordResult.data?.id) {
-              localStorage.setItem("landlordId", landlordResult.data.id);
-            }
-            await router.push("/dashboard");
-            return;
-          }
-          if (landlordResult.statusCode === 404) {
-            await router.push("/onboarding/landlord/details");
-            return;
-          }
-          setError(
-            landlordResult.error || "Unable to verify landlord onboarding",
-          );
-          return;
-        }
-
-        if (role === "tenant") {
-          const tenantResult = await getTenantByUser(apiUser.id);
-          if (
-            tenantResult.success &&
-            tenantResult.data?.id &&
-            typeof window !== "undefined"
-          ) {
-            localStorage.setItem("tenantId", tenantResult.data.id);
-          }
-          await router.push("/dashboard");
-          return;
-        }
-
-        await router.push("/dashboard");
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Google sign-in failed. Please try again.",
-        );
-      }
-    },
-    [mapRoleNameToUserRole, router, selectedRole, setUser],
-  );
-
   const handleSelectRole = React.useCallback(
     async (role: "tenant" | "landlord" | "manager") => {
       setError(null);
@@ -318,11 +196,6 @@ const SignUpPage: NextPageWithLayout = () => {
     },
     [router],
   );
-
-  const handleChangeRole = React.useCallback(async () => {
-    setError(null);
-    await router.push("/auth/signup");
-  }, [router]);
 
   if (!selectedRole) {
     return (
@@ -349,24 +222,10 @@ const SignUpPage: NextPageWithLayout = () => {
           <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
             <h1 className="text-3xl font-bold text-gray-900">Get Started As</h1>
             <p className="mt-2 text-sm text-gray-600">
-              Choose the account type that best describes you.
+              Choose how you want to use Dwella.
             </p>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
-              <button
-                type="button"
-                onClick={() => void handleSelectRole("tenant")}
-                className="rounded-xl border border-gray-200 bg-white p-5 text-left transition hover:border-brand-main hover:bg-blue-50"
-              >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-brand-main">
-                  <UserRound className="h-6 w-6" />
-                </div>
-                <p className="text-lg font-semibold text-gray-900">Tenant</p>
-                <p className="mt-2 text-sm text-gray-600">
-                  Find and manage your rented home, requests, and payments.
-                </p>
-              </button>
-
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
               <button
                 type="button"
                 onClick={() => void handleSelectRole("landlord")}
@@ -444,13 +303,6 @@ const SignUpPage: NextPageWithLayout = () => {
             {selectedRole === "manager" ? "property manager" : selectedRole}{" "}
             account.
           </p>
-          <button
-            type="button"
-            onClick={() => void handleChangeRole()}
-            className="mb-6 text-sm font-medium text-brand-main hover:text-brand-main/80"
-          >
-            Change role
-          </button>
 
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
@@ -649,24 +501,6 @@ const SignUpPage: NextPageWithLayout = () => {
               {isSubmitting ? "Signing up..." : "Sign Up"}
             </button>
           </form>
-
-          {/* Divider */}
-          <div className="relative my-6 flex items-center">
-            <div className="flex-grow border-t border-gray-300"></div>
-            <span className="px-4 text-sm text-gray-500 bg-white">or</span>
-            <div className="flex-grow border-t border-gray-300"></div>
-          </div>
-
-          {/* Google Sign Up (ID token) */}
-          <div className="flex justify-center">
-            <GoogleLogin
-              onSuccess={handleGoogleCredential}
-              onError={() =>
-                setError("Google sign-in failed. Please try again.")
-              }
-              useOneTap={false}
-            />
-          </div>
         </div>
 
         {/* Login Link */}

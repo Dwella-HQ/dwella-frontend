@@ -44,16 +44,16 @@ export const PhoneInputWithCountry = React.forwardRef<
       onChange={onChange ?? (() => {})}
       placeholder={placeholder}
       disabled={disabled}
-      className={`PhoneInput--tailwind flex h-11 items-center rounded-lg border border-gray-300 bg-white overflow-hidden ${className ?? ""}`}
+      className={`PhoneInput--tailwind flex h-11 items-center rounded-lg border border-gray-300 bg-white overflow-hidden disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${className ?? ""}`}
       numberInputProps={{
         "aria-invalid": ariaInvalid,
         "aria-describedby": ariaDescribedby,
         className:
-          "h-11 flex-1 min-w-0 border-0 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0",
+          "h-11 flex-1 min-w-0 border-0 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-0",
       }}
       countrySelectProps={{
         className:
-          "h-11 border-0 bg-gray-50 pl-3 pr-8 text-sm text-gray-900 focus:outline-none focus:ring-0",
+          "h-11 border-0 bg-gray-50 pl-3 pr-8 text-sm text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-0",
       }}
     />
   );

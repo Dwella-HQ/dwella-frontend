@@ -1,6 +1,15 @@
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, ChevronRight, Check, AlertCircle, Calendar, Clock, FileText } from "lucide-react";
+import {
+  X,
+  Upload,
+  ChevronRight,
+  Check,
+  AlertCircle,
+  Calendar,
+  Clock,
+  FileText,
+} from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Popover from "@radix-ui/react-popover";
 import { Controller, useForm } from "react-hook-form";
@@ -8,7 +17,9 @@ import { DayPicker } from "react-day-picker";
 import { format, parseISO } from "date-fns";
 import { inviteTenant, type RentFrequency, type IdType } from "@/api/tenants";
 import { getApplicants, type Applicant } from "@/api/applicants";
+import { getPropertiesByLandlord } from "@/api/properties";
 import { uploadFile } from "@/api/files";
+import { getUnitsByProperty } from "@/api/units";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
@@ -36,9 +47,7 @@ function LeaseDatePickerField({
           className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
         >
           <span className={value ? "" : "text-gray-400"}>
-            {value
-              ? format(parseISO(value), "MMM d, yyyy")
-              : "Select date"}
+            {value ? format(parseISO(value), "MMM d, yyyy") : "Select date"}
           </span>
           <Calendar className="h-4 w-4 text-gray-400" />
         </button>
@@ -124,7 +133,26 @@ export type UnitOption = {
   id: string;
   unitId: string;
   type: string;
+  isAvailable?: boolean;
 };
+
+type PropertyOption = {
+  id: string;
+  name: string;
+};
+
+function resolveUnitLabel(unit: {
+  id?: string;
+  unitId?: string | null;
+  name?: string | null;
+}): string {
+  const byUnitId = (unit.unitId ?? "").trim();
+  if (byUnitId) return byUnitId;
+  const byName = (unit.name ?? "").trim();
+  if (byName) return byName;
+  if (unit.id) return `Unit ${unit.id.slice(0, 8)}`;
+  return "Unit";
+}
 
 export type AddTenantModalProps = {
   isOpen: boolean;
@@ -148,11 +176,11 @@ const defaultValues: AssignTenantFormValues = {
   employerContact: "",
   leaseStartDate: "",
   leaseEndDate: "",
-  rentAmount: "250,000",
+  rentAmount: "",
   rentFrequency: "monthly",
-  serviceCharge: "50,000",
+  serviceCharge: "",
   serviceChargeFrequency: "one_time",
-  securityDeposit: "50,000",
+  securityDeposit: "",
   leaseOption: "auto",
 };
 
@@ -169,7 +197,18 @@ export const AddTenantModal = ({
   const { showToast } = useToast();
   const [step, setStep] = React.useState(1);
   const [activeTab, setActiveTab] = React.useState<"new" | "applicants">("new");
-  const [selectedUnitId, setSelectedUnitId] = React.useState<string | null>(null);
+  const [availableProperties, setAvailableProperties] = React.useState<
+    PropertyOption[]
+  >([]);
+  const [selectedPropertyId, setSelectedPropertyId] = React.useState<
+    string | null
+  >(propertyId ?? null);
+  const [selectedUnitId, setSelectedUnitId] = React.useState<string | null>(
+    null,
+  );
+  const [availableUnits, setAvailableUnits] = React.useState<UnitOption[]>(
+    units ?? [],
+  );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [idDocumentId, setIdDocumentId] = React.useState<string | null>(null);
@@ -180,19 +219,26 @@ export const AddTenantModal = ({
   React.useEffect(() => {
     idPreviewUrlRef.current = idPreviewUrl;
   }, [idPreviewUrl]);
-  const [leaseDocumentId, setLeaseDocumentId] = React.useState<string | null>(null);
+  const [leaseDocumentId, setLeaseDocumentId] = React.useState<string | null>(
+    null,
+  );
   const [leaseUploading, setLeaseUploading] = React.useState(false);
   const [leaseFileName, setLeaseFileName] = React.useState<string | null>(null);
 
   const [applicants, setApplicants] = React.useState<Applicant[]>([]);
   const [applicantsLoading, setApplicantsLoading] = React.useState(false);
-  const [selectedApplicantId, setSelectedApplicantId] = React.useState<string | null>(null);
+  const [selectedApplicantId, setSelectedApplicantId] = React.useState<
+    string | null
+  >(null);
   /** True after Continue from step 1 on the "New Tenant" tab — auto lease is turned off */
-  const [newTenantStep1Complete, setNewTenantStep1Complete] = React.useState(false);
+  const [newTenantStep1Complete, setNewTenantStep1Complete] =
+    React.useState(false);
 
-  const fromPropertyPage = Boolean(units?.length && !unitId);
+  const canSelectProperty = !propertyId;
+  const effectivePropertyId = propertyId ?? selectedPropertyId;
+  const fromPropertyPage = !unitId;
   const effectiveUnitId = unitId ?? selectedUnitId;
-  const selectedUnit = units?.find((u) => u.id === selectedUnitId);
+  const selectedUnit = availableUnits.find((u) => u.id === selectedUnitId);
 
   const {
     register,
@@ -206,6 +252,78 @@ export const AddTenantModal = ({
   });
 
   const formValues = watch();
+  const employedValue = watch("employed");
+
+  React.useEffect(() => {
+    setSelectedPropertyId(propertyId ?? null);
+  }, [propertyId]);
+
+  React.useEffect(() => {
+    setAvailableUnits(units ?? []);
+  }, [units]);
+
+  React.useEffect(() => {
+    if (!isOpen || !canSelectProperty) return;
+    const landlordId =
+      typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+    if (!landlordId) return;
+    let cancelled = false;
+    getPropertiesByLandlord(landlordId).then((result) => {
+      if (cancelled || !result.success) return;
+      setAvailableProperties(
+        result.data.map((p) => ({
+          id: p.id,
+          name: p.name,
+        })),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [canSelectProperty, isOpen]);
+
+  React.useEffect(() => {
+    if (!canSelectProperty || availableProperties.length !== 1) return;
+    setSelectedPropertyId((prev) => prev ?? availableProperties[0].id);
+  }, [availableProperties, canSelectProperty]);
+
+  React.useEffect(() => {
+    if (!fromPropertyPage || availableUnits.length !== 1) return;
+    setSelectedUnitId((prev) => prev ?? availableUnits[0].id);
+  }, [availableUnits, fromPropertyPage]);
+
+  React.useEffect(() => {
+    if (!isOpen || !fromPropertyPage || !effectivePropertyId) {
+      if (canSelectProperty) setAvailableUnits([]);
+      return;
+    }
+    if (!canSelectProperty && (units?.length ?? 0) > 0)
+      return;
+    let cancelled = false;
+    getUnitsByProperty(effectivePropertyId).then((result) => {
+      if (cancelled || !result.success) return;
+      setAvailableUnits(
+        result.data.map((u) => ({
+          id: u.id,
+          unitId: resolveUnitLabel(
+            u as unknown as { id?: string; unitId?: string | null; name?: string | null },
+          ),
+          type: u.type ?? "Unit",
+          isAvailable: u.isAvailable,
+        })),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [canSelectProperty, fromPropertyPage, isOpen, effectivePropertyId, units]);
+
+  React.useEffect(() => {
+    if (employedValue === "no") {
+      setValue("employerName", "");
+      setValue("employerContact", "");
+    }
+  }, [employedValue, setValue]);
 
   const leaseAutoDisabled =
     Boolean(selectedApplicantId) ||
@@ -219,7 +337,7 @@ export const AddTenantModal = ({
 
   const displayLabel = React.useMemo(() => {
     if (unitLabel) return unitLabel;
-    if (selectedUnit) return `${selectedUnit.unitId} • ${selectedUnit.type}`;
+    if (selectedUnit) return `${resolveUnitLabel(selectedUnit)} • ${selectedUnit.type}`;
     if (unitId) return `Unit ${unitId.slice(0, 8)}...`;
     return "Select unit";
   }, [unitLabel, selectedUnit, unitId]);
@@ -231,6 +349,7 @@ export const AddTenantModal = ({
     }
     setStep(1);
     setActiveTab("new");
+    setSelectedPropertyId(propertyId ?? null);
     setSelectedUnitId(null);
     setSelectedApplicantId(null);
     setNewTenantStep1Complete(false);
@@ -243,25 +362,30 @@ export const AddTenantModal = ({
     setLeaseFileName(null);
     reset(defaultValues);
     onClose();
-  }, [onClose, reset]);
+  }, [onClose, propertyId, reset]);
 
   React.useEffect(() => {
     if (!isOpen || activeTab !== "applicants") return;
     setApplicantsLoading(true);
     getApplicants({
       ...(effectiveUnitId && { unitId: effectiveUnitId }),
-      ...(propertyId && { propertyId }),
+      ...(effectivePropertyId && { propertyId: effectivePropertyId }),
     })
       .then((res) => {
         if (res.success) setApplicants(res.data);
       })
       .finally(() => setApplicantsLoading(false));
-  }, [isOpen, activeTab, effectiveUnitId, propertyId]);
+  }, [isOpen, activeTab, effectiveUnitId, effectivePropertyId]);
 
   const handleIdUpload = React.useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("ID document must be 10MB or less", "error");
+        e.target.value = "";
+        return;
+      }
       if (idPreviewUrl) URL.revokeObjectURL(idPreviewUrl);
       if (file.type.startsWith("image/")) {
         setIdPreviewUrl(URL.createObjectURL(file));
@@ -278,11 +402,13 @@ export const AddTenantModal = ({
       });
       if (result.success) {
         setIdDocumentId(result.data.id);
+      } else {
+        showToast(result.error || "Failed to upload ID document", "error");
       }
       setIdUploading(false);
       e.target.value = "";
     },
-    [user?.token, idPreviewUrl]
+    [user?.token, idPreviewUrl, showToast],
   );
 
   const clearIdDocument = React.useCallback(() => {
@@ -296,6 +422,11 @@ export const AddTenantModal = ({
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("Lease document must be 10MB or less", "error");
+        e.target.value = "";
+        return;
+      }
       setLeaseFileName(file.name);
       setLeaseUploading(true);
       const result = await uploadFile({
@@ -307,11 +438,13 @@ export const AddTenantModal = ({
       if (result.success) {
         setLeaseDocumentId(result.data.id);
         setValue("leaseOption", "upload");
+      } else {
+        showToast(result.error || "Failed to upload lease document", "error");
       }
       setLeaseUploading(false);
       e.target.value = "";
     },
-    [user?.token, setValue]
+    [user?.token, setValue, showToast],
   );
 
   const clearLeaseDocument = React.useCallback(() => {
@@ -328,8 +461,10 @@ export const AddTenantModal = ({
     setSubmitError(null);
 
     const rentAmount = Number(formValues.rentAmount?.replace(/\D/g, "")) || 0;
-    const serviceCharge = Number(formValues.serviceCharge?.replace(/\D/g, "")) || 0;
-    const securityDeposit = Number(formValues.securityDeposit?.replace(/\D/g, "")) || 0;
+    const serviceCharge =
+      Number(formValues.serviceCharge?.replace(/\D/g, "")) || 0;
+    const securityDeposit =
+      Number(formValues.securityDeposit?.replace(/\D/g, "")) || 0;
 
     const serviceChargeFreq =
       formValues.serviceChargeFrequency === "one_time"
@@ -359,14 +494,8 @@ export const AddTenantModal = ({
         : {}),
     };
 
-    console.log("[Assign Tenant] Request payload:", payload);
-    console.log("[Assign Tenant] leaseStartDate (raw):", formValues.leaseStartDate, "-> ISO:", payload.leaseStartDate);
-    console.log("[Assign Tenant] leaseEndDate (raw):", formValues.leaseEndDate, "-> ISO:", payload.leaseEndDate);
-
     try {
       const result = await inviteTenant(payload);
-
-      console.log("[Assign Tenant] Server response:", result);
 
       if (result.success) {
         showToast("Tenant invited successfully", "success");
@@ -380,7 +509,14 @@ export const AddTenantModal = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [effectiveUnitId, formValues, leaseDocumentId, idDocumentId, resetAndClose, showToast]);
+  }, [
+    effectiveUnitId,
+    formValues,
+    leaseDocumentId,
+    idDocumentId,
+    resetAndClose,
+    showToast,
+  ]);
 
   const step1ValidNew =
     !!formValues.fullName?.trim() &&
@@ -391,12 +527,16 @@ export const AddTenantModal = ({
     !!formValues.idNumber?.trim() &&
     !!idDocumentId &&
     !!formValues.employed &&
-    !!formValues.employerName?.trim() &&
-    !!formValues.employerContact?.trim() &&
+    (formValues.employed !== "yes" ||
+      (!!formValues.employerName?.trim() &&
+        !!formValues.employerContact?.trim())) &&
+    (!canSelectProperty || !!selectedPropertyId) &&
     (!fromPropertyPage || !!selectedUnitId);
   const step1Valid =
     activeTab === "applicants"
-      ? !!selectedApplicantId && (!fromPropertyPage || !!selectedUnitId)
+      ? !!selectedApplicantId &&
+        (!canSelectProperty || !!selectedPropertyId) &&
+        (!fromPropertyPage || !!selectedUnitId)
       : step1ValidNew;
 
   const handleContinueFromApplicants = React.useCallback(() => {
@@ -419,11 +559,37 @@ export const AddTenantModal = ({
         !!formValues.idNumber?.trim() &&
         !!idDocumentId &&
         !!formValues.employed &&
-        !!formValues.employerName?.trim() &&
-        !!formValues.employerContact?.trim()));
+        (formValues.employed !== "yes" ||
+          (!!formValues.employerName?.trim() &&
+            !!formValues.employerContact?.trim()))));
+
+  const startedNewTenantDetails = Boolean(
+    formValues.fullName?.trim() ||
+      formValues.email?.trim() ||
+      formValues.phoneNumber?.trim() ||
+      formValues.idType ||
+      formValues.idNumber?.trim() ||
+      formValues.employed ||
+      formValues.employerName?.trim() ||
+      formValues.employerContact?.trim() ||
+      idFileName,
+  );
+
+  const startedApplicantVerification = Boolean(
+    selectedApplicantId &&
+      (formValues.idType ||
+        formValues.idNumber?.trim() ||
+        formValues.employed ||
+        formValues.employerName?.trim() ||
+        formValues.employerContact?.trim() ||
+        idFileName),
+  );
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && resetAndClose()}>
+    <Dialog.Root
+      open={isOpen}
+      onOpenChange={(open) => !open && resetAndClose()}
+    >
       <Dialog.Portal>
         <Dialog.Overlay asChild>
           <motion.div
@@ -433,9 +599,7 @@ export const AddTenantModal = ({
             className="fixed inset-0 z-50 bg-black/50"
           />
         </Dialog.Overlay>
-        <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-6 shadow-xl focus:outline-none"
-        >
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-6 shadow-xl focus:outline-none">
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -471,8 +635,8 @@ export const AddTenantModal = ({
                         step > s
                           ? "bg-green-600 text-white"
                           : step === s
-                          ? "bg-gray-900 text-white"
-                          : "bg-gray-200 text-gray-500"
+                            ? "bg-gray-900 text-white"
+                            : "bg-gray-200 text-gray-500"
                       }`}
                     >
                       {step > s ? <Check className="h-4 w-4" /> : s}
@@ -553,23 +717,70 @@ export const AddTenantModal = ({
                     >
                       {fromPropertyPage && (
                         <div>
+                          {canSelectProperty && (
+                            <div className="mb-4">
+                              <label className="mb-1 block text-sm font-medium text-gray-700">
+                                Property <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={selectedPropertyId ?? ""}
+                                onChange={(e) => {
+                                  const value = e.target.value || null;
+                                  setSelectedPropertyId(value);
+                                  setSelectedUnitId(null);
+                                  setAvailableUnits([]);
+                                }}
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                              >
+                                <option value="">Select property</option>
+                                {availableProperties.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {!selectedPropertyId && (
+                                <p className="mt-1 text-xs text-red-600">
+                                  Select a property
+                                </p>
+                              )}
+                            </div>
+                          )}
                           <label className="mb-1 block text-sm font-medium text-gray-700">
                             Unit <span className="text-red-500">*</span>
                           </label>
                           <select
                             value={selectedUnitId ?? ""}
-                            onChange={(e) => setSelectedUnitId(e.target.value || null)}
+                            onChange={(e) =>
+                              setSelectedUnitId(e.target.value || null)
+                            }
                             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                           >
-                            <option value="">Placeholder</option>
-                            {units?.map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.unitId} • {u.type}
+                            <option value="">Select unit</option>
+                            {availableUnits.map((u) => (
+                              <option
+                                key={u.id}
+                                value={u.id}
+                                disabled={u.isAvailable === false}
+                              >
+                                {u.unitId} • {u.type} •{" "}
+                                {u.isAvailable === false ? "Occupied" : "Free"}
                               </option>
                             ))}
                           </select>
-                          {!selectedUnitId && (
-                            <p className="mt-1 text-xs text-red-600">Select a unit</p>
+                          {availableUnits.length === 0 ? (
+                            <p className="mt-1 text-xs text-amber-700">
+                              No units available yet for this property.
+                            </p>
+                          ) : !selectedUnitId ? (
+                            <p className="mt-1 text-xs text-red-600">
+                              Select a unit
+                            </p>
+                          ) : null}
+                          {availableUnits.some((u) => u.isAvailable === false) && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Occupied units are shown but cannot be selected.
+                            </p>
                           )}
                         </div>
                       )}
@@ -601,7 +812,9 @@ export const AddTenantModal = ({
                             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                           />
                           {errors.email && (
-                            <p className="mt-1 text-xs text-red-600">Required</p>
+                            <p className="mt-1 text-xs text-red-600">
+                              Required
+                            </p>
                           )}
                         </div>
                         <div>
@@ -619,12 +832,19 @@ export const AddTenantModal = ({
                                 onChange={field.onChange}
                                 placeholder="801 234 5678"
                                 aria-invalid={!!errors.phoneNumber}
-                                aria-describedby={errors.phoneNumber ? "phoneNumber-error" : undefined}
+                                aria-describedby={
+                                  errors.phoneNumber
+                                    ? "phoneNumber-error"
+                                    : undefined
+                                }
                               />
                             )}
                           />
                           {errors.phoneNumber && (
-                            <p id="phoneNumber-error" className="mt-1 text-xs text-red-600">
+                            <p
+                              id="phoneNumber-error"
+                              className="mt-1 text-xs text-red-600"
+                            >
                               {errors.phoneNumber.message as string}
                             </p>
                           )}
@@ -648,7 +868,9 @@ export const AddTenantModal = ({
                             ))}
                           </select>
                           {errors.idType && (
-                            <p className="mt-1 text-xs text-red-600">Required</p>
+                            <p className="mt-1 text-xs text-red-600">
+                              Required
+                            </p>
                           )}
                         </div>
                         <div>
@@ -662,14 +884,17 @@ export const AddTenantModal = ({
                             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                           />
                           {errors.idNumber && (
-                            <p className="mt-1 text-xs text-red-600">Required</p>
+                            <p className="mt-1 text-xs text-red-600">
+                              Required
+                            </p>
                           )}
                         </div>
                       </div>
 
                       <div>
                         <label className="mb-1 block text-sm font-medium text-gray-700">
-                          Upload ID Document <span className="text-red-500">*</span>
+                          Upload ID Document{" "}
+                          <span className="text-red-500">*</span>
                         </label>
                         {idDocumentId ? (
                           <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -705,7 +930,9 @@ export const AddTenantModal = ({
                               disabled={idUploading}
                             />
                             {idUploading ? (
-                              <span className="text-sm text-gray-500">Uploading…</span>
+                              <span className="text-sm text-gray-500">
+                                Uploading…
+                              </span>
                             ) : (
                               <>
                                 <Upload className="h-8 w-8 text-gray-400" />
@@ -716,8 +943,10 @@ export const AddTenantModal = ({
                             )}
                           </label>
                         )}
-                        {!idDocumentId && !idUploading && (
-                          <p className="mt-1 text-xs text-red-600">ID document is required</p>
+                        {!idDocumentId && !idUploading && startedNewTenantDetails && (
+                          <p className="mt-1 text-xs text-red-600">
+                            ID document is required
+                          </p>
                         )}
                       </div>
 
@@ -735,35 +964,71 @@ export const AddTenantModal = ({
                             <option value="no">No</option>
                           </select>
                           {errors.employed && (
-                            <p className="mt-1 text-xs text-red-600">Required</p>
+                            <p className="mt-1 text-xs text-red-600">
+                              Required
+                            </p>
                           )}
                         </div>
                         <div>
                           <label className="mb-1 block text-sm font-medium text-gray-700">
-                            Employer Name <span className="text-red-500">*</span>
+                            Employer Name{" "}
+                            <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="text"
                             placeholder="Company or N/A"
-                            {...register("employerName", { required: true })}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            {...register("employerName", {
+                              validate: (value) =>
+                                employedValue !== "yes" ||
+                                !!value?.trim() ||
+                                "Employer name is required",
+                            })}
+                            disabled={employedValue === "no"}
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                           />
                           {errors.employerName && (
-                            <p className="mt-1 text-xs text-red-600">Required</p>
+                            <p className="mt-1 text-xs text-red-600">
+                              Required
+                            </p>
                           )}
                         </div>
                         <div className="sm:col-span-2">
                           <label className="mb-1 block text-sm font-medium text-gray-700">
-                            Employer Contact <span className="text-red-500">*</span>
+                            Employer Contact{" "}
+                            <span className="text-red-500">*</span>
                           </label>
-                          <input
-                            type="text"
-                            placeholder="Phone or email"
-                            {...register("employerContact", { required: true })}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          <Controller
+                            name="employerContact"
+                            control={control}
+                            rules={{
+                              validate: (value) =>
+                                employedValue !== "yes" ||
+                                !!value?.trim() ||
+                                "Employer contact is required",
+                            }}
+                            render={({ field }) => (
+                              <PhoneInputWithCountry
+                                id="employerContact"
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="801 234 5678"
+                                disabled={employedValue === "no"}
+                                aria-invalid={!!errors.employerContact}
+                                aria-describedby={
+                                  errors.employerContact
+                                    ? "employerContact-error"
+                                    : undefined
+                                }
+                              />
+                            )}
                           />
                           {errors.employerContact && (
-                            <p className="mt-1 text-xs text-red-600">Required</p>
+                            <p
+                              id="employerContact-error"
+                              className="mt-1 text-xs text-red-600"
+                            >
+                              {errors.employerContact.message as string}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -772,18 +1037,91 @@ export const AddTenantModal = ({
 
                   {activeTab === "applicants" && (
                     <div className="space-y-3">
+                      {fromPropertyPage && (
+                        <div>
+                          {canSelectProperty && (
+                            <div className="mb-4">
+                              <label className="mb-1 block text-sm font-medium text-gray-700">
+                                Property <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={selectedPropertyId ?? ""}
+                                onChange={(e) => {
+                                  const value = e.target.value || null;
+                                  setSelectedPropertyId(value);
+                                  setSelectedUnitId(null);
+                                  setSelectedApplicantId(null);
+                                  setAvailableUnits([]);
+                                }}
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                              >
+                                <option value="">Select property</option>
+                                {availableProperties.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {!selectedPropertyId && (
+                                <p className="mt-1 text-xs text-red-600">
+                                  Select a property
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          <label className="mb-1 block text-sm font-medium text-gray-700">
+                            Unit <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={selectedUnitId ?? ""}
+                            onChange={(e) =>
+                              setSelectedUnitId(e.target.value || null)
+                            }
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          >
+                            <option value="">Select unit</option>
+                            {availableUnits.map((u) => (
+                              <option
+                                key={u.id}
+                                value={u.id}
+                                disabled={u.isAvailable === false}
+                              >
+                                {u.unitId} • {u.type} •{" "}
+                                {u.isAvailable === false ? "Occupied" : "Free"}
+                              </option>
+                            ))}
+                          </select>
+                          {availableUnits.length === 0 ? (
+                            <p className="mt-1 text-xs text-amber-700">
+                              No units available yet for this property.
+                            </p>
+                          ) : !selectedUnitId ? (
+                            <p className="mt-1 text-xs text-red-600">
+                              Select a unit
+                            </p>
+                          ) : null}
+                          {availableUnits.some((u) => u.isAvailable === false) && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Occupied units are shown but cannot be selected.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {applicantsLoading ? (
                         <div className="flex items-center justify-center py-12">
                           <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
                         </div>
                       ) : applicants.length === 0 ? (
                         <div className="py-8 text-center text-sm text-gray-500">
-                          No applicants yet. Applicants will appear here when the list is available from the server.
+                          No applicants yet. Applicants will appear here when
+                          the list is available from the server.
                         </div>
                       ) : (
                         <ul className="space-y-2">
                           {applicants.map((a) => {
-                            const initial = (a.fullName || "?").charAt(0).toUpperCase();
+                            const initial = (a.fullName || "?")
+                              .charAt(0)
+                              .toUpperCase();
                             const isSelected = selectedApplicantId === a.id;
                             return (
                               <li key={a.id}>
@@ -803,7 +1141,9 @@ export const AddTenantModal = ({
                                     <p className="truncate text-sm font-medium text-gray-900">
                                       {a.fullName}
                                     </p>
-                                    <p className="truncate text-xs text-gray-500">{a.email}</p>
+                                    <p className="truncate text-xs text-gray-500">
+                                      {a.email}
+                                    </p>
                                   </div>
                                   <div className="shrink-0 text-right">
                                     {a.creditScore != null && (
@@ -879,7 +1219,8 @@ export const AddTenantModal = ({
                           Tenant verification
                         </h3>
                         <p className="mb-3 text-xs text-gray-500">
-                          Provide ID and employment details for the selected applicant.
+                          Provide ID and employment details for the selected
+                          applicant.
                         </p>
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div>
@@ -898,7 +1239,9 @@ export const AddTenantModal = ({
                               ))}
                             </select>
                             {errors.idType && (
-                              <p className="mt-1 text-xs text-red-600">Required</p>
+                              <p className="mt-1 text-xs text-red-600">
+                                Required
+                              </p>
                             )}
                           </div>
                           <div>
@@ -912,13 +1255,16 @@ export const AddTenantModal = ({
                               className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                             />
                             {errors.idNumber && (
-                              <p className="mt-1 text-xs text-red-600">Required</p>
+                              <p className="mt-1 text-xs text-red-600">
+                                Required
+                              </p>
                             )}
                           </div>
                         </div>
                         <div className="mt-4">
                           <label className="mb-1 block text-sm font-medium text-gray-700">
-                            Upload ID Document <span className="text-red-500">*</span>
+                            Upload ID Document{" "}
+                            <span className="text-red-500">*</span>
                           </label>
                           {idDocumentId ? (
                             <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -954,7 +1300,9 @@ export const AddTenantModal = ({
                                 disabled={idUploading}
                               />
                               {idUploading ? (
-                                <span className="text-sm text-gray-500">Uploading…</span>
+                                <span className="text-sm text-gray-500">
+                                  Uploading…
+                                </span>
                               ) : (
                                 <>
                                   <Upload className="h-8 w-8 text-gray-400" />
@@ -965,9 +1313,13 @@ export const AddTenantModal = ({
                               )}
                             </label>
                           )}
-                          {!idDocumentId && !idUploading && (
-                            <p className="mt-1 text-xs text-red-600">ID document is required</p>
-                          )}
+                          {!idDocumentId &&
+                            !idUploading &&
+                            startedApplicantVerification && (
+                            <p className="mt-1 text-xs text-red-600">
+                              ID document is required
+                            </p>
+                            )}
                         </div>
                         <div className="mt-4 grid gap-4 sm:grid-cols-2">
                           <div>
@@ -983,35 +1335,71 @@ export const AddTenantModal = ({
                               <option value="no">No</option>
                             </select>
                             {errors.employed && (
-                              <p className="mt-1 text-xs text-red-600">Required</p>
+                              <p className="mt-1 text-xs text-red-600">
+                                Required
+                              </p>
                             )}
                           </div>
                           <div>
                             <label className="mb-1 block text-sm font-medium text-gray-700">
-                              Employer Name <span className="text-red-500">*</span>
+                              Employer Name{" "}
+                              <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
                               placeholder="Company or N/A"
-                              {...register("employerName", { required: true })}
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                              {...register("employerName", {
+                                validate: (value) =>
+                                  employedValue !== "yes" ||
+                                  !!value?.trim() ||
+                                  "Employer name is required",
+                              })}
+                              disabled={employedValue === "no"}
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                             />
                             {errors.employerName && (
-                              <p className="mt-1 text-xs text-red-600">Required</p>
+                              <p className="mt-1 text-xs text-red-600">
+                                Required
+                              </p>
                             )}
                           </div>
                           <div className="sm:col-span-2">
                             <label className="mb-1 block text-sm font-medium text-gray-700">
-                              Employer Contact <span className="text-red-500">*</span>
+                              Employer Contact{" "}
+                              <span className="text-red-500">*</span>
                             </label>
-                            <input
-                              type="text"
-                              placeholder="Phone or email"
-                              {...register("employerContact", { required: true })}
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            <Controller
+                              name="employerContact"
+                              control={control}
+                              rules={{
+                                validate: (value) =>
+                                  employedValue !== "yes" ||
+                                  !!value?.trim() ||
+                                  "Employer contact is required",
+                              }}
+                              render={({ field }) => (
+                                <PhoneInputWithCountry
+                                  id="employerContact-step2"
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                  placeholder="801 234 5678"
+                                  disabled={employedValue === "no"}
+                                  aria-invalid={!!errors.employerContact}
+                                  aria-describedby={
+                                    errors.employerContact
+                                      ? "employerContact-step2-error"
+                                      : undefined
+                                  }
+                                />
+                              )}
                             />
                             {errors.employerContact && (
-                              <p className="mt-1 text-xs text-red-600">Required</p>
+                              <p
+                                id="employerContact-step2-error"
+                                className="mt-1 text-xs text-red-600"
+                              >
+                                {errors.employerContact.message as string}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -1083,7 +1471,7 @@ export const AddTenantModal = ({
                               }
                               setValue(
                                 "rentAmount",
-                                Number(v).toLocaleString("en-NG")
+                                Number(v).toLocaleString("en-NG"),
                               );
                             }}
                             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
@@ -1116,7 +1504,9 @@ export const AddTenantModal = ({
                               const v = e.target.value.replace(/\D/g, "");
                               setValue(
                                 "serviceCharge",
-                                v === "" ? "" : Number(v).toLocaleString("en-NG")
+                                v === ""
+                                  ? ""
+                                  : Number(v).toLocaleString("en-NG"),
                               );
                             }}
                             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
@@ -1149,7 +1539,9 @@ export const AddTenantModal = ({
                               const v = e.target.value.replace(/\D/g, "");
                               setValue(
                                 "securityDeposit",
-                                v === "" ? "" : Number(v).toLocaleString("en-NG")
+                                v === ""
+                                  ? ""
+                                  : Number(v).toLocaleString("en-NG"),
                               );
                             }}
                             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
@@ -1207,14 +1599,17 @@ export const AddTenantModal = ({
                             <p className="text-sm text-gray-600">
                               PDF, DOCX up to 10MB
                             </p>
-                            {(leaseFileName || leaseDocumentId) && !leaseUploading ? (
+                            {(leaseFileName || leaseDocumentId) &&
+                            !leaseUploading ? (
                               <div className="mt-2 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                                 <FileText className="h-8 w-8 text-gray-400 flex-shrink-0" />
                                 <span className="min-w-0 truncate text-sm text-gray-900">
                                   {leaseFileName ?? "Lease document"}
                                 </span>
                                 {leaseDocumentId && (
-                                  <span className="text-xs text-green-600 flex-shrink-0">Uploaded</span>
+                                  <span className="text-xs text-green-600 flex-shrink-0">
+                                    Uploaded
+                                  </span>
                                 )}
                                 <button
                                   type="button"
@@ -1301,17 +1696,19 @@ export const AddTenantModal = ({
                           </span>
                           <span className="text-gray-600">Lease Term</span>
                           <span className="font-medium text-gray-900 text-right">
-                            {formValues.leaseStartDate && formValues.leaseEndDate
+                            {formValues.leaseStartDate &&
+                            formValues.leaseEndDate
                               ? `${formValues.leaseStartDate} – ${formValues.leaseEndDate}`
                               : "—"}
                           </span>
                           <span className="text-gray-600">Monthly Rent</span>
                           <span className="font-medium text-gray-900 text-right">
-                            {formValues.rentFrequency === "monthly" && formValues.rentAmount
+                            {formValues.rentFrequency === "monthly" &&
+                            formValues.rentAmount
                               ? `₦${formValues.rentAmount}`
                               : formValues.rentAmount
-                              ? `₦${formValues.rentAmount} (${formValues.rentFrequency})`
-                              : "—"}
+                                ? `₦${formValues.rentAmount} (${formValues.rentFrequency})`
+                                : "—"}
                           </span>
                           <span className="text-gray-600">Deposit</span>
                           <span className="font-medium text-gray-900 text-right">
@@ -1325,16 +1722,16 @@ export const AddTenantModal = ({
 
                     <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                       <p className="text-sm text-gray-700">
-                        The tenant will receive an email invitation to access their portal for
-                        rent payments and maintenance requests.
+                        The tenant will receive an email invitation to access
+                        their portal for rent payments and maintenance requests.
                       </p>
                     </div>
 
                     <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                       <Clock className="h-5 w-5 text-amber-600 flex-shrink-0" />
                       <p className="text-sm text-amber-800">
-                        Lease agreement will be sent for e-signature immediately after
-                        assignment.
+                        Lease agreement will be sent for e-signature immediately
+                        after assignment.
                       </p>
                     </div>
                   </div>

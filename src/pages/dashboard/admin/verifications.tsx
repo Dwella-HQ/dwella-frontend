@@ -216,10 +216,6 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
               <p className="text-[13px] font-semibold text-[#0F172A]">
                 Landlord &amp; property verification
               </p>
-              <p className="text-[11px] text-[#64748B]">
-                List from GET /verification. Approve with PATCH using the
-                correct scope for the row type.
-              </p>
             </div>
             <button
               type="button"

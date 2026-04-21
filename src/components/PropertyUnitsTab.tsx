@@ -131,7 +131,19 @@ export const PropertyUnitsTab = ({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {units.map((unit, index) => {
+              {units.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-6 py-14 text-center">
+                    <p className="text-sm font-medium text-gray-900">
+                      No units yet
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Add your first unit to start tracking rent, occupancy, and tenants.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                units.map((unit, index) => {
                 const tenant = unit.tenantId
                   ? tenants.find((t) => t.id === unit.tenantId)
                   : null;
@@ -232,7 +244,8 @@ export const PropertyUnitsTab = ({
                     </td>
                   </motion.tr>
                 );
-              })}
+                })
+              )}
             </tbody>
           </table>
         </div>

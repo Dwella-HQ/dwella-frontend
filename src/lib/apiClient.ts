@@ -3,6 +3,7 @@ import { createUrl } from "@/utils/createUrl";
 import { savePostLoginRedirect } from "@/utils/postLoginRedirect";
 import {
   getStoredRefreshToken,
+  setStoredRefreshToken,
   tryRefreshAccessToken,
   REFRESH_TOKEN_STORAGE_KEY,
 } from "@/lib/authRefresh";
@@ -84,6 +85,36 @@ export const apiClient = async <T>(
   endpoint: string,
   options: ApiClientOptions = {},
 ): Promise<ApiResult<T>> => {
+  const normalizeHeaderValue = (
+    value: string | string[] | undefined,
+  ): string | null => {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const trimmed = item.trim();
+        if (trimmed.length > 0) return trimmed;
+      }
+    }
+    return null;
+  };
+
+  const persistRefreshTokenFromResponse = (responseHeaders?: unknown): void => {
+    if (typeof window === "undefined" || !responseHeaders) return;
+    const headers = responseHeaders as Record<
+      string,
+      string | string[] | undefined
+    >;
+    const refreshFromHeader = normalizeHeaderValue(
+      headers["x-refresh-token"] ?? headers["X-Refresh-Token"],
+    );
+    if (refreshFromHeader) {
+      setStoredRefreshToken(refreshFromHeader);
+    }
+  };
+
   const run = async (isRetry: boolean): Promise<ApiResult<T>> => {
     try {
       const { token, skipAuth, headers, method, data, ...axiosOptions } =
@@ -118,11 +149,17 @@ export const apiClient = async <T>(
         url,
         method,
         data,
+        withCredentials:
+          skipAuth === true
+            ? (axiosOptions.withCredentials ?? false)
+            : (axiosOptions.withCredentials ?? true),
         maxRedirects: 0,
         validateStatus: (status) => status >= 200 && status < 600,
         ...axiosOptions,
         headers: requestHeaders,
       });
+
+      persistRefreshTokenFromResponse(response.headers);
 
       if (response.status >= 300 && response.status < 400) {
         const redirectUrl = response.headers.location || "unknown";
@@ -201,6 +238,7 @@ export const apiClient = async <T>(
         }
 
         const statusCode = axiosError.response.status;
+        persistRefreshTokenFromResponse(axiosError.response.headers);
         const responseData = axiosError.response.data as
           | { message?: string; error?: string }
           | undefined;
@@ -212,7 +250,8 @@ export const apiClient = async <T>(
         if (statusCode === 413) {
           return {
             success: false,
-            error: "File size too large. Please upload a file smaller than 10MB.",
+            error:
+              "File size too large. Please upload a file smaller than 10MB.",
             statusCode,
           };
         }
@@ -232,7 +271,9 @@ export const apiClient = async <T>(
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "An unexpected error occurred",
+          error instanceof Error
+            ? error.message
+            : "An unexpected error occurred",
       };
     }
   };
