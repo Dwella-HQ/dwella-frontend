@@ -131,12 +131,12 @@ export const apiClient = async <T>(
       }
 
       if (!skipAuth) {
-        const authToken =
-          token ||
-          (typeof window !== "undefined"
+        const storedToken =
+          typeof window !== "undefined"
             ? localStorage.getItem("authToken") ||
               localStorage.getItem("accessToken")
-            : null);
+            : null;
+        const authToken = storedToken || token || null;
 
         if (authToken) {
           requestHeaders.Authorization = `Bearer ${authToken}`;

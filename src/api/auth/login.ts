@@ -1,15 +1,18 @@
 import { apiPost } from "@/lib/apiClient";
+import { setStoredRefreshToken } from "@/lib/authRefresh";
 
 import type { LoginRequestDTO, NewLoginResponseDTO } from "./auth.schema";
 import { newLoginResponseSchema } from "./auth.schema";
 
 const LOGIN_ROUTE = "/auth/login";
 
-type LoginResult = 
+type LoginResult =
   | { success: true; data: NewLoginResponseDTO }
   | { success: false; error: string };
 
-export const login = async (credentials: LoginRequestDTO): Promise<LoginResult> => {
+export const login = async (
+  credentials: LoginRequestDTO,
+): Promise<LoginResult> => {
   const result = await apiPost<NewLoginResponseDTO>(LOGIN_ROUTE, credentials, {
     skipAuth: true,
   });
@@ -20,6 +23,18 @@ export const login = async (credentials: LoginRequestDTO): Promise<LoginResult> 
 
   // Validate response with Zod
   try {
+    const raw = result.data as {
+      refreshToken?: unknown;
+      data?: { refreshToken?: unknown };
+    };
+    const refreshToken =
+      (typeof raw?.data?.refreshToken === "string" && raw.data.refreshToken) ||
+      (typeof raw?.refreshToken === "string" && raw.refreshToken) ||
+      null;
+    if (typeof window !== "undefined" && refreshToken) {
+      setStoredRefreshToken(refreshToken);
+    }
+
     const parsed = newLoginResponseSchema.parse(result.data);
     // Store access token and user id in localStorage
     if (typeof window !== "undefined" && parsed.data.accessToken) {
@@ -39,4 +54,3 @@ export const login = async (credentials: LoginRequestDTO): Promise<LoginResult> 
     };
   }
 };
-
