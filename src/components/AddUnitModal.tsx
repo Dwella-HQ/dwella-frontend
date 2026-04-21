@@ -67,6 +67,10 @@ export const AddUnitModal = ({
     Record<number, number>
   >({});
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const preassignedProperty =
+    Boolean(propertyId) &&
+    propertyId !== "" &&
+    propertyId !== "temp-property-id";
   const resolvedPropertyLabel = React.useMemo(() => {
     if (propertyLabel && propertyLabel.trim()) return propertyLabel;
     if (pickerProperties && propertyId) {
@@ -218,20 +222,17 @@ export const AddUnitModal = ({
   }, [isOpen]);
 
   const onSubmit = handleSubmit(async (data) => {
-    const preassigned =
-      propertyId && propertyId !== "" && propertyId !== "temp-property-id";
-
     const pickedFromForm =
       typeof data.property === "string" && data.property.trim().length > 0;
 
-    const effectivePropertyId = preassigned
+    const effectivePropertyId = preassignedProperty
       ? propertyId
       : pickedFromForm
         ? data.property
         : "";
 
     const legacyNoApi =
-      !preassigned &&
+      !preassignedProperty &&
       !pickedFromForm &&
       (!pickerProperties || pickerProperties.length === 0);
 
@@ -382,21 +383,25 @@ export const AddUnitModal = ({
                     </label>
                     <select
                       {...register("property")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      disabled={preassignedProperty}
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     >
-                      <option value="">Select property</option>
-                      {pickerProperties && pickerProperties.length > 0
-                        ? pickerProperties.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))
-                        : propertyId &&
-                          propertyId !== "temp-property-id" && (
-                            <option value={propertyId}>
-                              {resolvedPropertyLabel}
-                            </option>
-                          )}
+                      {preassignedProperty ? (
+                        <option value={propertyId}>
+                          {resolvedPropertyLabel}
+                        </option>
+                      ) : (
+                        <>
+                          <option value="">Select property</option>
+                          {pickerProperties && pickerProperties.length > 0
+                            ? pickerProperties.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))
+                            : null}
+                        </>
+                      )}
                     </select>
                     {errors.property && (
                       <p className="mt-1 text-xs text-red-600">
@@ -479,8 +484,6 @@ export const AddUnitModal = ({
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
                       <option value="monthly">Monthly</option>
-                      <option value="quarterly">Quarterly</option>
-                      <option value="biannually">Biannually</option>
                       <option value="yearly">Yearly</option>
                     </select>
                     {errors.rentDuration && (

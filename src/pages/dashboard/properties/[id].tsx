@@ -873,6 +873,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         isOpen={isAddUnitOpen}
         onClose={() => setIsAddUnitOpen(false)}
         propertyId={id as string}
+        propertyLabel={property.name}
         onSuccess={async () => {
           // Refresh units after successful creation
           if (id && typeof id === "string") {
