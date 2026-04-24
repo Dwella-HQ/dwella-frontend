@@ -127,9 +127,11 @@ export function formatUnitNextDueDate(dto: UnitDTO): string {
  * Maps API UnitDTO to frontend Unit type
  */
 export const mapUnitDTOToUnit = (dto: UnitDTO, propertyId: string): Unit => {
-  const status: "occupied" | "vacant" | "maintenance" = dto.isAvailable
-    ? "vacant"
-    : "occupied";
+  const tenant = (dto as unknown as { tenant?: Record<string, unknown> | null })
+    .tenant;
+  const hasTenant = Boolean(tenant && typeof tenant === "object");
+  const status: "occupied" | "vacant" | "maintenance" =
+    !dto.isAvailable || hasTenant ? "occupied" : "vacant";
 
   const rentStatus = deriveUnitRentStatus(dto);
   const nextDueDate = formatUnitNextDueDate(dto);
@@ -138,11 +140,39 @@ export const mapUnitDTOToUnit = (dto: UnitDTO, propertyId: string): Unit => {
 
   const unitId = dto.name;
 
+  const dtoImages = dto as unknown as {
+    images?: Array<{ url?: string | null }> | null;
+    property?: { photos?: Array<{ url?: string | null }> };
+  };
   const image =
+    dtoImages.images?.find((img) => typeof img?.url === "string" && img.url)
+      ?.url ??
+    dtoImages.property?.photos?.find(
+      (photo) => typeof photo?.url === "string" && photo.url,
+    )?.url ??
     "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop";
 
   const resolvedPropertyId =
     (dto as { propertyId?: string }).propertyId ?? propertyId;
+
+  const tenantId =
+    typeof tenant?.id === "string" && tenant.id ? tenant.id : undefined;
+  const tenantUser =
+    tenant && typeof tenant.user === "object" && tenant.user !== null
+      ? (tenant.user as Record<string, unknown>)
+      : null;
+  const tenantName =
+    (typeof tenantUser?.fullName === "string" && tenantUser.fullName) ||
+    (typeof tenant?.fullName === "string" && tenant.fullName) ||
+    undefined;
+  const tenantEmail =
+    (typeof tenantUser?.email === "string" && tenantUser.email) ||
+    (typeof tenant?.email === "string" && tenant.email) ||
+    undefined;
+  const tenantPhone =
+    (typeof tenantUser?.phoneNumber === "string" && tenantUser.phoneNumber) ||
+    (typeof tenant?.phoneNumber === "string" && tenant.phoneNumber) ||
+    undefined;
 
   return {
     id: dto.id,
@@ -160,7 +190,15 @@ export const mapUnitDTOToUnit = (dto: UnitDTO, propertyId: string): Unit => {
     amenities:
       dto.amenities && Array.isArray(dto.amenities) ? dto.amenities : [],
     image,
-    tenantId: undefined,
+    tenantId,
+    tenantName,
+    tenantEmail,
+    tenantPhone,
+    leaseEndDate:
+      pickString(dto as unknown as Record<string, unknown>, [
+        "leaseEndDate",
+        "nextLeaseEndDate",
+      ]) ?? undefined,
     nextDueDate,
   };
 };

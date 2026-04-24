@@ -15,7 +15,12 @@ import * as Popover from "@radix-ui/react-popover";
 import { Controller, useForm } from "react-hook-form";
 import { DayPicker } from "react-day-picker";
 import { format, parseISO } from "date-fns";
-import { inviteTenant, type RentFrequency, type IdType } from "@/api/tenants";
+import {
+  inviteTenant,
+  type RentFrequency,
+  type ServiceChargeFrequency,
+  type IdType,
+} from "@/api/tenants";
 import { getApplicants, type Applicant } from "@/api/applicants";
 import { getPropertiesByLandlord } from "@/api/properties";
 import { uploadFile } from "@/api/files";
@@ -109,21 +114,26 @@ type AssignTenantFormValues = {
   rentAmount: string;
   rentFrequency: RentFrequency;
   serviceCharge: string;
-  serviceChargeFrequency: string;
+  serviceChargeFrequency: ServiceChargeFrequency;
   securityDeposit: string;
   leaseOption: "auto" | "upload";
 };
 
 const RENT_FREQUENCY_OPTIONS: { value: RentFrequency; label: string }[] = [
   { value: "weekly", label: "Weekly" },
+  { value: "biweekly", label: "Biweekly" },
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
   { value: "yearly", label: "Yearly" },
 ];
 
-const SERVICE_CHARGE_FREQUENCY_OPTIONS = [
+const SERVICE_CHARGE_FREQUENCY_OPTIONS: {
+  value: ServiceChargeFrequency;
+  label: string;
+}[] = [
   { value: "one_time", label: "One Time" },
   { value: "weekly", label: "Weekly" },
+  { value: "biweekly", label: "Biweekly" },
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
   { value: "yearly", label: "Yearly" },
@@ -312,7 +322,10 @@ export const AddTenantModal = ({
             },
           ),
           type: (u as unknown as { type?: string | null }).type ?? "Unit",
-          isAvailable: u.isAvailable,
+          isAvailable:
+            ((u as unknown as { tenant?: unknown }).tenant == null &&
+              u.isAvailable === true) ||
+            false,
         })),
       );
     });
@@ -470,11 +483,6 @@ export const AddTenantModal = ({
     const securityDeposit =
       Number(formValues.securityDeposit?.replace(/\D/g, "")) || 0;
 
-    const serviceChargeFreq =
-      formValues.serviceChargeFrequency === "one_time"
-        ? "yearly"
-        : (formValues.serviceChargeFrequency as RentFrequency);
-
     const payload = {
       email: formValues.email,
       fullName: formValues.fullName,
@@ -492,7 +500,7 @@ export const AddTenantModal = ({
       rentAmount,
       securityDeposit,
       serviceCharge,
-      serviceChargeFrequency: serviceChargeFreq,
+      serviceChargeFrequency: formValues.serviceChargeFrequency,
       ...(formValues.leaseOption === "upload" && leaseDocumentId
         ? { leaseDocumentId }
         : {}),

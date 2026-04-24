@@ -14,7 +14,7 @@ export const LandingFooter = () => {
 
   return (
     <footer className="bg-[#0B0706] text-white">
-      <div className="mx-auto w-full px-6 py-12 sm:px-8 lg:px-16 xl:px-24 2xl:px-32">
+      <div className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-2 text-white">
@@ -53,6 +53,11 @@ export const LandingFooter = () => {
             <h3 className="mb-4 text-sm font-bold text-white">Quick links</h3>
             <ul className="space-y-2.5 text-sm text-white/90">
               <li>
+                <Link href="/pricing" className="hover:text-white transition">
+                  Pricing
+                </Link>
+              </li>
+              <li>
                 <Link href="/faqs" className="hover:text-white transition">
                   FAQs
                 </Link>
@@ -81,12 +86,7 @@ export const LandingFooter = () => {
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/auth/signup?role=landlord"
-                  className="hover:text-white transition"
-                >
-                  As LandLord
-                </Link>
+                <Link href="/auth/signup?role=landlord" className="hover:text-white transition">As LandLord</Link>
               </li>
               <li>
                 <Link
@@ -121,14 +121,14 @@ export const LandingFooter = () => {
               </li>
               <li className="flex gap-4 pt-2">
                 <a
-                  href="https://twitter.com"
+                  href="https://x.com"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-white/90 hover:text-white transition"
-                  aria-label="Twitter"
+                  aria-label="X"
                 >
                   <svg
-                    className="h-5 w-5"
+                    className="h-6 w-6"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -143,7 +143,7 @@ export const LandingFooter = () => {
                   aria-label="Instagram"
                 >
                   <svg
-                    className="h-5 w-5"
+                    className="h-6 w-6"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -158,7 +158,7 @@ export const LandingFooter = () => {
                   aria-label="Facebook"
                 >
                   <svg
-                    className="h-5 w-5"
+                    className="h-6 w-6"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >

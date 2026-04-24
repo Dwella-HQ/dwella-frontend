@@ -38,7 +38,7 @@ import { AssignPropertyManagerModal } from "@/components/AssignPropertyManagerMo
 import { InviteManagerModal } from "@/components/InviteManagerModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
 import { mockMaintenanceRequests } from "@/data/mockLandlordData";
-import type { Payment } from "@/data/mockLandlordData";
+import type { Payment, Tenant } from "@/data/mockLandlordData";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import type {
   MaintenanceRequest,
@@ -46,7 +46,6 @@ import type {
   MaintenanceRequestWithDetails,
 } from "@/data/mockLandlordData";
 import {
-  mockTenants,
   mockPaymentHistory,
   mockMaintenanceRequestDetails,
   mockPropertyDocuments,
@@ -328,6 +327,22 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     const rent = Number.parseFloat(String(rentValue));
     return sum + (Number.isFinite(rent) ? rent : 0);
   }, 0);
+  const propertyTenants = React.useMemo<Tenant[]>(() => {
+    return units
+      .filter((unit) => unit.tenantId)
+      .map((unit) => ({
+        id: unit.tenantId as string,
+        propertyId: id as string,
+        unitId: unit.unitId,
+        name: unit.tenantName || "Tenant",
+        email: unit.tenantEmail || "",
+        phone: unit.tenantPhone || "—",
+        leaseStart: "—",
+        leaseEnd: unit.leaseEndDate || "—",
+        nextPayment: unit.nextDueDate || "—",
+        status: "occupied",
+      }));
+  }, [units, id]);
   const managerName =
     ((propertyDTO as any)?.propertyManager?.user?.fullName as
       | string
@@ -706,7 +721,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   <PropertyUnitsTab
                     units={units}
                     propertyId={id as string}
-                    tenants={mockTenants.filter((t) => t.propertyId === id)}
+                    tenants={propertyTenants}
                   />
                 )}
               </motion.div>
@@ -720,7 +735,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 transition={{ duration: 0.2 }}
               >
                 <PropertyTenantsTab
-                  tenants={mockTenants.filter((t) => t.propertyId === id)}
+                  tenants={propertyTenants}
                   propertyId={id as string}
                 />
               </motion.div>
@@ -947,7 +962,12 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         isOpen={isAddTenantOpen}
         onClose={() => setIsAddTenantOpen(false)}
         propertyId={id as string}
-        units={units.map((u) => ({ id: u.id, unitId: u.unitId, type: u.type }))}
+        units={units.map((u) => ({
+          id: u.id,
+          unitId: u.unitId,
+          type: u.type,
+          isAvailable: u.status !== "occupied",
+        }))}
         onSuccess={() => {
           if (id && typeof id === "string") {
             setIsLoadingUnits(true);

@@ -54,6 +54,10 @@ export type Unit = {
   amenities: string[];
   image: string;
   tenantId?: string;
+  tenantName?: string;
+  tenantEmail?: string;
+  tenantPhone?: string;
+  leaseEndDate?: string;
   nextDueDate: string;
 };
 

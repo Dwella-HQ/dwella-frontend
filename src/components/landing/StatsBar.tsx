@@ -10,9 +10,9 @@ const stats = [
 export const StatsBar = () => {
   return (
     <section
-      className="min-h-[140px] py-10 text-white"
+      className="min-h-[140px] py-12 text-white"
       style={{
-        background: "linear-gradient(180deg, #155DFC 0%, #000000 100%)",
+        background: "linear-gradient(90deg, #1D63F4 0%, #0A255A 55%, #010101 100%)",
       }}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

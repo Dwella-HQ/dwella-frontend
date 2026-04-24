@@ -4,7 +4,9 @@ import { motion } from "framer-motion";
 import { MessageSquare, User, Users, Plus, Mail, Loader2 } from "lucide-react";
 import { AddTenantModal } from "@/components/AddTenantModal";
 import {
+  INVITE_STATUSES,
   getInvitedTenantsForProperty,
+  type InviteStatus,
   type InvitedTenantDTO,
 } from "@/api/tenants";
 import type { Tenant } from "@/data/mockLandlordData";
@@ -34,10 +36,21 @@ function formatInvitedDate(iso?: string): string | null {
   });
 }
 
+function statusPillClass(status?: string): string {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (normalized === "accepted") return "bg-green-100 text-green-800";
+  if (normalized === "rejected") return "bg-red-100 text-red-800";
+  if (normalized === "expired") return "bg-gray-200 text-gray-700";
+  return "bg-amber-100 text-amber-900";
+}
+
 export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabProps) => {
   const router = useRouter();
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [invited, setInvited] = React.useState<InvitedTenantDTO[]>([]);
+  const [inviteStatusFilter, setInviteStatusFilter] = React.useState<
+    InviteStatus | "all"
+  >("all");
   const [invitedLoading, setInvitedLoading] = React.useState(true);
   const [invitedError, setInvitedError] = React.useState<string | null>(null);
 
@@ -45,7 +58,10 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
     if (!propertyId) return;
     setInvitedLoading(true);
     setInvitedError(null);
-    const result = await getInvitedTenantsForProperty(propertyId);
+    const result = await getInvitedTenantsForProperty(
+      propertyId,
+      inviteStatusFilter,
+    );
     if (result.success) {
       setInvited(result.data);
     } else {
@@ -53,7 +69,7 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
       setInvitedError(result.error);
     }
     setInvitedLoading(false);
-  }, [propertyId]);
+  }, [propertyId, inviteStatusFilter]);
 
   React.useEffect(() => {
     loadInvited();
@@ -170,8 +186,27 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
           <div>
             <h2 className="text-xl font-bold text-gray-900">Invited Tenants</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Invitations sent; these people have not finished joining yet.
+              Invitations sent to potential tenants.
             </p>
+            <div className="mt-3 w-full max-w-[220px]">
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                Status
+              </label>
+              <select
+                value={inviteStatusFilter}
+                onChange={(e) =>
+                  setInviteStatusFilter(e.target.value as InviteStatus | "all")
+                }
+                className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+              >
+                <option value="all">All</option>
+                {INVITE_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {invitedLoading ? (
@@ -190,10 +225,15 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
                 const email = inv.email ?? "—";
                 const unitLabel =
                   inv.unitName?.trim() ||
+                  inv.unit?.name?.trim() ||
                   (inv.unitId ? `Unit ref. ${inv.unitId.slice(0, 8)}…` : "—");
                 const when = formatInvitedDate(inv.invitedAt || inv.createdAt);
                 const statusLabel =
-                  inv.status?.trim() || "Pending";
+                  inv.status?.trim()
+                    ? `${inv.status.trim().slice(0, 1).toUpperCase()}${inv.status
+                        .trim()
+                        .slice(1)}`
+                    : "Pending";
 
                 return (
                   <motion.li
@@ -217,7 +257,11 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
                           <span className="text-xs text-gray-500">
                             <span className="font-medium text-gray-600">Unit:</span> {unitLabel}
                           </span>
-                          <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusPillClass(
+                              inv.status,
+                            )}`}
+                          >
                             {statusLabel}
                           </span>
                           {when && (
@@ -237,7 +281,7 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
               </div>
               <p className="text-sm font-medium text-gray-900">No pending invites</p>
               <p className="mt-1 max-w-sm text-xs text-gray-500">
-                When you assign a tenant, they will appear here until they accept the invitation.
+                No invitations found for the selected status.
               </p>
             </div>
           )}

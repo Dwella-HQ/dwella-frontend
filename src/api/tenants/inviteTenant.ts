@@ -1,6 +1,12 @@
 import { apiPost } from "@/lib/apiClient";
 
-export type RentFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
+export type RentFrequency =
+  | "weekly"
+  | "biweekly"
+  | "monthly"
+  | "quarterly"
+  | "yearly";
+export type ServiceChargeFrequency = RentFrequency | "one_time";
 
 export type IdType = "NATIONAL_ID" | "DRIVER_LICENSE" | "PASSPORT" | "OTHER";
 
@@ -21,7 +27,7 @@ export type TenantInviteRequest = {
   rentAmount: number;
   securityDeposit: number;
   serviceCharge: number;
-  serviceChargeFrequency: RentFrequency;
+  serviceChargeFrequency: ServiceChargeFrequency;
   leaseDocumentId?: string; // optional if auto-generating lease
 };
 

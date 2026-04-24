@@ -1,8 +1,7 @@
-import { apiGet } from "@/lib/apiClient";
-
+import { getTenantInvitesQuery } from "./getTenantInvitesQuery";
 import {
-  invitedTenantSchema,
-  invitedTenantsListResponseSchema,
+  INVITE_STATUSES,
+  type InviteStatus,
   type InvitedTenantDTO,
 } from "./invitedTenants.schema";
 
@@ -10,43 +9,34 @@ type Result =
   | { success: true; data: InvitedTenantDTO[] }
   | { success: false; error: string; statusCode?: number };
 
-function normalizeList(raw: unknown): InvitedTenantDTO[] {
-  const parsed = invitedTenantsListResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    return [];
-  }
-  const v = parsed.data;
-  const rows = Array.isArray(v) ? v : v.data || [];
-  const out: InvitedTenantDTO[] = [];
-  for (const row of rows) {
-    const one = invitedTenantSchema.safeParse(row);
-    if (one.success) out.push(one.data);
-  }
-  return out;
-}
-
 /**
- * GET /property/{propertyId}/tenant-invites
- * Returns pending tenant invitations for this property.
+ * Backward-compatible helper for property-level invited tenants.
+ * Uses GET /tenant/invite/query with status=pending and filters by property.
  */
 export const getInvitedTenantsForProperty = async (
   propertyId: string,
+  status: InviteStatus | "all" = "all",
 ): Promise<Result> => {
-  const result = await apiGet<unknown>(
-    `/property/${propertyId}/tenant-invites`,
+  const statuses = status === "all" ? INVITE_STATUSES : [status];
+  const settled = await Promise.all(
+    statuses.map((s) => getTenantInvitesQuery({ status: s })),
   );
 
-  if (!result.success) {
-    if (result.statusCode === 404) {
-      return { success: true, data: [] };
-    }
-    return result;
+  const failed = settled.find((r) => !r.success);
+  if (failed && !failed.success) {
+    return failed;
   }
 
-  try {
-    const data = normalizeList(result.data);
-    return { success: true, data };
-  } catch {
-    return { success: true, data: [] };
-  }
+  const merged = settled.flatMap((r) => (r.success ? r.data : []));
+  const uniqueById = new Map<string, InvitedTenantDTO>();
+  for (const inv of merged) uniqueById.set(inv.id, inv);
+
+  const data = [...uniqueById.values()].filter((inv) => {
+    const nestedPropertyId = inv.unit?.property?.id?.trim();
+    const directPropertyIdRaw = (inv as { propertyId?: unknown }).propertyId;
+    const directPropertyId =
+      typeof directPropertyIdRaw === "string" ? directPropertyIdRaw.trim() : "";
+    return nestedPropertyId === propertyId || directPropertyId === propertyId;
+  });
+  return { success: true, data };
 };

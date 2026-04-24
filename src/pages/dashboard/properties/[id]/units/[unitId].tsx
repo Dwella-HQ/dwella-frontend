@@ -23,10 +23,9 @@ import { EditUnitModal } from "@/components/EditUnitModal";
 import { NewMaintenanceRequestModal } from "@/components/NewMaintenanceRequestModal";
 import { getUnit } from "@/api/units";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
-import { mockTenants } from "@/data/mockPropertyDetails";
 import { mockPaymentHistory } from "@/data/mockPropertyDetails";
 import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
-import type { Unit, Tenant } from "@/data/mockLandlordData";
+import type { Unit } from "@/data/mockLandlordData";
 
 import type { NextPageWithLayout } from "@/pages/_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
@@ -98,7 +97,15 @@ const UnitDetailPage: NextPageWithLayout = () => {
 
   const tenant = React.useMemo(() => {
     if (!unit?.tenantId) return null;
-    return mockTenants.find((t) => t.id === unit.tenantId);
+    return {
+      id: unit.tenantId,
+      name: unit.tenantName || "Tenant",
+      phone: unit.tenantPhone || "—",
+      email: unit.tenantEmail || "—",
+      leaseStart: "—",
+      leaseEnd: unit.leaseEndDate || "—",
+      nextPayment: unit.nextDueDate || "—",
+    };
   }, [unit]);
 
   const unitPayments = React.useMemo(() => {

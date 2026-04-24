@@ -138,112 +138,121 @@ export const PropertyUnitsTab = ({
                       No units yet
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      Add your first unit to start tracking rent, occupancy, and tenants.
+                      Add your first unit to start tracking rent, occupancy, and
+                      tenants.
                     </p>
                   </td>
                 </tr>
               ) : (
                 units.map((unit, index) => {
-                const tenant = unit.tenantId
-                  ? tenants.find((t) => t.id === unit.tenantId)
-                  : null;
-                const tenantName = tenant ? tenant.name : "N/A";
-                const tenantInitials = tenant ? getInitials(tenantName) : "N";
-                const displayedAmenities = unit.amenities.slice(0, 2);
-                const remainingAmenities = unit.amenities.length - 2;
+                  const tenant = unit.tenantId
+                    ? tenants.find((t) => t.id === unit.tenantId)
+                    : null;
+                  const tenantName =
+                    tenant?.name ||
+                    unit.tenantName ||
+                    (unit.tenantId ? "Tenant" : "N/A");
+                  const tenantInitials =
+                    unit.tenantId || tenant
+                      ? getInitials(
+                          tenantName === "N/A" ? "Tenant" : tenantName,
+                        )
+                      : "N";
+                  const displayedAmenities = unit.amenities.slice(0, 2);
+                  const remainingAmenities = unit.amenities.length - 2;
 
-                return (
-                  <motion.tr
-                    key={unit.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.05 }}
-                    whileHover={{ x: 4, transition: { duration: 0.2 } }}
-                    onClick={() => handleRowClick(unit.id)}
-                    className="hover:bg-gray-50 cursor-pointer"
-                  >
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
-                      {String(index + 1).padStart(2, "0")}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4">
-                      <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0">
-                        <Image
-                          src={unit.image}
-                          alt={unit.unitId}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">
-                      {unit.unitId}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                      {unit.type}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(
-                          unit.status,
-                        )}`}
-                      >
-                        {unit.status.charAt(0).toUpperCase() +
-                          unit.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {displayedAmenities.map((amenity, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
-                          >
-                            {amenity}
-                          </span>
-                        ))}
-                        {remainingAmenities > 0 && (
-                          <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                            +{remainingAmenities}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
-                          {tenantInitials}
-                        </div>
-                        <span className="text-sm text-gray-700 whitespace-nowrap">
-                          {tenantName}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRentStatusColor(
-                          unit.rentStatus,
-                        )}`}
-                      >
-                        {rentStatusLabel(unit.rentStatus)}
-                      </span>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                      {unit.nextDueDate}
-                    </td>
-                    <td
-                      className="px-3 sm:px-6 py-4 whitespace-nowrap"
-                      onClick={(e) => e.stopPropagation()}
+                  return (
+                    <motion.tr
+                      key={unit.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                      whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                      onClick={() => handleRowClick(unit.id)}
+                      className="hover:bg-gray-50 cursor-pointer"
                     >
-                      <Link
-                        href={`/dashboard/properties/${propertyId}/units/${unit.id}`}
-                        className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
+                        {String(index + 1).padStart(2, "0")}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4">
+                        <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0">
+                          <Image
+                            src={unit.image}
+                            alt={unit.unitId}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">
+                        {unit.unitId}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {unit.type}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(
+                            unit.status,
+                          )}`}
+                        >
+                          {unit.status.charAt(0).toUpperCase() +
+                            unit.status.slice(1)}
+                        </span>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {displayedAmenities.map((amenity, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
+                            >
+                              {amenity}
+                            </span>
+                          ))}
+                          {remainingAmenities > 0 && (
+                            <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                              +{remainingAmenities}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
+                            {tenantInitials}
+                          </div>
+                          <span className="text-sm text-gray-700 whitespace-nowrap">
+                            {tenantName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRentStatusColor(
+                            unit.rentStatus,
+                          )}`}
+                        >
+                          {rentStatusLabel(unit.rentStatus)}
+                        </span>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {unit.nextDueDate}
+                      </td>
+                      <td
+                        className="px-3 sm:px-6 py-4 whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        View Details
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </Link>
-                    </td>
-                  </motion.tr>
-                );
+                        <Link
+                          href={`/dashboard/properties/${propertyId}/units/${unit.id}`}
+                          className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
+                        >
+                          View Details
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      </td>
+                    </motion.tr>
+                  );
                 })
               )}
             </tbody>
