@@ -307,33 +307,52 @@ export default function LandingPage() {
             </div>
           </section>
 
-          <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 md:min-h-[80vh]">
-            <h2 className="text-center text-3xl font-bold text-[#111827] md:text-6xl">Loved by Tenants and Landlords</h2>
+          <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+            <h2 className="text-center text-3xl font-bold text-[#111827] md:text-5xl">
+              Loved by Tenants and Landlords
+            </h2>
             <div className="mt-10 grid gap-6 md:grid-cols-2">
               {[
                 { name: "Chioma A.", role: "Verified Tenant", quote: "I found my apartment without stress. No more running around with agents, and digital lease signing made everything quick and secure." },
                 { name: "David O.", role: "Property Manager", quote: "Managing my rentals is now effortless. Rent collection is automated, and I can track maintenance requests from anywhere." },
               ].map((item) => (
-                <article key={item.name} className="rounded-3xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
-                  <p className="text-lg font-semibold text-[#111827] md:text-xl">{item.name}</p>
-                  <p className="text-sm text-[#6B7280] md:text-base">{item.role}</p>
-                  <p className="mt-4 text-base leading-7 text-[#334155] md:text-lg">"{item.quote}"</p>
+                <article
+                  key={item.name}
+                  className="rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm md:p-7"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E2E8F0] text-xs font-semibold text-[#0F172A]">
+                        {item.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </div>
+                      <div>
+                        <p className="text-lg font-semibold text-[#111827]">{item.name}</p>
+                        <p className="text-sm text-[#6B7280]">{item.role}</p>
+                      </div>
+                    </div>
+                    <span className="text-4xl leading-none text-[#D1D5DB]">"</span>
+                  </div>
+                  <p className="mt-5 text-base leading-8 text-[#334155]">"{item.quote}"</p>
                 </article>
               ))}
             </div>
           </section>
 
-          <section className="mx-auto max-w-7xl px-4 pb-16 pt-2 sm:px-6 lg:px-8 md:min-h-[80vh] md:flex md:items-center">
-            <div className="rounded-3xl bg-[#E8EEF9] px-6 py-12 text-center sm:px-12">
-              <h2 className="text-4xl font-bold text-[#111827] md:text-6xl">Ready to Get Started?</h2>
-              <p className="mx-auto mt-4 max-w-3xl text-base text-[#4B5563] md:text-xl">
+          <section className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-5xl rounded-3xl bg-[#E8EEF9] px-6 py-12 text-center sm:px-12">
+              <h2 className="text-4xl font-bold text-[#111827] md:text-5xl">Ready to Get Started?</h2>
+              <p className="mx-auto mt-4 max-w-3xl text-base text-[#4B5563] md:text-lg">
                 Join thousands of users experiencing the future of real estate. Whether you are looking for a home or managing properties, we have got you covered.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
-                <Link href="/properties" className="rounded-xl bg-[#0A4C95] px-8 py-3 text-sm font-semibold text-white shadow hover:bg-[#083E7C] md:px-10 md:py-4 md:text-base">
+                <Link href="/properties" className="rounded-xl bg-[#0A4C95] px-8 py-3 text-sm font-semibold text-white shadow hover:bg-[#083E7C]">
                   Browse Properties
                 </Link>
-                <Link href="/auth/signup?role=landlord" className="rounded-xl border border-[#0A4C95] px-8 py-3 text-sm font-semibold text-[#0A4C95] hover:bg-[#0A4C95]/5 md:px-10 md:py-4 md:text-base">
+                <Link href="/auth/signup?role=landlord" className="rounded-xl border border-[#0A4C95] px-8 py-3 text-sm font-semibold text-[#0A4C95] hover:bg-[#0A4C95]/5">
                   List Your Property
                 </Link>
               </div>
