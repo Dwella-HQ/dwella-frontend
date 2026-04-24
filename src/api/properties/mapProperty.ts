@@ -23,7 +23,15 @@ export const mapPropertyDTOToProperty = (dto: PropertyDTO): Property => {
 
   // Calculate occupancy from units data
   const units = Array.isArray(dto.units) ? dto.units : [];
-  const occupiedUnits = units.filter((unit: any) => !unit.isAvailable).length;
+  const occupiedUnits = units.filter((unit: unknown) => {
+    if (!unit || typeof unit !== "object") return false;
+    const record = unit as { isAvailable?: boolean; tenant?: unknown };
+    const hasTenant =
+      record.tenant !== null &&
+      record.tenant !== undefined &&
+      typeof record.tenant === "object";
+    return record.isAvailable === false || hasTenant;
+  }).length;
   const occupancy = units.length > 0 
     ? Math.round((occupiedUnits / units.length) * 100) 
     : 0;
@@ -43,11 +51,6 @@ export const mapPropertyDTOToProperty = (dto: PropertyDTO): Property => {
     }
   }
   
-  // Debug log to help troubleshoot
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Property mapping - photos:', photos, 'selected image:', image);
-  }
-
   // Get next due date (mock for now - will need payment API)
   const nextDue = "N/A"; // TODO: Calculate from payment data
 

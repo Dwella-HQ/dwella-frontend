@@ -106,7 +106,7 @@ export type MaintenanceRequestCreateDTO = z.infer<
 
 // PATCH /maintenance-request/{id}/status
 export const maintenanceRequestStatusSchema = z.object({
-  status: z.string().min(1),
+  status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED"]),
 });
 
 export type MaintenanceRequestStatusDTO = z.infer<

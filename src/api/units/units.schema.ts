@@ -25,17 +25,17 @@ export type UpdateUnitRequestDTO = z.infer<typeof updateUnitRequestSchema>;
 
 const unitTenantUserSchema = z
   .object({
-    id: z.string().optional(),
-    email: z.string().optional(),
-    fullName: z.string().optional(),
-    phoneNumber: z.string().optional(),
+    id: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    fullName: z.string().nullable().optional(),
+    phoneNumber: z.string().nullable().optional(),
   })
   .passthrough();
 
 const unitTenantSchema = z
   .object({
-    id: z.string().optional(),
-    email: z.string().optional(),
+    id: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
     user: unitTenantUserSchema.optional(),
   })
   .passthrough();

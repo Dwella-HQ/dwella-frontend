@@ -344,6 +344,42 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     const rent = Number.parseFloat(String(rentValue));
     return sum + (Number.isFinite(rent) ? rent : 0);
   }, 0);
+  const rentLabel = (() => {
+    const normalizeFrequency = (value: unknown): string | null => {
+      if (typeof value !== "string") return null;
+      const key = value.trim().toLowerCase();
+      if (!key) return null;
+      if (key === "daily") return "Daily";
+      if (key === "weekly") return "Weekly";
+      if (key === "monthly") return "Monthly";
+      if (key === "yearly" || key === "annually") return "Yearly";
+      return null;
+    };
+
+    const source = Array.isArray((propertyDTO as any)?.units)
+      ? ((propertyDTO as any).units as Array<Record<string, unknown>>)
+      : [];
+
+    const frequencies = Array.from(
+      new Set(
+        source
+          .map((unit) =>
+            normalizeFrequency(
+              unit?.rentFrequency ??
+                unit?.rentDuration ??
+                unit?.duration ??
+                unit?.leaseFrequency,
+            ),
+          )
+          .filter((v): v is string => Boolean(v)),
+      ),
+    );
+
+    if (frequencies.length === 1) {
+      return `${frequencies[0]} Rent`;
+    }
+    return "Rent";
+  })();
   const managerName =
     ((propertyDTO as any)?.propertyManager?.user?.fullName as
       | string
@@ -510,7 +546,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 </p>
               </div>
 
-              {/* Monthly Rent */}
+              {/* Rent */}
               <div
                 className="rounded-lg border border-gray-200 p-4"
                 style={{ backgroundColor: ADMIN_STAT_BG.purple }}
@@ -525,7 +561,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   className="text-xs font-medium mb-1"
                   style={{ color: ADMIN_STAT_LABEL.purple }}
                 >
-                  Monthly Rent
+                  {rentLabel}
                 </p>
                 <p className="text-2xl font-bold text-gray-900">
                   ₦{monthlyRentTotal.toLocaleString()}

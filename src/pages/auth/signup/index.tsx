@@ -7,6 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import Link from "next/link";
+import { login } from "@/api/auth";
+import { getTenantByUser } from "@/api/tenants";
+import { useUser, type UserRole } from "@/contexts/UserContext";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
@@ -37,6 +40,7 @@ export type SignUpValues = z.infer<typeof signUpSchema>;
 
 const SignUpPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { setUser } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showPassword, setShowPassword] = React.useState(false);
@@ -44,6 +48,36 @@ const SignUpPage: NextPageWithLayout = () => {
   const [selectedRole, setSelectedRole] = React.useState<
     "tenant" | "landlord" | "manager" | null
   >(null);
+
+  const mapRoleNameToUserRole = React.useCallback(
+    (roleName: string): UserRole => {
+      if (roleName === "super_admin" || roleName === "admin") {
+        return "super_admin";
+      }
+      if (roleName === "property_manager" || roleName === "manager") {
+        return "property_manager";
+      }
+      if (roleName === "tenant") {
+        return "tenant";
+      }
+      return "landlord";
+    },
+    [],
+  );
+
+  const persistFreshAuth = React.useCallback(
+    (userId: string, accessToken: string) => {
+      if (typeof window === "undefined") return;
+      localStorage.setItem("userId", userId);
+      localStorage.setItem("accessToken", accessToken);
+      localStorage.setItem("authToken", accessToken);
+      const maxAge = 60 * 60 * 24 * 7;
+      const secure = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `accessToken=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+      document.cookie = `authToken=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+    },
+    [],
+  );
 
   const getTenantInviteIdFromQuery = React.useCallback((): string => {
     const candidateKeys = [
@@ -186,6 +220,45 @@ const SignUpPage: NextPageWithLayout = () => {
         setError(formatRegistrationErrorForUser(result.error));
         setIsSubmitting(false);
         return;
+      }
+
+      const shouldAutoLoginTenant =
+        selectedRole === "tenant" && tenantIdFromQuery.length > 0;
+      if (shouldAutoLoginTenant) {
+        const loginResult = await login({
+          email: data.email,
+          password: data.password,
+        });
+
+        if (loginResult.success) {
+          const apiUser = loginResult.data.data.user;
+          const role = mapRoleNameToUserRole(apiUser.role?.name || "");
+          const userForContext = {
+            id: apiUser.id,
+            name:
+              apiUser.fullName ||
+              apiUser.name ||
+              data.fullName ||
+              apiUser.email.split("@")[0],
+            email: apiUser.email,
+            role,
+            token: loginResult.data.data.accessToken,
+          };
+          setUser(userForContext);
+          persistFreshAuth(String(apiUser.id), loginResult.data.data.accessToken);
+
+          const tenantResult = await getTenantByUser(apiUser.id);
+          if (
+            tenantResult.success &&
+            tenantResult.data?.id &&
+            typeof window !== "undefined"
+          ) {
+            localStorage.setItem("tenantId", tenantResult.data.id);
+          }
+
+          await router.push("/dashboard");
+          return;
+        }
       }
 
       // Store actual email in sessionStorage for resend functionality

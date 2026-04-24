@@ -22,7 +22,7 @@ export type TenantInviteRequest = {
   employerName: string;
   employerContact: string;
   leaseStartDate: string; // ISO date string
-  leaseEndDate: string;
+  leaseEndDate?: string;
   rentFrequency: RentFrequency;
   rentAmount: number;
   securityDeposit: number;

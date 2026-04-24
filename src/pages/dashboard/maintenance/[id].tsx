@@ -158,7 +158,7 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
     if (!id || !request) return;
     setIsMarkingResolved(true);
     const result = await updateMaintenanceRequestStatus(id, {
-      status: "RESOLVED",
+      status: "COMPLETED",
     });
     setIsMarkingResolved(false);
     if (result.success && result.data) {

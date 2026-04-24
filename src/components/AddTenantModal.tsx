@@ -495,7 +495,9 @@ export const AddTenantModal = ({
       employerName: formValues.employerName,
       employerContact: formValues.employerContact,
       leaseStartDate: toISO8601Date(formValues.leaseStartDate),
-      leaseEndDate: toISO8601Date(formValues.leaseEndDate),
+      ...(formValues.leaseEndDate
+        ? { leaseEndDate: toISO8601Date(formValues.leaseEndDate) }
+        : {}),
       rentFrequency: formValues.rentFrequency,
       rentAmount,
       securityDeposit,
@@ -563,7 +565,6 @@ export const AddTenantModal = ({
 
   const step2Valid =
     formValues.leaseStartDate &&
-    formValues.leaseEndDate &&
     Number(formValues.rentAmount?.replace(/\D/g, "")) > 0 &&
     (formValues.leaseOption === "auto" || !!leaseDocumentId) &&
     (!selectedApplicantId ||
@@ -1453,12 +1454,14 @@ export const AddTenantModal = ({
                         </div>
                         <div>
                           <label className="mb-1 block text-sm font-medium text-gray-700">
-                            Lease End Date
+                            Lease End Date{" "}
+                            <span className="text-xs font-normal text-gray-500">
+                              (optional)
+                            </span>
                           </label>
                           <Controller
                             name="leaseEndDate"
                             control={control}
-                            rules={{ required: "Lease end date is required" }}
                             render={({ field }) => (
                               <LeaseDatePickerField
                                 id="lease-end-date"
@@ -1467,11 +1470,6 @@ export const AddTenantModal = ({
                               />
                             )}
                           />
-                          {errors.leaseEndDate && (
-                            <p className="mt-1 text-xs text-red-600">
-                              {errors.leaseEndDate.message as string}
-                            </p>
-                          )}
                         </div>
                         <div>
                           <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -1714,9 +1712,10 @@ export const AddTenantModal = ({
                           </span>
                           <span className="text-gray-600">Lease Term</span>
                           <span className="font-medium text-gray-900 text-right">
-                            {formValues.leaseStartDate &&
-                            formValues.leaseEndDate
-                              ? `${formValues.leaseStartDate} – ${formValues.leaseEndDate}`
+                            {formValues.leaseStartDate
+                              ? formValues.leaseEndDate
+                                ? `${formValues.leaseStartDate} – ${formValues.leaseEndDate}`
+                                : `${formValues.leaseStartDate} onward`
                               : "—"}
                           </span>
                           <span className="text-gray-600">Monthly Rent</span>
