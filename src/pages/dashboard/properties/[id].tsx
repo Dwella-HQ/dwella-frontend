@@ -251,6 +251,23 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     }
   }, [gracePeriods, id, showToast]);
 
+  const propertyTenants = React.useMemo<Tenant[]>(() => {
+    return units
+      .filter((unit) => unit.tenantId)
+      .map((unit) => ({
+        id: unit.tenantId as string,
+        propertyId: id as string,
+        unitId: unit.unitId,
+        name: unit.tenantName || "Tenant",
+        email: unit.tenantEmail || "",
+        phone: unit.tenantPhone || "—",
+        leaseStart: "—",
+        leaseEnd: unit.leaseEndDate || "—",
+        nextPayment: unit.nextDueDate || "—",
+        status: "occupied",
+      }));
+  }, [units, id]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -327,22 +344,6 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     const rent = Number.parseFloat(String(rentValue));
     return sum + (Number.isFinite(rent) ? rent : 0);
   }, 0);
-  const propertyTenants = React.useMemo<Tenant[]>(() => {
-    return units
-      .filter((unit) => unit.tenantId)
-      .map((unit) => ({
-        id: unit.tenantId as string,
-        propertyId: id as string,
-        unitId: unit.unitId,
-        name: unit.tenantName || "Tenant",
-        email: unit.tenantEmail || "",
-        phone: unit.tenantPhone || "—",
-        leaseStart: "—",
-        leaseEnd: unit.leaseEndDate || "—",
-        nextPayment: unit.nextDueDate || "—",
-        status: "occupied",
-      }));
-  }, [units, id]);
   const managerName =
     ((propertyDTO as any)?.propertyManager?.user?.fullName as
       | string
