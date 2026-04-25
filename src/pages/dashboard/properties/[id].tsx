@@ -384,14 +384,73 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     ((propertyDTO as any)?.propertyManager?.user?.fullName as
       | string
       | undefined) ||
+    ((propertyDTO as any)?.propertyManager?.user?.name as string | undefined) ||
     ((propertyDTO as any)?.propertyManager?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.propertyManager?.name as string | undefined) ||
     ((propertyDTO as any)?.manager?.user?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.manager?.user?.name as string | undefined) ||
     ((propertyDTO as any)?.manager?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.manager?.name as string | undefined) ||
     ((propertyDTO as any)?.assignedManager?.user?.fullName as
       | string
       | undefined) ||
+    ((propertyDTO as any)?.assignedManager?.user?.name as string | undefined) ||
     ((propertyDTO as any)?.assignedManager?.fullName as string | undefined) ||
+    ((propertyDTO as any)?.assignedManager?.name as string | undefined) ||
+    ((Array.isArray((propertyDTO as any)?.propertyManagers)
+      ? (propertyDTO as any).propertyManagers.find(
+          (pm: any) =>
+            typeof pm?.user?.fullName === "string" ||
+            typeof pm?.user?.name === "string" ||
+            typeof pm?.fullName === "string" ||
+            typeof pm?.name === "string",
+        )
+      : null
+    )?.user?.fullName as string | undefined) ||
+    ((Array.isArray((propertyDTO as any)?.propertyManagers)
+      ? (propertyDTO as any).propertyManagers.find(
+          (pm: any) =>
+            typeof pm?.user?.fullName === "string" ||
+            typeof pm?.user?.name === "string" ||
+            typeof pm?.fullName === "string" ||
+            typeof pm?.name === "string",
+        )
+      : null
+    )?.user?.name as string | undefined) ||
+    ((Array.isArray((propertyDTO as any)?.propertyManagers)
+      ? (propertyDTO as any).propertyManagers.find(
+          (pm: any) =>
+            typeof pm?.user?.fullName === "string" ||
+            typeof pm?.user?.name === "string" ||
+            typeof pm?.fullName === "string" ||
+            typeof pm?.name === "string",
+        )
+      : null
+    )?.fullName as string | undefined) ||
+    ((Array.isArray((propertyDTO as any)?.propertyManagers)
+      ? (propertyDTO as any).propertyManagers.find(
+          (pm: any) =>
+            typeof pm?.user?.fullName === "string" ||
+            typeof pm?.user?.name === "string" ||
+            typeof pm?.fullName === "string" ||
+            typeof pm?.name === "string",
+        )
+      : null
+    )?.name as string | undefined) ||
+    (user?.role === "property_manager" ? user.name : undefined) ||
     "Not assigned";
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[PropertyDetailPage] manager resolution payload:", {
+      propertyId: id,
+      propertyName: propertyDTO?.name,
+      propertyManager: (propertyDTO as any)?.propertyManager,
+      manager: (propertyDTO as any)?.manager,
+      assignedManager: (propertyDTO as any)?.assignedManager,
+      propertyManagers: (propertyDTO as any)?.propertyManagers,
+      resolvedManagerName: managerName,
+    });
+  }
 
   return (
     <>

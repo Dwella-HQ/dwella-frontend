@@ -23,6 +23,9 @@ import { mockTenants, mockPaymentHistory } from "@/data/mockPropertyDetails";
 import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
 import type { NextPageWithLayout } from "../../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
+import { getTenant } from "@/api/tenants";
+import { getRentPayments } from "@/api/rent-payment";
+import { getMaintenanceRequests } from "@/api/maintenance";
 
 // Mock data for tenant documents
 const mockTenantDocuments = [
@@ -95,22 +98,183 @@ const TenantProfilePage: NextPageWithLayout = () => {
   const router = useRouter();
   const { id } = router.query;
   const [activeTab, setActiveTab] = React.useState("overview");
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [tenantData, setTenantData] = React.useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [liveTenantPayments, setLiveTenantPayments] = React.useState<
+    typeof mockPaymentHistory
+  >([]);
+  const [liveTenantMaintenance, setLiveTenantMaintenance] = React.useState<
+    typeof mockMaintenanceRequestDetails
+  >([]);
+
+  React.useEffect(() => {
+    if (!id || typeof id !== "string") return;
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+    void Promise.all([
+      getTenant(id),
+      getRentPayments({ limit: 200 }),
+      getMaintenanceRequests({ limit: 200 }),
+    ])
+      .then(([tenantResult, paymentsResult, maintenanceResult]) => {
+        if (cancelled) return;
+        if (!tenantResult.success) {
+          setLoadError(tenantResult.error || "Tenant not found");
+          setTenantData(null);
+          return;
+        }
+        const record = tenantResult.data as unknown as Record<string, unknown>;
+        setTenantData(record);
+
+        const tenantName = (
+          ((record.user as Record<string, unknown> | undefined)?.fullName as
+            | string
+            | undefined) ||
+          (record.fullName as string | undefined) ||
+          (record.email as string | undefined) ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+        const tenantId = String(record.id ?? "");
+        const scopedPayments = paymentsResult.success
+          ? paymentsResult.data.filter((p) => {
+              const byName = tenantName
+                ? p.tenantName.trim().toLowerCase() === tenantName
+                : false;
+              const byId =
+                tenantId &&
+                ((p as unknown as { tenantId?: string }).tenantId ?? "") ===
+                  tenantId;
+              return byName || byId;
+            })
+          : [];
+        const mappedPayments = scopedPayments.map((p) => ({
+          id: p.id,
+          amount: p.amount,
+          method: p.method || "Payment",
+          date: p.dueDate,
+          transactionId: p.id,
+          tenantId,
+          propertyId: p.propertyId || "",
+          status: p.paymentReceived
+            ? ("success" as const)
+            : ("failed" as const),
+        }));
+        setLiveTenantPayments(mappedPayments);
+
+        const scopedMaintenance = maintenanceResult.success
+          ? maintenanceResult.data.filter((m) => {
+              const byName = tenantName
+                ? (m.tenantName || "").trim().toLowerCase() === tenantName
+                : false;
+              const byId =
+                tenantId &&
+                ((m as unknown as { tenantId?: string }).tenantId ?? "") ===
+                  tenantId;
+              return byName || byId;
+            })
+          : [];
+        const mappedMaintenance = scopedMaintenance.map((m) => ({
+          id: m.id,
+          tenantId,
+          type: m.type || "Maintenance",
+          subType: m.subType || m.description || "Request",
+          reportedDate: m.reportedTime || m.createdAt || "—",
+          resolvedDate:
+            m.status === "resolved" || m.status === "completed"
+              ? m.updatedAt || undefined
+              : undefined,
+        }));
+        setLiveTenantMaintenance(mappedMaintenance);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLoadError(
+          error instanceof Error ? error.message : "Failed to load tenant",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const tenant = React.useMemo(() => {
+    if (tenantData) {
+      const user =
+        (tenantData.user as Record<string, unknown> | undefined) || {};
+      const currentUnit =
+        (tenantData.currentUnit as Record<string, unknown> | undefined) || {};
+      const leases = Array.isArray(tenantData.leases)
+        ? (tenantData.leases as Array<Record<string, unknown>>)
+        : [];
+      const activeLease =
+        leases.find((l) => l.isActive === true) ?? leases[0] ?? null;
+      const formatDate = (value: unknown) => {
+        if (typeof value !== "string" || !value) return "—";
+        const d = new Date(value);
+        return Number.isNaN(d.getTime())
+          ? value
+          : d.toLocaleDateString("en-GB");
+      };
+      return {
+        id: String(tenantData.id ?? id),
+        name: String(user.fullName ?? tenantData.fullName ?? "Tenant"),
+        phone: String(user.phoneNumber ?? tenantData.phoneNumber ?? "—"),
+        email: String(user.email ?? tenantData.email ?? "—"),
+        unitId: String(currentUnit.name ?? currentUnit.id ?? "—"),
+        leaseStart: formatDate(activeLease?.startDate),
+        leaseEnd: formatDate(activeLease?.endDate),
+        nextPayment: "—",
+        monthlyRent:
+          typeof activeLease?.rentAmount === "number"
+            ? activeLease.rentAmount
+            : typeof currentUnit.rentAmount === "number"
+              ? currentUnit.rentAmount
+              : 0,
+      };
+    }
     return mockTenants.find((t) => t.id === id);
-  }, [id]);
+  }, [id, tenantData]);
 
   const tenantPayments = React.useMemo(() => {
     if (!tenant) return [];
+    if (liveTenantPayments.length > 0) return liveTenantPayments;
     return mockPaymentHistory.filter((p) => p.tenantId === tenant.id);
-  }, [tenant]);
+  }, [liveTenantPayments, tenant]);
 
   const tenantMaintenance = React.useMemo(() => {
     if (!tenant) return [];
+    if (liveTenantMaintenance.length > 0) return liveTenantMaintenance;
     return mockMaintenanceRequestDetails.filter(
       (m) => m.tenantId === tenant.id,
     );
-  }, [tenant]);
+  }, [liveTenantMaintenance, tenant]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-gray-600">{loadError}</p>
+      </div>
+    );
+  }
 
   if (!tenant) {
     return (
@@ -136,7 +300,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
   );
 
   // Get monthly rent - default to 120000 for Ada Emmanuel
-  const monthlyRent = 120000;
+  const monthlyRent = (tenant as any)?.monthlyRent || 120000;
 
   const tabs = [
     { id: "overview", label: "Overview" },

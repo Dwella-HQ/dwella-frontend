@@ -16,7 +16,10 @@ export type AddressDTO = z.infer<typeof addressSchema>;
 export const createPropertyRequestSchema = z.object({
   landlordId: z.string().uuid(),
   name: z.string().min(1, "Property name is required"),
-  yearBuilt: z.string().length(4, "Year must be exactly 4 characters").optional(),
+  yearBuilt: z
+    .string()
+    .length(4, "Year must be exactly 4 characters")
+    .optional(),
   numberOfUnits: z.number().int().positive(),
   description: z.string().optional(),
   parkingSpace: z.boolean().default(false),
@@ -26,12 +29,17 @@ export const createPropertyRequestSchema = z.object({
   amenities: z.array(z.string()).default([]),
 });
 
-export type CreatePropertyRequestDTO = z.infer<typeof createPropertyRequestSchema>;
+export type CreatePropertyRequestDTO = z.infer<
+  typeof createPropertyRequestSchema
+>;
 
 // Update Property Request (all fields optional)
-export const updatePropertyRequestSchema = createPropertyRequestSchema.partial();
+export const updatePropertyRequestSchema =
+  createPropertyRequestSchema.partial();
 
-export type UpdatePropertyRequestDTO = z.infer<typeof updatePropertyRequestSchema>;
+export type UpdatePropertyRequestDTO = z.infer<
+  typeof updatePropertyRequestSchema
+>;
 
 // Address Schema for Property Response (more lenient)
 export const propertyAddressSchema = z.object({
@@ -69,14 +77,16 @@ export const landlordSchema = z.object({
   isApproved: z.boolean().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-  user: z.object({
-    id: z.string().uuid(),
-    email: z.string().optional(),
-    fullName: z.string().optional(),
-    phoneNumber: z.string().optional(),
-    isEmailVerified: z.boolean().optional(),
-    isActive: z.boolean().optional(),
-  }).optional(),
+  user: z
+    .object({
+      id: z.string().uuid(),
+      email: z.string().optional(),
+      fullName: z.string().optional(),
+      phoneNumber: z.string().optional(),
+      isEmailVerified: z.boolean().optional(),
+      isActive: z.boolean().optional(),
+    })
+    .optional(),
   address: propertyAddressSchema.optional(),
   profilePicture: fileSchema.optional().nullable(),
   govermentIdDocument: fileSchema.optional().nullable(),
@@ -86,36 +96,38 @@ export const landlordSchema = z.object({
 });
 
 // Property Response
-export const propertySchema = z.object({
-  id: z.string().uuid(),
-  landlordId: z.string().uuid().optional(), // Made optional to match create response
-  name: z.string(),
-  isApproved: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-  propertyType: z.string().nullable().optional(),
-  yearBuilt: z.union([z.number().int().positive(), z.string()]).nullable().optional(), // Accept both number and string
-  numberOfUnits: z.preprocess(
-    (val) => {
+export const propertySchema = z
+  .object({
+    id: z.string().uuid(),
+    landlordId: z.string().uuid().optional(), // Made optional to match create response
+    name: z.string(),
+    isApproved: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+    propertyType: z.string().nullable().optional(),
+    yearBuilt: z
+      .union([z.number().int().positive(), z.string()])
+      .nullable()
+      .optional(), // Accept both number and string
+    numberOfUnits: z.preprocess((val) => {
       if (val === null || val === undefined) return 0;
-      const num = typeof val === 'string' ? parseInt(val, 10) : Number(val);
+      const num = typeof val === "string" ? parseInt(val, 10) : Number(val);
       return isNaN(num) ? 0 : Math.max(0, Math.floor(num));
-    },
-    z.number().int().nonnegative()
-  ), // Allow 0 for properties without units yet, handle null/undefined/string
-  description: z.string().optional().nullable(),
-  parkingSpace: z.boolean().optional(),
-  photoIds: z.array(z.string().uuid()).optional(),
-  documentIds: z.array(z.string().uuid()).optional(),
-  address: propertyAddressSchema.optional(), // Made optional to match create response
-  amenities: z.array(z.string()).optional().default([]),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  deletedAt: z.string().nullable().optional(), // Made optional to match create response
-  landlord: landlordSchema.optional(), // Nested landlord object
-  photos: z.array(fileSchema).optional().default([]), // Array of photo files
-  documents: z.array(fileSchema).optional().default([]), // Array of document files
-  units: z.array(z.unknown()).optional().default([]), // Array of units (will be typed separately)
-});
+    }, z.number().int().nonnegative()), // Allow 0 for properties without units yet, handle null/undefined/string
+    description: z.string().optional().nullable(),
+    parkingSpace: z.boolean().optional(),
+    photoIds: z.array(z.string().uuid()).optional(),
+    documentIds: z.array(z.string().uuid()).optional(),
+    address: propertyAddressSchema.optional(), // Made optional to match create response
+    amenities: z.array(z.string()).optional().default([]),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    deletedAt: z.string().nullable().optional(), // Made optional to match create response
+    landlord: landlordSchema.optional(), // Nested landlord object
+    photos: z.array(fileSchema).optional().default([]), // Array of photo files
+    documents: z.array(fileSchema).optional().default([]), // Array of document files
+    units: z.array(z.unknown()).optional().default([]), // Array of units (will be typed separately)
+  })
+  .passthrough();
 
 export type PropertyDTO = z.infer<typeof propertySchema>;
 
@@ -141,32 +153,39 @@ export type PropertyResponseDTO = z.infer<typeof propertyResponseSchema>;
 export const createPropertyResponseSchema = z.object({
   success: z.boolean().optional(),
   message: z.string().optional(),
-  data: z.object({
-    id: z.string().uuid(),
-    name: z.string(),
-    yearBuilt: z.union([z.number().int().positive(), z.string()]).nullable().optional(),
-    numberOfUnits: z.number().int().min(0).optional(), // Allow 0 for initial creation
-    description: z.string().optional().nullable(),
-    parkingSpace: z.boolean().optional(),
-    photoIds: z.array(z.string().uuid()).optional(),
-    documentIds: z.array(z.string().uuid()).optional(),
-    address: propertyAddressSchema.optional(),
-    amenities: z.array(z.string()).optional(),
-    isApproved: z.boolean().optional(),
-    isActive: z.boolean().optional(),
-    propertyType: z.string().nullable().optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-    landlordId: z.string().uuid().optional(),
-    deletedAt: z.string().nullable().optional(),
-    landlord: landlordSchema.optional(),
-    photos: z.array(fileSchema).optional().default([]), // Array of photo files
-    documents: z.array(fileSchema).optional().default([]), // Array of document files
-    units: z.array(z.unknown()).optional().default([]), // Array of units
-  }).partial(), // Allow partial data for the 'data' object
+  data: z
+    .object({
+      id: z.string().uuid(),
+      name: z.string(),
+      yearBuilt: z
+        .union([z.number().int().positive(), z.string()])
+        .nullable()
+        .optional(),
+      numberOfUnits: z.number().int().min(0).optional(), // Allow 0 for initial creation
+      description: z.string().optional().nullable(),
+      parkingSpace: z.boolean().optional(),
+      photoIds: z.array(z.string().uuid()).optional(),
+      documentIds: z.array(z.string().uuid()).optional(),
+      address: propertyAddressSchema.optional(),
+      amenities: z.array(z.string()).optional(),
+      isApproved: z.boolean().optional(),
+      isActive: z.boolean().optional(),
+      propertyType: z.string().nullable().optional(),
+      createdAt: z.string(),
+      updatedAt: z.string(),
+      landlordId: z.string().uuid().optional(),
+      deletedAt: z.string().nullable().optional(),
+      landlord: landlordSchema.optional(),
+      photos: z.array(fileSchema).optional().default([]), // Array of photo files
+      documents: z.array(fileSchema).optional().default([]), // Array of document files
+      units: z.array(z.unknown()).optional().default([]), // Array of units
+    })
+    .partial(), // Allow partial data for the 'data' object
 });
 
-export type CreatePropertyResponseDTO = z.infer<typeof createPropertyResponseSchema>;
+export type CreatePropertyResponseDTO = z.infer<
+  typeof createPropertyResponseSchema
+>;
 
 // Approve Property Response
 export const approvePropertyResponseSchema = z.object({
@@ -175,9 +194,6 @@ export const approvePropertyResponseSchema = z.object({
   data: propertySchema.optional(),
 });
 
-export type ApprovePropertyResponseDTO = z.infer<typeof approvePropertyResponseSchema>;
-
-
-
-
-
+export type ApprovePropertyResponseDTO = z.infer<
+  typeof approvePropertyResponseSchema
+>;

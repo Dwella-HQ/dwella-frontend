@@ -44,7 +44,10 @@ function statusPillClass(status?: string): string {
   return "bg-amber-100 text-amber-900";
 }
 
-export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabProps) => {
+export const PropertyTenantsTab = ({
+  tenants,
+  propertyId,
+}: PropertyTenantsTabProps) => {
   const router = useRouter();
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [invited, setInvited] = React.useState<InvitedTenantDTO[]>([]);
@@ -91,6 +94,9 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
         <div className="min-w-0 space-y-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Current Tenants</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Tenants currently assigned to this property.
+            </p>
           </div>
 
           {tenants.length > 0 ? (
@@ -110,14 +116,20 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
                     </div>
 
                     <div className="flex-1">
-                      <h3 className="text-base font-semibold text-gray-900">{tenant.name}</h3>
-                      <p className="mt-1 text-sm text-gray-600">{tenant.phone}</p>
+                      <h3 className="text-base font-semibold text-gray-900">
+                        {tenant.name}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {tenant.phone}
+                      </p>
                       <div className="mt-3 space-y-1">
                         <p className="text-xs text-gray-500">
-                          <span className="font-medium">UNIT:</span> {tenant.unitId}
+                          <span className="font-medium">UNIT:</span>{" "}
+                          {tenant.unitId}
                         </p>
                         <p className="text-xs text-gray-500">
-                          <span className="font-medium">LEASE ENDS:</span> {tenant.leaseEnd}
+                          <span className="font-medium">LEASE ENDS:</span>{" "}
+                          {tenant.leaseEnd}
                         </p>
                       </div>
                       <div className="mt-3">
@@ -141,7 +153,9 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
                     </motion.button>
                     <motion.button
                       type="button"
-                      onClick={() => router.push(`/dashboard/tenants/${tenant.id}`)}
+                      onClick={() =>
+                        router.push(`/dashboard/tenants/${tenant.id}`)
+                      }
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       className="flex-1 rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-main/90 flex items-center justify-center gap-2"
@@ -163,7 +177,9 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 mb-4">
                 <Users className="h-8 w-8 text-gray-400" />
               </div>
-              <p className="text-sm font-medium text-gray-900 mb-1">No Tenants</p>
+              <p className="text-sm font-medium text-gray-900 mb-1">
+                No Tenants
+              </p>
               <p className="text-xs text-gray-500 text-center mb-4">
                 No tenants are currently assigned to this property.
               </p>
@@ -183,13 +199,17 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
 
         {/* Invited tenants */}
         <div className="min-w-0 space-y-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Invited Tenants</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Invitations sent to potential tenants.
-            </p>
-            <div className="mt-3 w-full max-w-[220px]">
-              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Invited Tenants
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Invitations sent to potential tenants.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-gray-500">
                 Status
               </label>
               <select
@@ -197,7 +217,7 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
                 onChange={(e) =>
                   setInviteStatusFilter(e.target.value as InviteStatus | "all")
                 }
-                className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                className="h-9 w-[150px] rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option value="all">All</option>
                 {INVITE_STATUSES.map((status) => (
@@ -228,12 +248,11 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
                   inv.unit?.name?.trim() ||
                   (inv.unitId ? `Unit ref. ${inv.unitId.slice(0, 8)}…` : "—");
                 const when = formatInvitedDate(inv.invitedAt || inv.createdAt);
-                const statusLabel =
-                  inv.status?.trim()
-                    ? `${inv.status.trim().slice(0, 1).toUpperCase()}${inv.status
-                        .trim()
-                        .slice(1)}`
-                    : "Pending";
+                const statusLabel = inv.status?.trim()
+                  ? `${inv.status.trim().slice(0, 1).toUpperCase()}${inv.status
+                      .trim()
+                      .slice(1)}`
+                  : "Pending";
 
                 return (
                   <motion.li
@@ -248,14 +267,19 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
                         {getInitials(name)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-gray-900 truncate">{name}</p>
+                        <p className="font-semibold text-gray-900 truncate">
+                          {name}
+                        </p>
                         <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-600 truncate">
                           <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                           <span className="truncate">{email}</span>
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="text-xs text-gray-500">
-                            <span className="font-medium text-gray-600">Unit:</span> {unitLabel}
+                            <span className="font-medium text-gray-600">
+                              Unit:
+                            </span>{" "}
+                            {unitLabel}
                           </span>
                           <span
                             className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusPillClass(
@@ -265,7 +289,9 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
                             {statusLabel}
                           </span>
                           {when && (
-                            <span className="text-xs text-gray-400">Invited {when}</span>
+                            <span className="text-xs text-gray-400">
+                              Invited {when}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -279,7 +305,9 @@ export const PropertyTenantsTab = ({ tenants, propertyId }: PropertyTenantsTabPr
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
                 <Mail className="h-6 w-6 text-gray-400" />
               </div>
-              <p className="text-sm font-medium text-gray-900">No pending invites</p>
+              <p className="text-sm font-medium text-gray-900">
+                No pending invites
+              </p>
               <p className="mt-1 max-w-sm text-xs text-gray-500">
                 No invitations found for the selected status.
               </p>

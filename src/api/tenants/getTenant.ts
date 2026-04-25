@@ -3,12 +3,14 @@ import { apiGet } from "@/lib/apiClient";
 import type { TenantResponseDTO, TenantDTO } from "./tenants.schema";
 import { tenantResponseSchema } from "./tenants.schema";
 
-type GetTenantResult = 
+type GetTenantResult =
   | { success: true; data: TenantDTO }
   | { success: false; error: string };
 
-export const getTenant = async (id: string | number): Promise<GetTenantResult> => {
-  const result = await apiGet<TenantResponseDTO>(`/user/${id}`);
+export const getTenant = async (
+  id: string | number,
+): Promise<GetTenantResult> => {
+  const result = await apiGet<TenantResponseDTO>(`/tenant/${id}`);
 
   if (!result.success) {
     return result;
@@ -28,8 +30,3 @@ export const getTenant = async (id: string | number): Promise<GetTenantResult> =
     };
   }
 };
-
-
-
-
-

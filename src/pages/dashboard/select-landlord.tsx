@@ -11,6 +11,7 @@ import type { LandlordAccount } from "@/data/mockLandlordAccounts";
 import { getPropertyManagerByUser } from "@/api/property-managers";
 import type { PropertyManagerDTO } from "@/api/property-managers";
 import { getPropertiesByLandlord } from "@/api/properties";
+import { mapPropertiesWithLiveUnitCounts } from "@/api/properties";
 import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../_app";
@@ -74,15 +75,9 @@ const SelectLandlordPage: NextPageWithLayout = () => {
         accounts.map(async (a) => {
           const res = await getPropertiesByLandlord(a.id);
           if (!res.success) return a;
-          const data = res.data;
-          const properties = data.map((p) => ({ id: p.id, name: p.name }));
-          const totalUnits = data.reduce(
-            (sum, p) =>
-              sum +
-              (p.numberOfUnits ??
-                (Array.isArray(p.units) ? p.units.length : 0)),
-            0,
-          );
+          const mapped = await mapPropertiesWithLiveUnitCounts(res.data);
+          const properties = mapped.map((p) => ({ id: p.id, name: p.name }));
+          const totalUnits = mapped.reduce((sum, p) => sum + p.units, 0);
           return { ...a, properties, totalUnits };
         }),
       );
@@ -99,17 +94,11 @@ const SelectLandlordPage: NextPageWithLayout = () => {
       if (landlord.properties.length === 0 && landlord.totalUnits === 0) {
         const result = await getPropertiesByLandlord(landlord.id);
         if (result.success) {
-          const data = result.data;
+          const mapped = await mapPropertiesWithLiveUnitCounts(result.data);
           enriched = {
             ...landlord,
-            properties: data.map((p) => ({ id: p.id, name: p.name })),
-            totalUnits: data.reduce(
-              (sum, p) =>
-                sum +
-                (p.numberOfUnits ??
-                  (Array.isArray(p.units) ? p.units.length : 0)),
-              0,
-            ),
+            properties: mapped.map((p) => ({ id: p.id, name: p.name })),
+            totalUnits: mapped.reduce((sum, p) => sum + p.units, 0),
           };
         }
       }
