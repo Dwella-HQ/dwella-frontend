@@ -94,6 +94,14 @@ const mockEmergencyContact = {
   email: "john.emmanuel@email.com",
 };
 
+type TenantMaintenanceRow = {
+  id: string;
+  type: string;
+  subType: string;
+  reportedDate: string;
+  resolvedDate?: string;
+};
+
 const TenantProfilePage: NextPageWithLayout = () => {
   const router = useRouter();
   const { id } = router.query;
@@ -108,7 +116,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
     typeof mockPaymentHistory
   >([]);
   const [liveTenantMaintenance, setLiveTenantMaintenance] = React.useState<
-    typeof mockMaintenanceRequestDetails
+    TenantMaintenanceRow[]
   >([]);
 
   React.useEffect(() => {
@@ -163,6 +171,8 @@ const TenantProfilePage: NextPageWithLayout = () => {
           date: p.dueDate,
           transactionId: p.id,
           tenantId,
+          tenantName: p.tenantName || "Tenant",
+          unitId: p.unit || "—",
           propertyId: p.propertyId || "",
           status: p.paymentReceived
             ? ("success" as const)
@@ -184,14 +194,10 @@ const TenantProfilePage: NextPageWithLayout = () => {
           : [];
         const mappedMaintenance = scopedMaintenance.map((m) => ({
           id: m.id,
-          tenantId,
           type: m.type || "Maintenance",
           subType: m.subType || m.description || "Request",
-          reportedDate: m.reportedTime || m.createdAt || "—",
-          resolvedDate:
-            m.status === "resolved" || m.status === "completed"
-              ? m.updatedAt || undefined
-              : undefined,
+          reportedDate: m.reportedTime || "—",
+          resolvedDate: m.status === "resolved" ? "Resolved" : undefined,
         }));
         setLiveTenantMaintenance(mappedMaintenance);
       })
