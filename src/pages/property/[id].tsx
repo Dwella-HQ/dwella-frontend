@@ -10,9 +10,12 @@ import {
   StatsBar,
   LandingPropertyCard,
 } from "@/components/landing";
-import { getProperty } from "@/api/properties";
-import { getProperties } from "@/api/properties";
-import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
+import {
+  getProperty,
+  getPropertiesQuery,
+  mapPropertyDTOToProperty,
+  mapPropertyDTOToPublicListingProperty,
+} from "@/api/properties";
 import type { Property } from "@/data/mockLandlordData";
 
 export default function PropertyDetailPage() {
@@ -48,10 +51,10 @@ export default function PropertyDetailPage() {
   React.useEffect(() => {
     if (!property) return;
     let cancelled = false;
-    getProperties().then((result) => {
+    getPropertiesQuery().then((result) => {
       if (cancelled || !result.success) return;
       const list = result.data
-        .map(mapPropertyDTOToProperty)
+        .map(mapPropertyDTOToPublicListingProperty)
         .filter((p) => p.id !== property.id && p.status === "active")
         .slice(0, 3);
       setSimilar(list);

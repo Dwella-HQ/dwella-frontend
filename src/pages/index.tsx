@@ -19,8 +19,10 @@ import {
   StatsBar,
   LandingPropertyCard,
 } from "@/components/landing";
-import { getProperties } from "@/api/properties";
-import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
+import {
+  getPropertiesQuery,
+  mapPropertyDTOToPublicListingProperty,
+} from "@/api/properties";
 import type { Property } from "@/data/mockLandlordData";
 
 const FEATURE_CARDS = [
@@ -71,13 +73,13 @@ export default function LandingPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getProperties()
+    getPropertiesQuery()
       .then((result) => {
         if (cancelled) return;
         if (result.success) {
           setProperties(
             result.data
-              .map(mapPropertyDTOToProperty)
+              .map(mapPropertyDTOToPublicListingProperty)
               .filter((p) => p.status === "active"),
           );
         } else {

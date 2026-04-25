@@ -40,20 +40,22 @@ export type PropertyManagerLandlordDTO = z.infer<
 >;
 
 // Property Manager Schema (matches API: id, user, landlord, permissions, etc.)
-export const propertyManagerSchema = z.object({
-  id: z.string().uuid(),
-  fullName: z.string().optional(),
-  name: z.string().optional(),
-  email: z.union([z.string().email(), z.null()]).optional(),
-  phone: z.string().optional().nullable(),
-  userId: z.string().uuid().optional(),
-  user: propertyManagerUserSchema.optional().nullable(),
-  permissions: z.array(z.string()).optional(),
-  isActive: z.boolean().optional(),
-  landlord: propertyManagerLandlordSchema.optional().nullable(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-});
+export const propertyManagerSchema = z
+  .object({
+    id: z.string().uuid(),
+    fullName: z.string().optional(),
+    name: z.string().optional(),
+    email: z.union([z.string().email(), z.null()]).optional(),
+    phone: z.string().optional().nullable(),
+    userId: z.string().uuid().optional(),
+    user: propertyManagerUserSchema.optional().nullable(),
+    permissions: z.array(z.string()).optional(),
+    isActive: z.boolean().optional(),
+    landlord: propertyManagerLandlordSchema.optional().nullable(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+  })
+  .passthrough();
 
 export type PropertyManagerDTO = z.infer<typeof propertyManagerSchema>;
 

@@ -52,6 +52,8 @@ import {
 } from "@/data/mockPropertyDetails";
 import { getRentPayments } from "@/api/rent-payment";
 import { getProperty } from "@/api/properties";
+import { getPropertyManagersByLandlord } from "@/api/property-managers";
+import type { PropertyManagerDTO } from "@/api/property-managers";
 import { getMaintenanceRequests } from "@/api/maintenance";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import type { PropertyDTO } from "@/api/properties";
@@ -64,6 +66,84 @@ import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
 
 import type { NextPageWithLayout } from "../../_app";
+
+function managerUserDisplayFromUnknown(node: unknown): string | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  const u = node as Record<string, unknown>;
+  const first = String(u.firstName ?? "").trim();
+  const last = String(u.lastName ?? "").trim();
+  const composed = [first, last].filter(Boolean).join(" ").trim();
+  const full = typeof u.fullName === "string" ? u.fullName.trim() : "";
+  const name = typeof u.name === "string" ? u.name.trim() : "";
+  return full || name || composed || undefined;
+}
+
+function pickPropertyManagerRecordName(
+  record: Record<string, unknown>,
+): string {
+  const fromUser = managerUserDisplayFromUnknown(record.user);
+  if (fromUser) return fromUser;
+  const full =
+    typeof record.fullName === "string" ? record.fullName.trim() : "";
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  return full || name || "";
+}
+
+function findManagerNameForProperty(
+  managers: PropertyManagerDTO[],
+  propertyId: string,
+  propertyPayload: Record<string, unknown>,
+): string | null {
+  const pmIdRaw =
+    propertyPayload.propertyManagerId ??
+    propertyPayload.assignedPropertyManagerId ??
+    propertyPayload.managerId;
+  if (typeof pmIdRaw === "string" && pmIdRaw) {
+    const hit = managers.find((m) => m.id === pmIdRaw);
+    if (hit) {
+      const n = pickPropertyManagerRecordName(hit as Record<string, unknown>);
+      if (n) return n;
+    }
+  }
+
+  for (const pm of managers) {
+    const rec = pm as Record<string, unknown>;
+    const name = pickPropertyManagerRecordName(rec);
+    if (!name) continue;
+
+    if (Array.isArray(rec.properties)) {
+      for (const p of rec.properties) {
+        if (p && typeof p === "object" && "id" in p) {
+          if (String((p as { id: unknown }).id) === propertyId) return name;
+        }
+      }
+    }
+    if (Array.isArray(rec.propertyIds)) {
+      if (
+        (rec.propertyIds as unknown[]).some((x) => String(x) === propertyId)
+      ) {
+        return name;
+      }
+    }
+    const single = rec.property;
+    if (
+      single &&
+      typeof single === "object" &&
+      "id" in single &&
+      String((single as { id: unknown }).id) === propertyId
+    ) {
+      return name;
+    }
+    if (Array.isArray(rec.managedProperties)) {
+      for (const p of rec.managedProperties as unknown[]) {
+        if (p && typeof p === "object" && "id" in p) {
+          if (String((p as { id: unknown }).id) === propertyId) return name;
+        }
+      }
+    }
+  }
+  return null;
+}
 
 const PropertyDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -97,6 +177,8 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   const [overviewRentPayments, setOverviewRentPayments] = React.useState<
     Payment[]
   >([]);
+  const [managerNameFromLandlordList, setManagerNameFromLandlordList] =
+    React.useState<string | null>(null);
 
   const fetchProperty = React.useCallback(async () => {
     if (!id || typeof id !== "string") return;
@@ -121,6 +203,53 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     void fetchProperty();
   }, [fetchProperty]);
+
+  React.useEffect(() => {
+    setManagerNameFromLandlordList(null);
+  }, [id]);
+
+  // When GET /property omits nested manager objects, resolve via landlord managers list.
+  React.useEffect(() => {
+    if (!propertyDTO || !id || typeof id !== "string") return;
+    const landlordId =
+      propertyDTO.landlordId ??
+      propertyDTO.landlord?.id ??
+      (typeof window !== "undefined"
+        ? window.localStorage.getItem("landlordId")
+        : null);
+    if (!landlordId) return;
+
+    let cancelled = false;
+    void getPropertyManagersByLandlord(landlordId).then((result) => {
+      if (cancelled || !result.success) return;
+      const payload = propertyDTO as Record<string, unknown>;
+      const found = findManagerNameForProperty(result.data, id, payload);
+      if (found) setManagerNameFromLandlordList(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyDTO, id]);
+
+  React.useEffect(() => {
+    if (!propertyDTO || typeof window === "undefined") return;
+    const debug =
+      process.env.NODE_ENV === "development" ||
+      new URLSearchParams(window.location.search).has("debugProperty");
+    if (!debug) return;
+    const d = propertyDTO as Record<string, unknown>;
+    console.log("[PropertyDetailPage] GET /property keys:", Object.keys(d));
+    console.log("[PropertyDetailPage] manager-related slices:", {
+      propertyId: id,
+      propertyManager: d.propertyManager,
+      manager: d.manager,
+      assignedManager: d.assignedManager,
+      propertyManagers: d.propertyManagers,
+      propertyManagerId: d.propertyManagerId,
+      assignedPropertyManagerId: d.assignedPropertyManagerId,
+      managerId: d.managerId,
+    });
+  }, [propertyDTO, id]);
 
   // Fetch units from API
   React.useEffect(() => {
@@ -385,16 +514,23 @@ const PropertyDetailPage: NextPageWithLayout = () => {
       | string
       | undefined) ||
     ((propertyDTO as any)?.propertyManager?.user?.name as string | undefined) ||
+    managerUserDisplayFromUnknown(
+      (propertyDTO as any)?.propertyManager?.user,
+    ) ||
     ((propertyDTO as any)?.propertyManager?.fullName as string | undefined) ||
     ((propertyDTO as any)?.propertyManager?.name as string | undefined) ||
     ((propertyDTO as any)?.manager?.user?.fullName as string | undefined) ||
     ((propertyDTO as any)?.manager?.user?.name as string | undefined) ||
+    managerUserDisplayFromUnknown((propertyDTO as any)?.manager?.user) ||
     ((propertyDTO as any)?.manager?.fullName as string | undefined) ||
     ((propertyDTO as any)?.manager?.name as string | undefined) ||
     ((propertyDTO as any)?.assignedManager?.user?.fullName as
       | string
       | undefined) ||
     ((propertyDTO as any)?.assignedManager?.user?.name as string | undefined) ||
+    managerUserDisplayFromUnknown(
+      (propertyDTO as any)?.assignedManager?.user,
+    ) ||
     ((propertyDTO as any)?.assignedManager?.fullName as string | undefined) ||
     ((propertyDTO as any)?.assignedManager?.name as string | undefined) ||
     ((Array.isArray((propertyDTO as any)?.propertyManagers)
@@ -437,20 +573,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         )
       : null
     )?.name as string | undefined) ||
+    managerNameFromLandlordList ||
     (user?.role === "property_manager" ? user.name : undefined) ||
     "Not assigned";
-
-  if (process.env.NODE_ENV === "development") {
-    console.log("[PropertyDetailPage] manager resolution payload:", {
-      propertyId: id,
-      propertyName: propertyDTO?.name,
-      propertyManager: (propertyDTO as any)?.propertyManager,
-      manager: (propertyDTO as any)?.manager,
-      assignedManager: (propertyDTO as any)?.assignedManager,
-      propertyManagers: (propertyDTO as any)?.propertyManagers,
-      resolvedManagerName: managerName,
-    });
-  }
 
   return (
     <>

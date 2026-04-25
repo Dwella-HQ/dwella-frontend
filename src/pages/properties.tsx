@@ -1,8 +1,14 @@
 import * as React from "react";
 import Head from "next/head";
-import { LandingFooter, LandingHeader, LandingPropertyCard } from "@/components/landing";
-import { getProperties } from "@/api/properties";
-import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
+import {
+  LandingFooter,
+  LandingHeader,
+  LandingPropertyCard,
+} from "@/components/landing";
+import {
+  getPropertiesQuery,
+  mapPropertyDTOToPublicListingProperty,
+} from "@/api/properties";
 import type { Property } from "@/data/mockLandlordData";
 
 export default function PropertiesPage() {
@@ -15,13 +21,13 @@ export default function PropertiesPage() {
     setLoading(true);
     setError(null);
 
-    getProperties()
+    getPropertiesQuery()
       .then((result) => {
         if (cancelled) return;
         if (result.success) {
           setProperties(
             result.data
-              .map(mapPropertyDTOToProperty)
+              .map(mapPropertyDTOToPublicListingProperty)
               .filter((p) => p.status === "active"),
           );
         } else {
