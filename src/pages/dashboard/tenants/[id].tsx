@@ -158,7 +158,8 @@ const TenantProfilePage: NextPageWithLayout = () => {
         const mappedPayments = scopedPayments.map((p) => ({
           id: p.id,
           amount: p.amount,
-          method: p.method || "Payment",
+          method:
+            (p as unknown as { method?: string | null }).method || "Payment",
           date: p.dueDate,
           transactionId: p.id,
           tenantId,
