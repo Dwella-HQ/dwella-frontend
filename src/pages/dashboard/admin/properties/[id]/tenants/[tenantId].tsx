@@ -164,7 +164,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                   className="text-[10px] font-semibold uppercase tracking-wide"
                   style={{ color: ADMIN_STAT_LABEL.purple }}
                 >
-                  Lease ends
+                  Rent/Lease ends
                 </p>
                 <p className="mt-2 text-2xl font-bold text-[#0F172A] lg:text-3xl">
                   Jan 2026
@@ -330,12 +330,12 @@ const TenantProfilePage: NextPageWithLayout = () => {
               <div className="space-y-6">
                 <div>
                   <p className="mb-4 text-base font-semibold text-[#0F172A]">
-                    Lease Information
+                    Rent/Lease Information
                   </p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-                        Lease start
+                        Rent/Lease start
                       </p>
                       <div className="mt-2 flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-[#64748B]" />
@@ -346,7 +346,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                     </div>
                     <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-                        Lease end
+                        Rent/Lease end
                       </p>
                       <div className="mt-2 flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-[#64748B]" />

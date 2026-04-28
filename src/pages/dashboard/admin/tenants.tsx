@@ -141,7 +141,10 @@ function mapTenantRecord(rec: TenantRecordDTO): TenantTableRow {
 const ACTION_MENU_WIDTH = 128;
 const ACTION_MENU_HEIGHT = 112;
 
-function computeActionMenuPosition(btn: DOMRect): { top: number; left: number } {
+function computeActionMenuPosition(btn: DOMRect): {
+  top: number;
+  left: number;
+} {
   let top = btn.bottom + 4;
   if (top + ACTION_MENU_HEIGHT > window.innerHeight - 8) {
     top = Math.max(8, btn.top - ACTION_MENU_HEIGHT - 4);
@@ -390,7 +393,7 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                       Monthly Rent
                     </th>
                     <th className="w-[92px] py-2.5 text-left font-medium">
-                      Lease Ends
+                      Rent/Lease Ends
                     </th>
                     <th className="w-[90px] py-2.5 text-left font-medium">
                       Rent Status
@@ -529,8 +532,8 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                 if (row) void handleToggleStatus(row);
               }}
             >
-              {rows.find((r) => r.id === actionMenu.tenantId)
-                ?.accountStatus === "Active"
+              {rows.find((r) => r.id === actionMenu.tenantId)?.accountStatus ===
+              "Active"
                 ? "Suspend"
                 : "Activate"}
             </button>

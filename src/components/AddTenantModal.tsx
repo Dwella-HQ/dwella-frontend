@@ -440,7 +440,7 @@ export const AddTenantModal = ({
       const file = e.target.files?.[0];
       if (!file) return;
       if (file.size > 10 * 1024 * 1024) {
-        showToast("Lease document must be 10MB or less", "error");
+        showToast("Rent/lease document must be 10MB or less", "error");
         e.target.value = "";
         return;
       }
@@ -456,7 +456,10 @@ export const AddTenantModal = ({
         setLeaseDocumentId(result.data.id);
         setValue("leaseOption", "upload");
       } else {
-        showToast(result.error || "Failed to upload lease document", "error");
+        showToast(
+          result.error || "Failed to upload rent/lease document",
+          "error",
+        );
       }
       setLeaseUploading(false);
       e.target.value = "";
@@ -1427,17 +1430,19 @@ export const AddTenantModal = ({
 
                     <div>
                       <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                        Lease Details
+                        Rent/Lease Details
                       </h3>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
                           <label className="mb-1 block text-sm font-medium text-gray-700">
-                            Lease Start Date
+                            Rent/Lease Start Date
                           </label>
                           <Controller
                             name="leaseStartDate"
                             control={control}
-                            rules={{ required: "Lease start date is required" }}
+                            rules={{
+                              required: "Rent/lease start date is required",
+                            }}
                             render={({ field }) => (
                               <LeaseDatePickerField
                                 id="lease-start-date"
@@ -1454,7 +1459,7 @@ export const AddTenantModal = ({
                         </div>
                         <div>
                           <label className="mb-1 block text-sm font-medium text-gray-700">
-                            Lease End Date{" "}
+                            Rent/Lease End Date{" "}
                             <span className="text-xs font-normal text-gray-500">
                               (optional)
                             </span>
@@ -1568,14 +1573,14 @@ export const AddTenantModal = ({
 
                     <div>
                       <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                        Lease Documents
+                        Rent/Lease Documents
                       </h3>
                       <div className="space-y-3">
                         {leaseAutoDisabled && (
                           <p className="text-xs text-gray-600">
                             {selectedApplicantId
-                              ? "This applicant is already in your pipeline. Upload a signed lease—auto-generated leases are not available when assigning from applicants."
-                              : "Tenant details are saved for this assignment. Upload a signed lease—auto-generated leases are not available after tenant details are entered."}
+                              ? "This applicant is already in your pipeline. Upload a signed rent/lease document-auto-generated rent/lease documents are not available when assigning from applicants."
+                              : "Tenant details are saved for this assignment. Upload a signed rent/lease document-auto-generated rent/lease documents are not available after tenant details are entered."}
                           </p>
                         )}
                         <label
@@ -1594,7 +1599,7 @@ export const AddTenantModal = ({
                           />
                           <div>
                             <p className="font-medium text-gray-900">
-                              Auto Generate Standard Lease
+                              Auto Generate Standard Rent/Lease
                             </p>
                             <p className="text-sm text-gray-600">
                               Auto-fill with tenant & unit details
@@ -1610,7 +1615,7 @@ export const AddTenantModal = ({
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-gray-900">
-                              Upload Signed Lease
+                              Upload signed rent
                             </p>
                             <p className="text-sm text-gray-600">
                               PDF, DOCX up to 10MB
@@ -1620,7 +1625,7 @@ export const AddTenantModal = ({
                               <div className="mt-2 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                                 <FileText className="h-8 w-8 text-gray-400 flex-shrink-0" />
                                 <span className="min-w-0 truncate text-sm text-gray-900">
-                                  {leaseFileName ?? "Lease document"}
+                                  {leaseFileName ?? "Rent/lease document"}
                                 </span>
                                 {leaseDocumentId && (
                                   <span className="text-xs text-green-600 flex-shrink-0">
@@ -1634,7 +1639,7 @@ export const AddTenantModal = ({
                                     clearLeaseDocument();
                                   }}
                                   className="rounded p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 flex-shrink-0"
-                                  aria-label="Remove lease document"
+                                  aria-label="Remove rent/lease document"
                                 >
                                   <X className="h-4 w-4" />
                                 </button>
@@ -1710,7 +1715,7 @@ export const AddTenantModal = ({
                           <span className="font-medium text-gray-900 text-right">
                             {displayLabel.replace(/^Unit\s/i, "") || "—"}
                           </span>
-                          <span className="text-gray-600">Lease Term</span>
+                          <span className="text-gray-600">Rent/Lease Term</span>
                           <span className="font-medium text-gray-900 text-right">
                             {formValues.leaseStartDate
                               ? formValues.leaseEndDate
@@ -1747,8 +1752,8 @@ export const AddTenantModal = ({
                     <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                       <Clock className="h-5 w-5 text-amber-600 flex-shrink-0" />
                       <p className="text-sm text-amber-800">
-                        Lease agreement will be sent for e-signature immediately
-                        after assignment.
+                        Rent/lease agreement will be sent for e-signature
+                        immediately after assignment.
                       </p>
                     </div>
                   </div>

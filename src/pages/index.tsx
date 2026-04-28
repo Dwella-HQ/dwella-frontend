@@ -40,7 +40,7 @@ const FEATURE_CARDS = [
   },
   {
     icon: ClipboardSignature,
-    title: "Digital Lease Signing",
+    title: "Digital Rent/Lease Signing",
     desc: "Review, negotiate, and sign your tenancy agreements completely online.",
     color: "bg-[#A855F7]",
   },
@@ -406,7 +406,7 @@ export default function LandingPage() {
                     },
                     {
                       title: "All-in-One Platform",
-                      text: "Search, leasing, and management in one workflow.",
+                      text: "Search, rent/lease, and management in one workflow.",
                     },
                   ].map((item) => (
                     <article key={item.title}>
@@ -445,7 +445,7 @@ export default function LandingPage() {
                   name: "Chioma A.",
                   role: "Verified Tenant",
                   quote:
-                    "I found my apartment without stress. No more running around with agents, and digital lease signing made everything quick and secure.",
+                    "I found my apartment without stress. No more running around with agents, and digital rent/lease signing made everything quick and secure.",
                 },
                 {
                   name: "David O.",

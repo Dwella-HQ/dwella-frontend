@@ -32,7 +32,8 @@ export const mockUnits: Unit[] = [
     status: "occupied",
     rentStatus: "paid",
     amenities: ["AC", "Balcony", "Water Heater"],
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     tenantId: "1",
     nextDueDate: "15 Jan 2026",
   },
@@ -50,7 +51,8 @@ export const mockUnits: Unit[] = [
     status: "vacant",
     rentStatus: "overdue",
     amenities: ["AC", "Wardrobe"],
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     nextDueDate: "15 Jan 2026",
   },
   {
@@ -67,7 +69,8 @@ export const mockUnits: Unit[] = [
     status: "occupied",
     rentStatus: "paid",
     amenities: ["AC", "Balcony"],
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     tenantId: "2",
     nextDueDate: "15 Jan 2026",
   },
@@ -85,7 +88,8 @@ export const mockUnits: Unit[] = [
     status: "maintenance",
     rentStatus: "paid",
     amenities: ["Fan", "Kitchenette"],
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     tenantId: "3",
     nextDueDate: "15 Jan 2026",
   },
@@ -103,7 +107,8 @@ export const mockUnits: Unit[] = [
     status: "occupied",
     rentStatus: "paid",
     amenities: ["AC", "Balcony", "Water Heater"],
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     tenantId: "4",
     nextDueDate: "15 Jan 2026",
   },
@@ -121,7 +126,8 @@ export const mockUnits: Unit[] = [
     status: "occupied",
     rentStatus: "paid",
     amenities: ["AC", "Wardrobe"],
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     tenantId: "5",
     nextDueDate: "15 Jan 2026",
   },
@@ -139,7 +145,8 @@ export const mockUnits: Unit[] = [
     status: "occupied",
     rentStatus: "paid",
     amenities: ["AC", "Balcony"],
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     tenantId: "6",
     nextDueDate: "15 Jan 2026",
   },
@@ -157,7 +164,8 @@ export const mockUnits: Unit[] = [
     status: "occupied",
     rentStatus: "paid",
     amenities: ["AC", "Wardrobe"],
-    image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop",
     tenantId: "7",
     nextDueDate: "15 Jan 2026",
   },
@@ -408,11 +416,10 @@ export const mockPropertyDocuments: PropertyDocument[] = [
   {
     id: "6",
     propertyId: "1",
-    title: "Lease Agreement Template.docx",
+    title: "Rent/Lease Agreement Template.docx",
     type: "Legal",
     size: "1.2 MB",
     uploadedDate: "15 Nov 2025",
     fileUrl: "#",
   },
 ];
-

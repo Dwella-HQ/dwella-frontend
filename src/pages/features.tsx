@@ -5,7 +5,7 @@ import { LandingFooter, LandingHeader } from "@/components/landing";
 const features = [
   "Smart property search",
   "Verified listings",
-  "Digital lease signing",
+  "Digital rent/lease signing",
   "Secure rent payments",
   "Maintenance request tracking",
   "Instant notifications",

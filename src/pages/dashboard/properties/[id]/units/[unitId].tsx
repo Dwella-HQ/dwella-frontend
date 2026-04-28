@@ -356,11 +356,11 @@ const UnitDetailPage: NextPageWithLayout = () => {
                     </div>
                   </div>
                 </div>
-                {/* Right: Lease Info */}
+                {/* Right: Rent/Lease Info */}
                 <div className="lg:ml-auto grid grid-cols-2 gap-6 lg:gap-10">
                   <div>
                     <p className="text-xs text-gray-500 uppercase">
-                      LEASE START
+                      RENT/LEASE START
                     </p>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
                       {tenant.leaseStart}
@@ -373,7 +373,9 @@ const UnitDetailPage: NextPageWithLayout = () => {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase">LEASE END</p>
+                    <p className="text-xs text-gray-500 uppercase">
+                      RENT/LEASE END
+                    </p>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
                       {tenant.leaseEnd}
                     </p>

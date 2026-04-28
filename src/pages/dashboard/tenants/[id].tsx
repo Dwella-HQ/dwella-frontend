@@ -31,8 +31,8 @@ import { getMaintenanceRequests } from "@/api/maintenance";
 const mockTenantDocuments = [
   {
     id: "1",
-    name: "Lease Agreement.pdf",
-    type: "Lease",
+    name: "Rent/Lease Agreement.pdf",
+    type: "Rent/Lease",
     size: "2.3 MB",
     date: "05 Jan 2024",
   },
@@ -436,7 +436,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
             </div>
           </div>
 
-          {/* Financial/Lease Summary Cards */}
+          {/* Financial/Rent-Lease Summary Cards */}
           <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div
               className="rounded-lg border border-gray-200 p-4"
@@ -475,7 +475,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                 className="text-xs font-medium uppercase"
                 style={{ color: ADMIN_STAT_LABEL.purple }}
               >
-                Lease Ends
+                Rent/Lease Ends
               </p>
               <p className="mt-1 text-xl font-bold text-gray-900">
                 {tenant.leaseEnd.split(" ")[1]} {tenant.leaseEnd.split(" ")[2]}
@@ -536,10 +536,10 @@ const TenantProfilePage: NextPageWithLayout = () => {
               transition={{ duration: 0.2 }}
               className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-6"
             >
-              {/* Lease Information */}
+              {/* Rent/Lease Information */}
               <div>
                 <h3 className="mb-4 text-lg font-semibold text-gray-900">
-                  Lease Information
+                  Rent/Lease Information
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -547,7 +547,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                       <Calendar className="h-5 w-5 text-gray-400" />
                       <div>
                         <p className="text-xs text-gray-500 uppercase">
-                          Lease Start
+                          Rent/Lease Start
                         </p>
                         <p className="mt-1 text-sm font-semibold text-gray-900">
                           {tenant.leaseStart}
@@ -560,7 +560,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                       <Calendar className="h-5 w-5 text-gray-400" />
                       <div>
                         <p className="text-xs text-gray-500 uppercase">
-                          Lease End
+                          Rent/Lease End
                         </p>
                         <p className="mt-1 text-sm font-semibold text-gray-900">
                           {tenant.leaseEnd}

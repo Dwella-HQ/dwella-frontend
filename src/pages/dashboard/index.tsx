@@ -979,7 +979,7 @@ const TenantDashboard = () => {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs sm:text-sm text-gray-600">
-                Lease Start
+                Rent/Lease Start
               </span>
               <span className="text-sm sm:text-base font-medium text-gray-900">
                 {leaseStartFormatted}
@@ -987,7 +987,7 @@ const TenantDashboard = () => {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs sm:text-sm text-gray-600">
-                Lease End
+                Rent/Lease End
               </span>
               <span className="text-sm sm:text-base font-medium text-gray-900">
                 {leaseEndFormatted}

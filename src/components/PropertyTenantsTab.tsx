@@ -128,7 +128,7 @@ export const PropertyTenantsTab = ({
                           {tenant.unitId}
                         </p>
                         <p className="text-xs text-gray-500">
-                          <span className="font-medium">LEASE ENDS:</span>{" "}
+                          <span className="font-medium">RENT/LEASE ENDS:</span>{" "}
                           {tenant.leaseEnd}
                         </p>
                       </div>
