@@ -133,7 +133,32 @@ export function buildRentRulesCardLines(
 export function formatRentRulesPolicyTooltip(
   lines: PropertyRentRulesCardLines,
 ): string {
-  return `Late fee: ${lines.late}\nMonthly grace: ${lines.monthly}\nQuarterly grace: ${lines.quarterly}\nYearly grace: ${lines.yearly}`;
+  return [
+    `Late fee: ${lines.late}`,
+    `Grace when rent is billed monthly: ${lines.monthly}`,
+    `Grace when rent is billed quarterly: ${lines.quarterly}`,
+    `Grace when rent is billed yearly: ${lines.yearly}`,
+  ].join("\n");
+}
+
+/** Short late-fee text for table cells (avoids heavy parentheses). */
+export function humanReadableLateFeeTableCell(lateLine: string): string {
+  return lateLine
+    .replace(" (fixed amount)", " (fixed charge)")
+    .replace(" (percentage of rent)", " of rent amount");
+}
+
+/** Explains monthly-billing grace in plain language (row label already says “monthly”). */
+export function humanReadableMonthlyGraceCell(
+  monthlyGraceLabel: string,
+): string {
+  if (
+    monthlyGraceLabel === "No grace period" ||
+    monthlyGraceLabel.toLowerCase().includes("no grace")
+  ) {
+    return "No extra time after the due date";
+  }
+  return `${monthlyGraceLabel} after the due date`;
 }
 
 /** Approximate calendar extension after due date for UI previews (backend may differ). */

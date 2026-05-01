@@ -32,18 +32,18 @@ import {
   resolveTenantActiveLeaseId,
 } from "@/api/rent";
 import type { RentItemDTO } from "@/api/rent";
-import { getPropertySettings } from "@/api/properties";
+import { getLandlordByUser } from "@/api/landlord";
+import { getPropertiesByLandlord, getPropertySettings } from "@/api/properties";
 import {
-  applyPropertySettingsFromApi,
   buildRentRulesCardLines,
   formatRentRulesPolicyTooltip,
-  graceCodeForRentFrequency,
-  gracePeriodCodeToApproxCalendarDays,
-  gracePeriodLabel,
+  humanReadableLateFeeTableCell,
+  humanReadableMonthlyGraceCell,
   type PropertyRentRulesCardLines,
 } from "@/lib/propertyRentRulesFromSettings";
 import { getTenantByUser, getTenant, getTenantList } from "@/api/tenants";
 import type { TenantRecordDTO } from "@/api/tenants";
+import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { useUser } from "@/contexts/UserContext";
 import type { NextPageWithLayout } from "../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
@@ -82,13 +82,6 @@ type TenantPaymentRow = {
   status: "paid" | "pending";
 };
 
-type TenantOption = {
-  id: string;
-  label: string;
-  propertyId: string | null;
-  rentFrequency: string | undefined;
-};
-
 /** Tenant with resolved active lease + unit (for landlord rent table + create flow). */
 type LandlordTenantPick = {
   id: string;
@@ -109,13 +102,6 @@ function rentFrequencyForActiveLease(
   const lease = leases.find((l) => String(l.id) === activeLeaseId);
   const rf = lease?.rentFrequency;
   return typeof rf === "string" ? rf : undefined;
-}
-
-function frequencyBandLabel(frequency: string | undefined): string {
-  const f = (frequency || "monthly").toLowerCase();
-  if (f === "quarterly") return "Quarterly rent";
-  if (f === "yearly") return "Yearly rent";
-  return "Monthly rent";
 }
 
 function propertyIdFromTenantRecord(
@@ -228,6 +214,56 @@ function landlordPickFromListRecord(
 function leaseHasUnpaidRent(rents: RentItemDTO[], leaseId: string): boolean {
   return rents.some(
     (r) => r.leaseId === leaseId && (r.status || "").toLowerCase() !== "paid",
+  );
+}
+
+/** Property saved late-fee rule (from settings), not the rent row amount. */
+function PropertyLateFeePolicyCell({
+  propertyId,
+  rulesById,
+}: {
+  propertyId: string | null;
+  rulesById: Record<string, PropertyRentRulesCardLines>;
+}) {
+  const lines = propertyId ? rulesById[propertyId] : undefined;
+  if (!propertyId) {
+    return <span className="text-gray-400">—</span>;
+  }
+  if (!lines) {
+    return <span className="text-gray-400">Unavailable</span>;
+  }
+  return (
+    <span
+      className="text-xs leading-snug text-gray-800"
+      title={`Late fee (property rule): ${lines.late}`}
+    >
+      {humanReadableLateFeeTableCell(lines.late)}
+    </span>
+  );
+}
+
+/** Monthly billing grace from property settings (full policy on hover). */
+function GracePeriodPolicyCell({
+  propertyId,
+  rulesById,
+}: {
+  propertyId: string | null;
+  rulesById: Record<string, PropertyRentRulesCardLines>;
+}) {
+  const lines = propertyId ? rulesById[propertyId] : undefined;
+  if (!propertyId) {
+    return <span className="text-gray-400">—</span>;
+  }
+  if (!lines) {
+    return <span className="text-gray-400">Unavailable</span>;
+  }
+  return (
+    <span
+      className="text-xs leading-snug text-gray-800"
+      title={formatRentRulesPolicyTooltip(lines)}
+    >
+      {humanReadableMonthlyGraceCell(lines.monthly)}
+    </span>
   );
 }
 
@@ -848,14 +884,25 @@ const TenantPaymentHistory = () => {
 
 // Landlord/Manager Rent Page (existing)
 const LandlordRentPage = () => {
+  const { user } = useUser();
+  const { selectedLandlord } = useSelectedLandlord();
   const { showToast } = useToast();
+  const canCreateRent =
+    user?.role === "landlord" || user?.role === "super_admin";
+  const [rentViewTab, setRentViewTab] = React.useState<"monitor" | "create">(
+    "monitor",
+  );
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [createRentSearch, setCreateRentSearch] = React.useState("");
   const [selectedPeriod, setSelectedPeriod] = React.useState("all");
   const [rows, setRows] = React.useState<LandlordRentRow[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [tenantOptions, setTenantOptions] = React.useState<TenantOption[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = React.useState("");
-  const [isCreatingRent, setIsCreatingRent] = React.useState(false);
+  const [createRentPicks, setCreateRentPicks] = React.useState<
+    LandlordTenantPick[]
+  >([]);
+  const [creatingRentTenantId, setCreatingRentTenantId] = React.useState<
+    string | null
+  >(null);
   const [landlordRefreshKey, setLandlordRefreshKey] = React.useState(0);
   const [markingPaidRentId, setMarkingPaidRentId] = React.useState<
     string | null
@@ -863,17 +910,6 @@ const LandlordRentPage = () => {
   const [propertyRulesById, setPropertyRulesById] = React.useState<
     Record<string, PropertyRentRulesCardLines>
   >({});
-  const [createRentGraceUI, setCreateRentGraceUI] = React.useState<
-    | { status: "idle" }
-    | { status: "loading" }
-    | {
-        status: "ready";
-        graceHuman: string;
-        appliedBand: string;
-        lateAfterFormatted: string | null;
-      }
-    | { status: "unavailable"; reason: "no_property" | "load_failed" }
-  >({ status: "idle" });
 
   const handleMarkRentPaid = React.useCallback(
     async (rentId: string) => {
@@ -891,28 +927,69 @@ const LandlordRentPage = () => {
   );
 
   React.useEffect(() => {
+    if (!canCreateRent && rentViewTab === "create") {
+      setRentViewTab("monitor");
+    }
+  }, [canCreateRent, rentViewTab]);
+
+  React.useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
     const BATCH = 12;
 
     void (async () => {
-      const [tenantListResult, rentsResult] = await Promise.all([
+      const resolveLandlordId = async (): Promise<string | null> => {
+        if (!user?.role) return null;
+        if (user.role === "property_manager") {
+          return selectedLandlord?.id ? String(selectedLandlord.id) : null;
+        }
+        if (user.role === "landlord" || user.role === "super_admin") {
+          if (typeof window === "undefined") return null;
+          let id = localStorage.getItem("landlordId");
+          if (!id && user.role === "landlord" && user.id) {
+            const lr = await getLandlordByUser(String(user.id));
+            if (lr.success && lr.data?.id) {
+              id = String(lr.data.id);
+              localStorage.setItem("landlordId", id);
+            }
+          }
+          return id;
+        }
+        return null;
+      };
+
+      const landlordId = await resolveLandlordId();
+
+      const [tenantListResult, rentsResult, propsResult] = await Promise.all([
         getTenantList({ page: 1, limit: 200 }),
         getAggregatedRents(),
+        landlordId
+          ? getPropertiesByLandlord(landlordId)
+          : Promise.resolve({
+              success: false as const,
+              error: "no_landlord_scope",
+            }),
       ]);
       if (cancelled) return;
 
       const allRents = rentsResult.success ? rentsResult.data : [];
 
+      const allowedPropertyIds = new Set<string>();
+      if (propsResult.success) {
+        for (const p of propsResult.data) {
+          if (p?.id) allowedPropertyIds.add(String(p.id));
+        }
+      }
+
       if (!tenantListResult.success) {
         setRows([]);
-        setTenantOptions([]);
+        setCreateRentPicks([]);
         setPropertyRulesById({});
         setIsLoading(false);
         return;
       }
 
-      const picks: LandlordTenantPick[] = [];
+      let picks: LandlordTenantPick[] = [];
       const needDetail: TenantRecordDTO[] = [];
       const seenPickIds = new Set<string>();
 
@@ -962,6 +1039,16 @@ const LandlordRentPage = () => {
         }
       }
 
+      if (landlordId && propsResult.success) {
+        picks = picks.filter(
+          (p) => p.propertyId != null && allowedPropertyIds.has(p.propertyId),
+        );
+      } else if (landlordId && !propsResult.success) {
+        picks = [];
+      } else if (!landlordId) {
+        picks = [];
+      }
+
       const leaseIdsManaged = new Set(picks.map((p) => p.activeLeaseId));
       const leaseIdToPick = new Map(
         picks.map((p) => [p.activeLeaseId, p] as const),
@@ -984,9 +1071,10 @@ const LandlordRentPage = () => {
 
       const propertyIds = [
         ...new Set(
-          tableRows
-            .map((r) => r.propertyId)
-            .filter((x): x is string => Boolean(x)),
+          [
+            ...tableRows.map((r) => r.propertyId),
+            ...forDropdown.map((p) => p.propertyId),
+          ].filter((x): x is string => Boolean(x)),
         ),
       ];
       const rulesMap: Record<string, PropertyRentRulesCardLines> = {};
@@ -1004,14 +1092,7 @@ const LandlordRentPage = () => {
       if (!cancelled) {
         setRows(tableRows);
         setPropertyRulesById(rulesMap);
-        setTenantOptions(
-          forDropdown.map((p) => ({
-            id: p.id,
-            label: p.label,
-            propertyId: p.propertyId,
-            rentFrequency: p.rentFrequency,
-          })),
-        );
+        setCreateRentPicks(forDropdown);
         setIsLoading(false);
       }
     })();
@@ -1019,115 +1100,71 @@ const LandlordRentPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [landlordRefreshKey]);
+  }, [landlordRefreshKey, user?.role, user?.id, selectedLandlord?.id]);
 
-  React.useEffect(() => {
-    if (
-      selectedTenantId &&
-      !tenantOptions.some((o) => o.id === selectedTenantId)
-    ) {
-      setSelectedTenantId("");
-    }
-  }, [tenantOptions, selectedTenantId]);
-
-  React.useEffect(() => {
-    if (!selectedTenantId) {
-      setCreateRentGraceUI({ status: "idle" });
-      return;
-    }
-    const opt = tenantOptions.find((o) => o.id === selectedTenantId);
-    if (!opt) {
-      setCreateRentGraceUI({ status: "idle" });
-      return;
-    }
-    if (!opt.propertyId) {
-      setCreateRentGraceUI({ status: "unavailable", reason: "no_property" });
-      return;
-    }
-    let cancelled = false;
-    setCreateRentGraceUI({ status: "loading" });
-    void getPropertySettings(opt.propertyId).then((res) => {
-      if (cancelled) return;
-      if (!res.success) {
-        setCreateRentGraceUI({ status: "unavailable", reason: "load_failed" });
+  const handleCreateRentForTenant = React.useCallback(
+    async (tenantId: string) => {
+      if (!canCreateRent) {
+        showToast("Only landlords can create rent charges.", "error");
         return;
       }
-      const parsed = applyPropertySettingsFromApi(
-        res.data as Record<string, unknown>,
-      );
-      const code = graceCodeForRentFrequency(opt.rentFrequency, parsed.grace);
-      const days = gracePeriodCodeToApproxCalendarDays(code);
-      const due = addDays(new Date(), CREATE_RENT_DUE_OFFSET_DAYS);
-      const lateAfter =
-        days > 0 ? format(addDays(due, days), "dd MMM yyyy") : null;
-      setCreateRentGraceUI({
-        status: "ready",
-        graceHuman: gracePeriodLabel(code),
-        appliedBand: frequencyBandLabel(opt.rentFrequency),
-        lateAfterFormatted: lateAfter,
+      setCreatingRentTenantId(tenantId);
+      const tenantResult = await getTenant(tenantId);
+      if (!tenantResult.success) {
+        showToast(tenantResult.error || "Failed to fetch tenant", "error");
+        setCreatingRentTenantId(null);
+        return;
+      }
+      const tenant = tenantResult.data as unknown as Record<string, unknown>;
+      const leases = Array.isArray(tenant.leases)
+        ? (tenant.leases as Array<Record<string, unknown>>)
+        : [];
+      const activeLease =
+        leases.find((l) => isLeaseActiveFlag(l)) ??
+        leases.find((l) => typeof l.id === "string") ??
+        null;
+      if (!activeLease) {
+        showToast("Tenant has no active lease", "error");
+        setCreatingRentTenantId(null);
+        return;
+      }
+
+      const dueDate = addDays(new Date(), CREATE_RENT_DUE_OFFSET_DAYS);
+      const payload = {
+        leaseId: String(activeLease.id),
+        startDate: String(activeLease.startDate ?? ""),
+        endDate: String(activeLease.endDate ?? ""),
+        dueDate: dueDate.toISOString(),
+        amount: Number(activeLease.rentAmount ?? 0),
+      };
+      if (
+        !payload.leaseId ||
+        !payload.startDate ||
+        !payload.endDate ||
+        !payload.amount
+      ) {
+        showToast("Active lease is missing required rent fields", "error");
+        setCreatingRentTenantId(null);
+        return;
+      }
+
+      const createResult = await createRent(payload);
+      if (!createResult.success) {
+        showToast(createResult.error || "Failed to create rent", "error");
+        setCreatingRentTenantId(null);
+        return;
+      }
+      showToast("Rent created successfully", "success", 6500, {
+        action: {
+          label: "View in Monitor collection",
+          onClick: () => setRentViewTab("monitor"),
+        },
       });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedTenantId, tenantOptions]);
-
-  const handleCreateRent = React.useCallback(async () => {
-    if (!selectedTenantId) {
-      showToast("Select a tenant", "error");
-      return;
-    }
-    setIsCreatingRent(true);
-    const tenantResult = await getTenant(selectedTenantId);
-    if (!tenantResult.success) {
-      showToast(tenantResult.error || "Failed to fetch tenant", "error");
-      setIsCreatingRent(false);
-      return;
-    }
-    const tenant = tenantResult.data as unknown as Record<string, unknown>;
-    const leases = Array.isArray(tenant.leases)
-      ? (tenant.leases as Array<Record<string, unknown>>)
-      : [];
-    const activeLease =
-      leases.find((l) => isLeaseActiveFlag(l)) ??
-      leases.find((l) => typeof l.id === "string") ??
-      null;
-    if (!activeLease) {
-      showToast("Tenant has no active lease", "error");
-      setIsCreatingRent(false);
-      return;
-    }
-
-    const dueDate = addDays(new Date(), CREATE_RENT_DUE_OFFSET_DAYS);
-    const payload = {
-      leaseId: String(activeLease.id),
-      startDate: String(activeLease.startDate ?? ""),
-      endDate: String(activeLease.endDate ?? ""),
-      dueDate: dueDate.toISOString(),
-      amount: Number(activeLease.rentAmount ?? 0),
-    };
-    if (
-      !payload.leaseId ||
-      !payload.startDate ||
-      !payload.endDate ||
-      !payload.amount
-    ) {
-      showToast("Active lease is missing required rent fields", "error");
-      setIsCreatingRent(false);
-      return;
-    }
-
-    const createResult = await createRent(payload);
-    if (!createResult.success) {
-      showToast(createResult.error || "Failed to create rent", "error");
-      setIsCreatingRent(false);
-      return;
-    }
-    showToast("Rent created successfully", "success");
-    setIsCreatingRent(false);
-    setSelectedTenantId("");
-    setLandlordRefreshKey((k) => k + 1);
-  }, [selectedTenantId, showToast]);
+      setCreatingRentTenantId(null);
+      setLandlordRefreshKey((k) => k + 1);
+    },
+    [canCreateRent, showToast],
+  );
 
   const availableYears = React.useMemo(() => {
     const years = new Set<string>();
@@ -1152,6 +1189,17 @@ const LandlordRentPage = () => {
       payment.propertyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       payment.unit.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+
+  const filteredCreateRentPicks = React.useMemo(() => {
+    const q = createRentSearch.trim().toLowerCase();
+    if (!q) return createRentPicks;
+    return createRentPicks.filter(
+      (p) =>
+        p.label.toLowerCase().includes(q) ||
+        p.propertyName.toLowerCase().includes(q) ||
+        p.unit.toLowerCase().includes(q),
+    );
+  }, [createRentPicks, createRentSearch]);
 
   // Calculate summary stats from API-backed rows
   const collectedThisMonth = periodFiltered
@@ -1231,29 +1279,63 @@ const LandlordRentPage = () => {
         </motion.button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 bg-gray-50/80 px-5 py-4 sm:px-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-main/10 text-brand-main">
-              <UserRound className="h-5 w-5" aria-hidden />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-base font-semibold text-gray-900">
-                Create rent
-              </h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Bill a tenant using their active rent/lease. Amount and period
-                come from the lease; no extra fields required. Tenants with an
-                active lease and{" "}
-                <span className="font-medium text-gray-800">
-                  no unpaid rent charge yet
-                </span>{" "}
-                appear in the list.
-              </p>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <p className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">
+      {canCreateRent ? (
+        <div className="border-b border-gray-200">
+          <div className="flex gap-1 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setRentViewTab("monitor")}
+              className={`px-3 py-2.5 text-sm font-medium transition sm:px-4 ${
+                rentViewTab === "monitor"
+                  ? "border-b-2 border-brand-main text-brand-main"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Monitor collection
+            </button>
+            <button
+              type="button"
+              onClick={() => setRentViewTab("create")}
+              className={`px-3 py-2.5 text-sm font-medium transition sm:px-4 ${
+                rentViewTab === "create"
+                  ? "border-b-2 border-brand-main text-brand-main"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Create rent
+              {createRentPicks.length > 0 ? (
+                <span className="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 tabular-nums">
+                  {createRentPicks.length}
+                </span>
+              ) : null}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {canCreateRent && rentViewTab === "create" ? (
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-100 bg-gray-50/80 px-5 py-4 sm:px-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-main/10 text-brand-main">
+                <UserRound className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-semibold text-gray-900">
+                  Bill tenants ready for a new charge
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Amount and billing period come from each tenant’s active
+                  lease. Only tenants with an active lease and{" "}
+                  <span className="font-medium text-gray-800">
+                    no unpaid rent charge yet
+                  </span>{" "}
+                  are listed. Property late fee and grace settings apply per
+                  row.
+                </p>
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">
                   <CalendarClock className="h-3.5 w-3.5 text-brand-main" />
-                  Due date:{" "}
+                  Due date for new charges:{" "}
                   <span className="text-gray-900">
                     {format(
                       addDays(new Date(), CREATE_RENT_DUE_OFFSET_DAYS),
@@ -1264,353 +1346,393 @@ const LandlordRentPage = () => {
                     ({CREATE_RENT_DUE_OFFSET_DAYS} days from today)
                   </span>
                 </p>
-                {createRentGraceUI.status === "loading" && selectedTenantId ? (
-                  <span className="text-xs text-gray-500">
-                    Loading grace rules for this property…
-                  </span>
-                ) : null}
-                {createRentGraceUI.status === "ready" ? (
-                  <p className="inline-flex max-w-xl flex-wrap items-center gap-x-1.5 rounded-md border border-emerald-100 bg-emerald-50/90 px-2.5 py-1 text-xs font-medium text-emerald-900">
-                    <span className="text-emerald-700">Grace</span>
-                    <span className="text-gray-600">
-                      ({createRentGraceUI.appliedBand}):
-                    </span>
-                    <span>{createRentGraceUI.graceHuman}</span>
-                    {createRentGraceUI.lateAfterFormatted ? (
-                      <>
-                        <span className="text-gray-400">·</span>
-                        <span className="font-normal text-emerald-800/90">
-                          Not treated as late before{" "}
-                          {createRentGraceUI.lateAfterFormatted}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-gray-400">·</span>
-                        <span className="font-normal text-emerald-800/90">
-                          No extra time after the due date
-                        </span>
-                      </>
-                    )}
-                  </p>
-                ) : null}
-                {createRentGraceUI.status === "unavailable" &&
-                selectedTenantId ? (
-                  <span className="text-xs text-gray-500">
-                    {createRentGraceUI.reason === "no_property"
-                      ? "Grace preview isn’t available until this tenant is linked to a property."
-                      : "Couldn’t load this property’s grace settings."}
-                  </span>
-                ) : null}
               </div>
             </div>
           </div>
-        </div>
-        <div className="p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <div className="min-w-0 flex-1">
-              <label
-                htmlFor="create-rent-tenant"
-                className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500"
-              >
-                Tenant
-              </label>
-              <select
-                id="create-rent-tenant"
-                value={selectedTenantId}
-                onChange={(e) => setSelectedTenantId(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm transition focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main/20"
-              >
-                <option value="">Choose a tenant…</option>
-                {tenantOptions.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="button"
-              onClick={handleCreateRent}
-              disabled={isCreatingRent || tenantOptions.length === 0}
-              className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg bg-brand-main px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-main/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[160px]"
-            >
-              {isCreatingRent ? "Creating…" : "Create rent"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="rounded-lg p-4 lg:p-6 shadow-sm overflow-hidden"
-          style={{ backgroundColor: ADMIN_STAT_BG.blue }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p
-                className="text-xs font-semibold uppercase tracking-wide truncate"
-                style={{ color: ADMIN_STAT_LABEL.blue }}
-              >
-                Collected This Month
-              </p>
-              <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
-                {formatCurrency(collectedThisMonth)}
-              </p>
-            </div>
-            <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
-              <CheckCircle2
-                className="h-4 w-4 lg:h-5 lg:w-5"
-                style={{ color: ADMIN_STAT_LABEL.blue }}
+          <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search"
+                placeholder="Search by tenant, property, or unit…"
+                value={createRentSearch}
+                onChange={(e) => setCreateRentSearch(e.target.value)}
+                className="h-10 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
               />
             </div>
           </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-          className="rounded-lg p-4 lg:p-6 shadow-sm overflow-hidden"
-          style={{ backgroundColor: ADMIN_STAT_BG.green }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p
-                className="text-xs font-semibold uppercase tracking-wide truncate"
-                style={{ color: ADMIN_STAT_LABEL.green }}
-              >
-                Pending Payments
-              </p>
-              <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
-                {formatCurrency(pendingAmount)}
-              </p>
-              <p className="mt-1 text-xs text-gray-600">
-                {pendingPayments.length} tenants
-              </p>
-            </div>
-            <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
-              <Clock
-                className="h-4 w-4 lg:h-5 lg:w-5"
-                style={{ color: ADMIN_STAT_LABEL.green }}
-              />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-          className="rounded-lg p-4 lg:p-6 shadow-sm overflow-hidden"
-          style={{ backgroundColor: ADMIN_STAT_BG.orange }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p
-                className="text-xs font-semibold uppercase tracking-wide truncate"
-                style={{ color: ADMIN_STAT_LABEL.orange }}
-              >
-                Overdue
-              </p>
-              <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
-                {formatCurrency(overdueAmount)}
-              </p>
-              <p className="mt-1 text-xs text-gray-600">
-                {overduePayments.length} tenant
-              </p>
-            </div>
-            <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
-              <AlertCircle
-                className="h-4 w-4 lg:h-5 lg:w-5"
-                style={{ color: ADMIN_STAT_LABEL.orange }}
-              />
-            </div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="period"
-              className="text-sm font-medium text-gray-700"
-            >
-              Period:
-            </label>
-            <select
-              id="period"
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-            >
-              <option value="all">All</option>
-              {availableYears.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="relative min-w-[300px] max-w-[2048px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by tenant, property, or unit..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-[38px] w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-            />
+          <div className="overflow-x-auto">
+            <table className="w-full table-auto min-w-[880px]">
+              <thead className="border-b border-gray-200 bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 sm:px-6">
+                    Tenant
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 sm:px-6">
+                    Property
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 sm:px-6">
+                    Unit
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 sm:px-6">
+                    Late fee
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 sm:px-6">
+                    Grace period
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700 sm:px-6">
+                    <span className="sr-only">Action</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {isLoading ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-6 py-10 text-center text-sm text-gray-500"
+                    >
+                      Loading…
+                    </td>
+                  </tr>
+                ) : filteredCreateRentPicks.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-6 py-10 text-center text-sm text-gray-500"
+                    >
+                      {createRentPicks.length === 0
+                        ? "No tenants are ready for a new rent charge right now (everyone either has an unpaid charge or no active lease)."
+                        : "No rows match your search."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCreateRentPicks.map((pick, index) => (
+                    <motion.tr
+                      key={pick.id}
+                      initial={{ opacity: 0, x: -12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.02 }}
+                      className="hover:bg-gray-50/80"
+                    >
+                      <td className="whitespace-nowrap px-4 py-4 sm:px-6">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white">
+                            {getInitials(pick.label)}
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {pick.label}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 sm:px-6">
+                        {pick.propertyName}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 sm:px-6">
+                        {pick.unit}
+                      </td>
+                      <td className="max-w-[200px] px-4 py-4 sm:px-6">
+                        <PropertyLateFeePolicyCell
+                          propertyId={pick.propertyId}
+                          rulesById={propertyRulesById}
+                        />
+                      </td>
+                      <td className="max-w-[220px] px-4 py-4 sm:px-6">
+                        <GracePeriodPolicyCell
+                          propertyId={pick.propertyId}
+                          rulesById={propertyRulesById}
+                        />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-right sm:px-6">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCreateRentForTenant(pick.id)
+                          }
+                          disabled={
+                            creatingRentTenantId !== null ||
+                            createRentPicks.length === 0
+                          }
+                          className="inline-flex items-center justify-center rounded-lg bg-brand-main px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-main/90 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
+                        >
+                          {creatingRentTenantId === pick.id
+                            ? "Creating…"
+                            : "Create rent"}
+                        </button>
+                      </td>
+                    </motion.tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
+      ) : null}
 
-      {/* Payments Table */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
-        <table className="w-full table-auto min-w-[900px]">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Tenant
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Property
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Unit
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Total
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Base rent
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Late (row)
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Property policy
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Due Date
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Last Payment
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Balance
-              </th>
-              <th className="px-3 lg:px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-14">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {isLoading ? (
-              <tr>
-                <td
-                  colSpan={12}
-                  className="px-6 py-10 text-center text-sm text-gray-500"
+      {rentViewTab === "monitor" || !canCreateRent ? (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="rounded-lg p-4 lg:p-6 shadow-sm overflow-hidden"
+              style={{ backgroundColor: ADMIN_STAT_BG.blue }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide truncate"
+                    style={{ color: ADMIN_STAT_LABEL.blue }}
+                  >
+                    Collected This Month
+                  </p>
+                  <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
+                    {formatCurrency(collectedThisMonth)}
+                  </p>
+                </div>
+                <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
+                  <CheckCircle2
+                    className="h-4 w-4 lg:h-5 lg:w-5"
+                    style={{ color: ADMIN_STAT_LABEL.blue }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="rounded-lg p-4 lg:p-6 shadow-sm overflow-hidden"
+              style={{ backgroundColor: ADMIN_STAT_BG.green }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide truncate"
+                    style={{ color: ADMIN_STAT_LABEL.green }}
+                  >
+                    Pending Payments
+                  </p>
+                  <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
+                    {formatCurrency(pendingAmount)}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    {pendingPayments.length} tenants
+                  </p>
+                </div>
+                <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
+                  <Clock
+                    className="h-4 w-4 lg:h-5 lg:w-5"
+                    style={{ color: ADMIN_STAT_LABEL.green }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="rounded-lg p-4 lg:p-6 shadow-sm overflow-hidden"
+              style={{ backgroundColor: ADMIN_STAT_BG.orange }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide truncate"
+                    style={{ color: ADMIN_STAT_LABEL.orange }}
+                  >
+                    Overdue
+                  </p>
+                  <p className="mt-1 lg:mt-2 text-xl lg:text-2xl font-bold text-gray-900 break-words leading-tight">
+                    {formatCurrency(overdueAmount)}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    {overduePayments.length} tenant
+                  </p>
+                </div>
+                <div className="flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg bg-white/90 flex-shrink-0">
+                  <AlertCircle
+                    className="h-4 w-4 lg:h-5 lg:w-5"
+                    style={{ color: ADMIN_STAT_LABEL.orange }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Filters and Search */}
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="period"
+                  className="text-sm font-medium text-gray-700"
                 >
-                  Loading rent payments...
-                </td>
-              </tr>
-            ) : filteredPayments.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={12}
-                  className="px-6 py-10 text-center text-sm text-gray-500"
+                  Period:
+                </label>
+                <select
+                  id="period"
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                 >
-                  No rent payments found.
-                </td>
-              </tr>
-            ) : (
-              filteredPayments.map((payment, index) => (
-                <motion.tr
-                  key={payment.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2, delay: index * 0.03 }}
-                  whileHover={{ x: 4, transition: { duration: 0.2 } }}
-                  className="hover:bg-gray-50"
-                >
-                  <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
-                        {getInitials(payment.tenantName)}
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">
-                        {payment.tenantName}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                    {payment.propertyName}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                    {payment.unit}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
-                    {formatCurrency(payment.rentAmount)}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                    {formatCurrency(payment.rentBaseAmount)}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                    {formatCurrency(payment.rentLateFeeAmount)}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-xs text-gray-600 max-w-[200px]">
-                    {payment.propertyId &&
-                    propertyRulesById[payment.propertyId] ? (
-                      <span
-                        className="line-clamp-2 cursor-help"
-                        title={formatRentRulesPolicyTooltip(
-                          propertyRulesById[payment.propertyId],
-                        )}
-                      >
-                        {propertyRulesById[payment.propertyId].late} · M:{" "}
-                        {propertyRulesById[payment.propertyId].monthly}
-                      </span>
-                    ) : payment.propertyId ? (
-                      <span className="text-gray-400">Policy unavailable</span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                    {payment.dueDate}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                    {payment.lastPayment || "—"}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(payment.status)}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
-                    {payment.balance ? formatCurrency(payment.balance) : "—"}
-                  </td>
-                  <td className="px-3 lg:px-6 py-4 text-right whitespace-nowrap">
-                    <LandlordRentRowActionsMenu
-                      row={payment}
-                      onMarkPaid={handleMarkRentPaid}
-                      isMarkingPaid={markingPaidRentId === payment.id}
-                    />
-                  </td>
-                </motion.tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  <option value="all">All</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="relative min-w-[300px] max-w-[2048px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by tenant, property, or unit..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-[38px] w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Payments Table */}
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
+            <table className="w-full table-auto min-w-[900px]">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Tenant
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Property
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Unit
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Total
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Base rent
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Late fee
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Grace period
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Due Date
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Last Payment
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Balance
+                  </th>
+                  <th className="px-3 lg:px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-14">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {isLoading ? (
+                  <tr>
+                    <td
+                      colSpan={12}
+                      className="px-6 py-10 text-center text-sm text-gray-500"
+                    >
+                      Loading rent payments...
+                    </td>
+                  </tr>
+                ) : filteredPayments.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={12}
+                      className="px-6 py-10 text-center text-sm text-gray-500"
+                    >
+                      No rent payments found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPayments.map((payment, index) => (
+                    <motion.tr
+                      key={payment.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.03 }}
+                      whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                      className="hover:bg-gray-50"
+                    >
+                      <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
+                            {getInitials(payment.tenantName)}
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {payment.tenantName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {payment.propertyName}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {payment.unit}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                        {formatCurrency(payment.rentAmount)}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {formatCurrency(payment.rentBaseAmount)}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {formatCurrency(payment.rentLateFeeAmount)}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-xs text-gray-600 max-w-[220px]">
+                        <GracePeriodPolicyCell
+                          propertyId={payment.propertyId}
+                          rulesById={propertyRulesById}
+                        />
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {payment.dueDate}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                        {payment.lastPayment || "—"}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(payment.status)}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                        {payment.balance
+                          ? formatCurrency(payment.balance)
+                          : "—"}
+                      </td>
+                      <td className="px-3 lg:px-6 py-4 text-right whitespace-nowrap">
+                        <LandlordRentRowActionsMenu
+                          row={payment}
+                          onMarkPaid={handleMarkRentPaid}
+                          isMarkingPaid={markingPaidRentId === payment.id}
+                        />
+                      </td>
+                    </motion.tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 };

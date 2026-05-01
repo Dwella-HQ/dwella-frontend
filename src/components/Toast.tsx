@@ -4,20 +4,33 @@ import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
+export type ToastAction = {
+  label: string;
+  onClick: () => void;
+};
+
 export type Toast = {
   id: string;
   message: string;
   type?: ToastType;
   duration?: number;
+  action?: ToastAction;
 };
 
 type ToastContextType = {
   toasts: Toast[];
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
+  showToast: (
+    message: string,
+    type?: ToastType,
+    duration?: number,
+    options?: { action?: ToastAction },
+  ) => void;
   removeToast: (id: string) => void;
 };
 
-const ToastContext = React.createContext<ToastContextType | undefined>(undefined);
+const ToastContext = React.createContext<ToastContextType | undefined>(
+  undefined,
+);
 
 export const useToast = () => {
   const context = React.useContext(ToastContext);
@@ -44,7 +57,7 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
         }, duration);
       }
     },
-    []
+    [],
   );
 
   const removeToast = React.useCallback((id: string) => {
@@ -57,7 +70,7 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
       showToast,
       removeToast,
     }),
-    [toasts, showToast, removeToast]
+    [toasts, showToast, removeToast],
   );
 
   return (
@@ -139,9 +152,23 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
       className={`pointer-events-auto flex items-start gap-3 rounded-lg border p-4 shadow-lg max-w-md ${getBgColor()}`}
     >
       <div className="flex-shrink-0">{getIcon()}</div>
-      <p className={`flex-1 text-sm font-medium ${getTextColor()}`}>
-        {toast.message}
-      </p>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <p className={`text-sm font-medium ${getTextColor()}`}>
+          {toast.message}
+        </p>
+        {toast.action ? (
+          <button
+            type="button"
+            onClick={() => {
+              toast.action?.onClick();
+              onRemove(toast.id);
+            }}
+            className={`self-start text-sm font-semibold underline underline-offset-2 hover:opacity-80 ${getTextColor()}`}
+          >
+            {toast.action.label}
+          </button>
+        ) : null}
+      </div>
       <button
         onClick={() => onRemove(toast.id)}
         className={`flex-shrink-0 rounded p-1 transition-colors hover:bg-black/10 ${getTextColor()}`}
@@ -152,6 +179,3 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
     </motion.div>
   );
 };
-
-
-
