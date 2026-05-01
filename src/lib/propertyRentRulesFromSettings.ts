@@ -130,6 +130,42 @@ export function buildRentRulesCardLines(
   };
 }
 
-export function formatRentRulesPolicyTooltip(lines: PropertyRentRulesCardLines): string {
+export function formatRentRulesPolicyTooltip(
+  lines: PropertyRentRulesCardLines,
+): string {
   return `Late fee: ${lines.late}\nMonthly grace: ${lines.monthly}\nQuarterly grace: ${lines.quarterly}\nYearly grace: ${lines.yearly}`;
+}
+
+/** Approximate calendar extension after due date for UI previews (backend may differ). */
+export function gracePeriodCodeToApproxCalendarDays(code: string): number {
+  const map: Record<string, number> = {
+    NO_GRACE_PERIOD: 0,
+    ONE_WEEK: 7,
+    TWO_WEEKS: 14,
+    THREE_WEEKS: 21,
+    ONE_MONTH: 30,
+    FIVE_WEEKS: 35,
+    SIX_WEEKS: 42,
+    TWO_MONTHS: 60,
+    THREE_MONTHS: 90,
+    FOUR_MONTHS: 120,
+    FIVE_MONTHS: 150,
+    SIX_MONTHS: 180,
+  };
+  return map[code] ?? 0;
+}
+
+/**
+ * Which saved grace applies depends on how often rent is billed (lease
+ * `rentFrequency`). Weekly/biweekly/monthly/one_time use the monthly grace
+ * bucket as the closest match in settings.
+ */
+export function graceCodeForRentFrequency(
+  frequency: string | undefined,
+  grace: PropertyGraceFormState,
+): string {
+  const f = (frequency || "monthly").toLowerCase().replace(/-/g, "_");
+  if (f === "quarterly") return grace.quarterlyRentGracePeriod;
+  if (f === "yearly") return grace.yearlyRentGracePeriod;
+  return grace.monthlyRentGracePeriod;
 }

@@ -34,8 +34,12 @@ import {
 import type { RentItemDTO } from "@/api/rent";
 import { getPropertySettings } from "@/api/properties";
 import {
+  applyPropertySettingsFromApi,
   buildRentRulesCardLines,
   formatRentRulesPolicyTooltip,
+  graceCodeForRentFrequency,
+  gracePeriodCodeToApproxCalendarDays,
+  gracePeriodLabel,
   type PropertyRentRulesCardLines,
 } from "@/lib/propertyRentRulesFromSettings";
 import { getTenantByUser, getTenant, getTenantList } from "@/api/tenants";
@@ -44,6 +48,9 @@ import { useUser } from "@/contexts/UserContext";
 import type { NextPageWithLayout } from "../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import { useToast } from "@/components/Toast";
+
+/** Default days until due date when creating a rent charge from this page. */
+const CREATE_RENT_DUE_OFFSET_DAYS = 7;
 
 type LandlordRentStatus = "paid" | "due" | "overdue";
 
@@ -78,6 +85,8 @@ type TenantPaymentRow = {
 type TenantOption = {
   id: string;
   label: string;
+  propertyId: string | null;
+  rentFrequency: string | undefined;
 };
 
 /** Tenant with resolved active lease + unit (for landlord rent table + create flow). */
@@ -89,16 +98,32 @@ type LandlordTenantPick = {
   unit: string;
   /** Property UUID when `currentUnit.property` or active lease `unit.property` is present. */
   propertyId: string | null;
+  /** Active lease `rentFrequency` (monthly, quarterly, etc.). */
+  rentFrequency: string | undefined;
 };
 
-function propertyIdFromTenantRecord(rec: Record<string, unknown>): string | null {
+function rentFrequencyForActiveLease(
+  leases: Array<Record<string, unknown>>,
+  activeLeaseId: string,
+): string | undefined {
+  const lease = leases.find((l) => String(l.id) === activeLeaseId);
+  const rf = lease?.rentFrequency;
+  return typeof rf === "string" ? rf : undefined;
+}
+
+function frequencyBandLabel(frequency: string | undefined): string {
+  const f = (frequency || "monthly").toLowerCase();
+  if (f === "quarterly") return "Quarterly rent";
+  if (f === "yearly") return "Yearly rent";
+  return "Monthly rent";
+}
+
+function propertyIdFromTenantRecord(
+  rec: Record<string, unknown>,
+): string | null {
   const cu = rec.currentUnit as Record<string, unknown> | undefined;
   const propFromUnit = cu?.property as Record<string, unknown> | undefined;
-  if (
-    propFromUnit &&
-    typeof propFromUnit.id === "string" &&
-    propFromUnit.id
-  ) {
+  if (propFromUnit && typeof propFromUnit.id === "string" && propFromUnit.id) {
     return propFromUnit.id;
   }
   const leases = Array.isArray(rec.leases)
@@ -143,6 +168,7 @@ function tenantDetailToLandlordPick(
   const prop = cu?.property as Record<string, unknown> | undefined;
   const propertyName = typeof prop?.name === "string" ? prop.name : "—";
   const propertyId = propertyIdFromTenantRecord(tr);
+  const rentFrequency = rentFrequencyForActiveLease(leases, activeLeaseId);
   return {
     id: tenantId,
     label: String(label),
@@ -150,6 +176,7 @@ function tenantDetailToLandlordPick(
     propertyName,
     unit,
     propertyId,
+    rentFrequency,
   };
 }
 
@@ -183,6 +210,10 @@ function landlordPickFromListRecord(
     (typeof rec.fullName === "string" && rec.fullName) ||
     (typeof rec.email === "string" ? rec.email : `Tenant ${tenantId}`);
   const propertyId = propertyIdFromTenantRecord(rec);
+  const rentFrequency = rentFrequencyForActiveLease(
+    leases as Array<Record<string, unknown>>,
+    activeLeaseId,
+  );
   return {
     id: tenantId,
     label: String(label),
@@ -190,6 +221,7 @@ function landlordPickFromListRecord(
     propertyName: prop.name,
     unit: cu.name,
     propertyId,
+    rentFrequency,
   };
 }
 
@@ -831,6 +863,17 @@ const LandlordRentPage = () => {
   const [propertyRulesById, setPropertyRulesById] = React.useState<
     Record<string, PropertyRentRulesCardLines>
   >({});
+  const [createRentGraceUI, setCreateRentGraceUI] = React.useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | {
+        status: "ready";
+        graceHuman: string;
+        appliedBand: string;
+        lateAfterFormatted: string | null;
+      }
+    | { status: "unavailable"; reason: "no_property" | "load_failed" }
+  >({ status: "idle" });
 
   const handleMarkRentPaid = React.useCallback(
     async (rentId: string) => {
@@ -962,7 +1005,12 @@ const LandlordRentPage = () => {
         setRows(tableRows);
         setPropertyRulesById(rulesMap);
         setTenantOptions(
-          forDropdown.map((p) => ({ id: p.id, label: p.label })),
+          forDropdown.map((p) => ({
+            id: p.id,
+            label: p.label,
+            propertyId: p.propertyId,
+            rentFrequency: p.rentFrequency,
+          })),
         );
         setIsLoading(false);
       }
@@ -981,6 +1029,48 @@ const LandlordRentPage = () => {
       setSelectedTenantId("");
     }
   }, [tenantOptions, selectedTenantId]);
+
+  React.useEffect(() => {
+    if (!selectedTenantId) {
+      setCreateRentGraceUI({ status: "idle" });
+      return;
+    }
+    const opt = tenantOptions.find((o) => o.id === selectedTenantId);
+    if (!opt) {
+      setCreateRentGraceUI({ status: "idle" });
+      return;
+    }
+    if (!opt.propertyId) {
+      setCreateRentGraceUI({ status: "unavailable", reason: "no_property" });
+      return;
+    }
+    let cancelled = false;
+    setCreateRentGraceUI({ status: "loading" });
+    void getPropertySettings(opt.propertyId).then((res) => {
+      if (cancelled) return;
+      if (!res.success) {
+        setCreateRentGraceUI({ status: "unavailable", reason: "load_failed" });
+        return;
+      }
+      const parsed = applyPropertySettingsFromApi(
+        res.data as Record<string, unknown>,
+      );
+      const code = graceCodeForRentFrequency(opt.rentFrequency, parsed.grace);
+      const days = gracePeriodCodeToApproxCalendarDays(code);
+      const due = addDays(new Date(), CREATE_RENT_DUE_OFFSET_DAYS);
+      const lateAfter =
+        days > 0 ? format(addDays(due, days), "dd MMM yyyy") : null;
+      setCreateRentGraceUI({
+        status: "ready",
+        graceHuman: gracePeriodLabel(code),
+        appliedBand: frequencyBandLabel(opt.rentFrequency),
+        lateAfterFormatted: lateAfter,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTenantId, tenantOptions]);
 
   const handleCreateRent = React.useCallback(async () => {
     if (!selectedTenantId) {
@@ -1008,7 +1098,7 @@ const LandlordRentPage = () => {
       return;
     }
 
-    const dueDate = addDays(new Date(), 7);
+    const dueDate = addDays(new Date(), CREATE_RENT_DUE_OFFSET_DAYS);
     const payload = {
       leaseId: String(activeLease.id),
       startDate: String(activeLease.startDate ?? ""),
@@ -1160,16 +1250,59 @@ const LandlordRentPage = () => {
                 </span>{" "}
                 appear in the list.
               </p>
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">
-                <CalendarClock className="h-3.5 w-3.5 text-brand-main" />
-                Due date:{" "}
-                <span className="text-gray-900">
-                  {format(addDays(new Date(), 7), "dd MMM yyyy")}{" "}
-                </span>
-                <span className="font-normal text-gray-500">
-                  (one week from today)
-                </span>
-              </p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <p className="inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">
+                  <CalendarClock className="h-3.5 w-3.5 text-brand-main" />
+                  Due date:{" "}
+                  <span className="text-gray-900">
+                    {format(
+                      addDays(new Date(), CREATE_RENT_DUE_OFFSET_DAYS),
+                      "dd MMM yyyy",
+                    )}
+                  </span>
+                  <span className="font-normal text-gray-500">
+                    ({CREATE_RENT_DUE_OFFSET_DAYS} days from today)
+                  </span>
+                </p>
+                {createRentGraceUI.status === "loading" && selectedTenantId ? (
+                  <span className="text-xs text-gray-500">
+                    Loading grace rules for this property…
+                  </span>
+                ) : null}
+                {createRentGraceUI.status === "ready" ? (
+                  <p className="inline-flex max-w-xl flex-wrap items-center gap-x-1.5 rounded-md border border-emerald-100 bg-emerald-50/90 px-2.5 py-1 text-xs font-medium text-emerald-900">
+                    <span className="text-emerald-700">Grace</span>
+                    <span className="text-gray-600">
+                      ({createRentGraceUI.appliedBand}):
+                    </span>
+                    <span>{createRentGraceUI.graceHuman}</span>
+                    {createRentGraceUI.lateAfterFormatted ? (
+                      <>
+                        <span className="text-gray-400">·</span>
+                        <span className="font-normal text-emerald-800/90">
+                          Not treated as late before{" "}
+                          {createRentGraceUI.lateAfterFormatted}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-400">·</span>
+                        <span className="font-normal text-emerald-800/90">
+                          No extra time after the due date
+                        </span>
+                      </>
+                    )}
+                  </p>
+                ) : null}
+                {createRentGraceUI.status === "unavailable" &&
+                selectedTenantId ? (
+                  <span className="text-xs text-gray-500">
+                    {createRentGraceUI.reason === "no_property"
+                      ? "Grace preview isn’t available until this tenant is linked to a property."
+                      : "Couldn’t load this property’s grace settings."}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
