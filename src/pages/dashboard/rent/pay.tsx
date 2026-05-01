@@ -8,7 +8,11 @@ import { ArrowLeft, Wallet, Shield } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { getTenantByUser } from "@/api/tenants";
 import { getRentsByLease, resolveTenantActiveLeaseId } from "@/api/rent";
-import { createRentPayment } from "@/api/rent-payment";
+import {
+  createRentPayment,
+  extractRentPaymentCheckoutUrl,
+  generateRentPaymentIdempotencyKey,
+} from "@/api/rent-payment";
 import { getProperty } from "@/api/properties";
 import { useToast } from "@/components/Toast";
 import type { NextPageWithLayout } from "../../_app";
@@ -173,30 +177,19 @@ const PayRentPage: NextPageWithLayout = () => {
       return;
     }
     setIsProcessing(true);
-    const result = await createRentPayment(selectedRentId);
+    const idempotencyKey = generateRentPaymentIdempotencyKey();
+    const result = await createRentPayment(selectedRentId, {
+      idempotencyKey,
+    });
     setIsProcessing(false);
     if (!result.success) {
       showToast(result.error || "Failed to initialize rent payment", "error");
       return;
     }
-    const payload = result.data;
-    if (payload && typeof payload === "object") {
-      const root = payload as Record<string, unknown>;
-      const nested = root.data as Record<string, unknown> | undefined;
-      const url =
-        (typeof root.authorizationUrl === "string" && root.authorizationUrl) ||
-        (typeof root.checkoutUrl === "string" && root.checkoutUrl) ||
-        (nested &&
-          typeof nested.authorizationUrl === "string" &&
-          nested.authorizationUrl) ||
-        (nested &&
-          typeof nested.checkoutUrl === "string" &&
-          nested.checkoutUrl) ||
-        null;
-      if (url) {
-        window.location.href = url;
-        return;
-      }
+    const checkoutUrl = extractRentPaymentCheckoutUrl(result.data);
+    if (checkoutUrl) {
+      window.location.href = checkoutUrl;
+      return;
     }
     showToast("Payment initialized", "success");
     router.push("/dashboard/rent/payment-success");

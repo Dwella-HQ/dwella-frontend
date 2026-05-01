@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import {
   createRentPayment,
+  extractRentPaymentCheckoutUrl,
   generateRentPaymentIdempotencyKey,
 } from "@/api/rent-payment";
 import {
@@ -585,25 +586,10 @@ const TenantPaymentHistory = () => {
         showToast(result.error || "Failed to initialize rent payment", "error");
         return;
       }
-      const payload = result.data;
-      if (payload && typeof payload === "object") {
-        const root = payload as Record<string, unknown>;
-        const nested = root.data as Record<string, unknown> | undefined;
-        const url =
-          (typeof root.authorizationUrl === "string" &&
-            root.authorizationUrl) ||
-          (typeof root.checkoutUrl === "string" && root.checkoutUrl) ||
-          (nested &&
-            typeof nested.authorizationUrl === "string" &&
-            nested.authorizationUrl) ||
-          (nested &&
-            typeof nested.checkoutUrl === "string" &&
-            nested.checkoutUrl) ||
-          null;
-        if (url) {
-          window.location.href = url;
-          return;
-        }
+      const checkoutUrl = extractRentPaymentCheckoutUrl(result.data);
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+        return;
       }
       showToast("Payment initialized", "success");
       router.push("/dashboard/rent/payment-success");

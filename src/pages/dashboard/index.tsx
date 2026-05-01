@@ -34,6 +34,7 @@ import type {
 } from "@/data/mockLandlordData";
 import { getMaintenanceRequests } from "@/api/maintenance";
 import { getRentPayments } from "@/api/rent-payment";
+import { fetchLandlordAggregatedOverdue } from "@/lib/landlordAggregatedOverdue";
 import {
   type AnnouncementItemDTO,
   createAnnouncementLandlord,
@@ -1222,6 +1223,12 @@ const LandlordDashboard = () => {
   const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
   const [allRentPayments, setAllRentPayments] = React.useState<Payment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = React.useState(true);
+  const [landlordOverdue, setLandlordOverdue] = React.useState({
+    amount: 0,
+    count: 0,
+  });
+  const [overdueMetricsLoading, setOverdueMetricsLoading] =
+    React.useState(false);
   const [liveAnnouncements, setLiveAnnouncements] = React.useState<
     AnnouncementItemDTO[]
   >([]);
@@ -1233,6 +1240,32 @@ const LandlordDashboard = () => {
     () => filterPaymentsForProperties(allRentPayments, properties),
     [allRentPayments, properties],
   );
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const propertyIdSet = new Set(
+      properties.map((p) => p.id).filter(Boolean) as string[],
+    );
+
+    if (propertyIdSet.size === 0) {
+      setLandlordOverdue({ amount: 0, count: 0 });
+      setOverdueMetricsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setOverdueMetricsLoading(true);
+    void fetchLandlordAggregatedOverdue(propertyIdSet).then((res) => {
+      if (cancelled) return;
+      setLandlordOverdue(res);
+      setOverdueMetricsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [properties]);
 
   // Fetch properties for the landlord
   React.useEffect(() => {
@@ -1440,12 +1473,15 @@ const LandlordDashboard = () => {
       unitsUnderMaintenance,
       rentCollected: 0,
       rentCollectedPeriod: "No payment data yet",
-      overdueAmount: 0,
-      overdueCount: 0,
+      overdueAmount: landlordOverdue.amount,
+      overdueCount: landlordOverdue.count,
     };
-  }, [properties, allMaintenanceForStats]);
+  }, [properties, allMaintenanceForStats, landlordOverdue]);
 
-  const summaryCardsLoading = isLoadingProperties || maintenanceLoading;
+  const summaryCardsLoading =
+    isLoadingProperties ||
+    maintenanceLoading ||
+    (properties.length > 0 && overdueMetricsLoading);
 
   return (
     <>
