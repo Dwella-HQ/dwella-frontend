@@ -6,6 +6,7 @@ type MarkRentAsPaidResult =
   | { success: true; data?: RentItemDTO }
   | { success: false; error: string; statusCode?: number };
 
+/** `PATCH /rent/{rentId}/status/paid` */
 export const markRentAsPaid = async (
   rentId: string,
 ): Promise<MarkRentAsPaidResult> => {

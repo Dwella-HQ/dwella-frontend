@@ -22,7 +22,7 @@ import {
   DollarSign,
   User,
   FileText,
-  Bell,
+  CalendarClock,
   CreditCard,
   Globe,
   Upload,
@@ -80,6 +80,14 @@ import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
 
 import type { NextPageWithLayout } from "../../_app";
+import {
+  MONTHLY_GRACE_VALUES,
+  QUARTERLY_GRACE_VALUES,
+  YEARLY_GRACE_VALUES,
+  applyPropertySettingsFromApi,
+  formatLateFeeLine,
+  gracePeriodLabel,
+} from "@/lib/propertyRentRulesFromSettings";
 
 function managerUserDisplayFromUnknown(node: unknown): string | undefined {
   if (!node || typeof node !== "object") return undefined;
@@ -161,96 +169,79 @@ function findManagerNameForProperty(
 
 type PropertySettingsSection =
   | "documents"
-  | "notifications"
+  | "gracePeriods"
   | "payment"
   | "preferences";
 
-const MONTHLY_GRACE_VALUES = [
-  "NO_GRACE_PERIOD",
-  "ONE_WEEK",
-  "TWO_WEEKS",
-] as const;
-
-const QUARTERLY_GRACE_VALUES = [
-  "NO_GRACE_PERIOD",
-  "ONE_WEEK",
-  "TWO_WEEKS",
-  "THREE_WEEKS",
-  "ONE_MONTH",
-  "FIVE_WEEKS",
-  "SIX_WEEKS",
-] as const;
-
-const YEARLY_GRACE_VALUES = [
-  "NO_GRACE_PERIOD",
-  "ONE_MONTH",
-  "TWO_MONTHS",
-  "THREE_MONTHS",
-  "FOUR_MONTHS",
-  "FIVE_MONTHS",
-  "SIX_MONTHS",
-] as const;
-
-const GRACE_LABELS: Record<string, string> = {
-  NO_GRACE_PERIOD: "No grace period",
-  ONE_WEEK: "One week",
-  TWO_WEEKS: "Two weeks",
-  THREE_WEEKS: "Three weeks",
-  ONE_MONTH: "One month",
-  FIVE_WEEKS: "Five weeks",
-  SIX_WEEKS: "Six weeks",
-  TWO_MONTHS: "Two months",
-  THREE_MONTHS: "Three months",
-  FOUR_MONTHS: "Four months",
-  FIVE_MONTHS: "Five months",
-  SIX_MONTHS: "Six months",
+type PropertyRentRulesSummaryLines = {
+  late: string;
+  monthly: string;
+  quarterly: string;
+  yearly: string;
 };
 
-function pickGraceValue(raw: unknown, allowed: readonly string[]): string {
-  const s = typeof raw === "string" ? raw : "NO_GRACE_PERIOD";
-  return allowed.includes(s) ? s : "NO_GRACE_PERIOD";
-}
+type PropertySettingsLoadStatus = "idle" | "loading" | "ready" | "error";
 
-function applyPropertySettingsFromApi(d: Record<string, unknown>): {
-  grace: {
-    monthlyRentGracePeriod: string;
-    quarterlyRentGracePeriod: string;
-    yearlyRentGracePeriod: string;
-  };
-  lateFee: { lateFeeAmount: string; lateFeeType: "fixed" | "percentage" };
-} {
-  const gp = d.gracePeriodPeriods as Record<string, unknown> | undefined;
-  const grace = {
-    monthlyRentGracePeriod: pickGraceValue(
-      gp?.monthlyRentDueDateGracePeriod ?? gp?.monthlyRentGracePeriod,
-      MONTHLY_GRACE_VALUES as unknown as string[],
-    ),
-    quarterlyRentGracePeriod: pickGraceValue(
-      gp?.quarterlyRentDueDateGracePeriod ?? gp?.quarterlyRentGracePeriod,
-      QUARTERLY_GRACE_VALUES as unknown as string[],
-    ),
-    yearlyRentGracePeriod: pickGraceValue(
-      gp?.yearlyRentDueDateGracePeriod ?? gp?.yearlyRentGracePeriod,
-      YEARLY_GRACE_VALUES as unknown as string[],
-    ),
-  };
-  const lf = d.lateFeeSettings as Record<string, unknown> | undefined;
-  const lateFeeType: "fixed" | "percentage" =
-    lf?.lateFeeType === "percentage" ? "percentage" : "fixed";
-  const rawAmt = lf?.lateFeeAmount;
-  const amt =
-    typeof rawAmt === "number"
-      ? rawAmt
-      : typeof rawAmt === "string"
-        ? Number(rawAmt)
-        : 0;
-  return {
-    grace,
-    lateFee: {
-      lateFeeAmount: String(Number.isFinite(amt) ? amt : 0),
-      lateFeeType,
-    },
-  };
+function PropertyRentRulesSummaryCard({
+  status,
+  lines,
+}: {
+  status: PropertySettingsLoadStatus;
+  lines: PropertyRentRulesSummaryLines;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-gray-200/90 bg-gradient-to-br from-slate-50 via-white to-sky-50/50 shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.03]">
+      <div
+        className="h-1.5 bg-gradient-to-r from-brand-main via-blue-500 to-indigo-500"
+        aria-hidden
+      />
+      <div className="p-6 sm:p-7">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-md shadow-slate-200/60 ring-1 ring-slate-100">
+            <CalendarClock className="h-6 w-6 text-brand-main" aria-hidden />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-lg font-semibold tracking-tight text-gray-900 sm:text-xl">
+              Rent rules for this property
+            </h3>
+            {status === "loading" || status === "idle" ? (
+              <p className="mt-2 text-sm text-gray-600">
+                Loading your saved rules…
+              </p>
+            ) : status === "error" ? (
+              <p className="mt-2 rounded-lg border border-amber-100 bg-amber-50/80 px-3 py-2 text-sm text-amber-900">
+                We couldn&apos;t load your saved rules. You can still change the
+                options below and save.
+              </p>
+            ) : (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {(
+                  [
+                    ["Late fee", lines.late],
+                    ["Monthly grace", lines.monthly],
+                    ["Quarterly grace", lines.quarterly],
+                    ["Yearly grace", lines.yearly],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-gray-100 bg-white/95 px-4 py-3.5 shadow-sm"
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                      {label}
+                    </p>
+                    <p className="mt-1.5 text-base font-semibold leading-snug text-gray-900">
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function pickAssignedManagerNameFromPropertyManagers(
@@ -293,6 +284,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     yearlyRentGracePeriod: "NO_GRACE_PERIOD",
   });
   const [isSavingGracePeriod, setIsSavingGracePeriod] = React.useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = React.useState(false);
   const [isSavingVerification, setIsSavingVerification] = React.useState(false);
   const [propertySettingsSection, setPropertySettingsSection] =
     React.useState<PropertySettingsSection>("documents");
@@ -306,12 +298,6 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   const [propertyDocUploading, setPropertyDocUploading] = React.useState<
     string | null
   >(null);
-  const [propertyNotif, setPropertyNotif] = React.useState({
-    payment: { email: true, push: true, sms: false },
-    maintenance: { email: true, push: true, sms: true },
-    overdue: { email: true, push: false, sms: true },
-    reports: { email: true, push: false, sms: false },
-  });
   const [propertyBank, setPropertyBank] = React.useState({
     bankName: "",
     accountNumber: "",
@@ -334,6 +320,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   ] = React.useState<string | null>(null);
   const [managerNameFromLandlordList, setManagerNameFromLandlordList] =
     React.useState<string | null>(null);
+  const [propertySettingsStatus, setPropertySettingsStatus] = React.useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
 
   const fetchProperty = React.useCallback(async () => {
     if (!id || typeof id !== "string") return;
@@ -359,21 +348,31 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     void fetchProperty();
   }, [fetchProperty]);
 
-  React.useEffect(() => {
-    if (!id || typeof id !== "string") return;
-    let cancelled = false;
-    void getPropertySettings(id).then((result) => {
-      if (cancelled || !result.success) return;
+  const applySettingsFromServer =
+    React.useCallback(async (): Promise<boolean> => {
+      if (!id || typeof id !== "string") return false;
+      const result = await getPropertySettings(id);
+      if (!result.success) return false;
       const mapped = applyPropertySettingsFromApi(
         result.data as Record<string, unknown>,
       );
       setGracePeriods(mapped.grace);
       setPropertyLateFee(mapped.lateFee);
+      return true;
+    }, [id]);
+
+  React.useEffect(() => {
+    if (!id || typeof id !== "string") return;
+    let cancelled = false;
+    setPropertySettingsStatus("loading");
+    void applySettingsFromServer().then((ok) => {
+      if (cancelled) return;
+      setPropertySettingsStatus(ok ? "ready" : "error");
     });
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, applySettingsFromServer]);
 
   React.useEffect(() => {
     setManagerNameFromPropertyManagersEndpoint(null);
@@ -584,40 +583,40 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     [id, showToast, user?.token],
   );
 
-  const handlePropertyNotifToggle = (
-    category: keyof typeof propertyNotif,
-    channel: "email" | "push" | "sms",
-  ) => {
-    setPropertyNotif((prev) => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        [channel]: !prev[category][channel],
-      },
-    }));
-  };
+  const handleSavePropertyPreferences = React.useCallback(async () => {
+    if (!id || typeof id !== "string") return;
+    setIsSavingPreferences(true);
+    const amount = Number(propertyLateFee.lateFeeAmount);
+    const result = await updatePropertyLateFeeSettings(id, {
+      lateFeeAmount: Number.isFinite(amount) ? amount : 0,
+      lateFeeType: propertyLateFee.lateFeeType,
+    });
+    setIsSavingPreferences(false);
+    if (result.success) {
+      const refreshed = await applySettingsFromServer();
+      if (refreshed) setPropertySettingsStatus("ready");
+      showToast(refreshed ? "Late fee saved." : "Late fee saved.", "success");
+    } else {
+      showToast(result.error || "Failed to save late fee", "error");
+    }
+  }, [applySettingsFromServer, id, propertyLateFee, showToast]);
 
-  const handleSavePropertyRentSettings = React.useCallback(async () => {
+  const handleSaveGracePeriods = React.useCallback(async () => {
     if (!id || typeof id !== "string") return;
     setIsSavingGracePeriod(true);
-    const amount = Number(propertyLateFee.lateFeeAmount);
-    const [g, l] = await Promise.all([
-      updatePropertyGracePeriodSettings(id, gracePeriods),
-      updatePropertyLateFeeSettings(id, {
-        lateFeeAmount: Number.isFinite(amount) ? amount : 0,
-        lateFeeType: propertyLateFee.lateFeeType,
-      }),
-    ]);
+    const result = await updatePropertyGracePeriodSettings(id, gracePeriods);
     setIsSavingGracePeriod(false);
-    if (g.success && l.success) {
-      showToast("Rent grace periods and late fee settings saved.", "success");
+    if (result.success) {
+      const refreshed = await applySettingsFromServer();
+      if (refreshed) setPropertySettingsStatus("ready");
+      showToast(
+        refreshed ? "Grace periods saved." : "Grace periods saved.",
+        "success",
+      );
     } else {
-      const parts: string[] = [];
-      if (!g.success) parts.push(g.error || "Failed to save grace periods");
-      if (!l.success) parts.push(l.error || "Failed to save late fee");
-      showToast(parts.join(" · ") || "Failed to save settings", "error");
+      showToast(result.error || "Failed to save grace periods", "error");
     }
-  }, [gracePeriods, id, propertyLateFee, showToast]);
+  }, [applySettingsFromServer, gracePeriods, id, showToast]);
 
   const handleSavePropertyVerificationDocs = React.useCallback(async () => {
     if (!id || typeof id !== "string") return;
@@ -630,6 +629,16 @@ const PropertyDetailPage: NextPageWithLayout = () => {
       showToast(result.error || "Verification request failed", "error");
     }
   }, [id, showToast]);
+
+  const rentRulesSummaryLines = React.useMemo(
+    () => ({
+      late: formatLateFeeLine(propertyLateFee),
+      monthly: gracePeriodLabel(gracePeriods.monthlyRentGracePeriod),
+      quarterly: gracePeriodLabel(gracePeriods.quarterlyRentGracePeriod),
+      yearly: gracePeriodLabel(gracePeriods.yearlyRentGracePeriod),
+    }),
+    [gracePeriods, propertyLateFee],
+  );
 
   const propertyTenants = React.useMemo<Tenant[]>(() => {
     return units
@@ -692,7 +701,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     icon: React.ComponentType<{ className?: string }>;
   }> = [
     { id: "documents", label: "Documents", icon: FileText },
-    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "gracePeriods", label: "Rent grace periods", icon: CalendarClock },
     { id: "payment", label: "Payment Details", icon: CreditCard },
     { id: "preferences", label: "Preferences", icon: Globe },
   ];
@@ -1236,6 +1245,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                   payments={mockPaymentHistory.filter(
                     (p) => p.propertyId === id,
                   )}
+                  propertyId={typeof id === "string" ? id : null}
                 />
               </motion.div>
             )}
@@ -1318,14 +1328,8 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                           Verification Documents
                         </h2>
                         <p className="text-sm text-gray-600">
-                          Upload supporting documents, then submit to open a
-                          property verification record (
-                          <code className="text-xs">
-                            POST /verification/property/…
-                          </code>
-                          ). Attaching file IDs to that record may require a
-                          follow-up API if the backend expects them on status
-                          updates.
+                          Upload the documents below, then submit to send this
+                          property for verification.
                         </p>
                         <div className="space-y-6">
                           <div>
@@ -1490,160 +1494,98 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                       </div>
                     )}
 
-                    {propertySettingsSection === "notifications" && (
-                      <div className="space-y-6">
-                        <div>
+                    {propertySettingsSection === "gracePeriods" && (
+                      <div className="space-y-8">
+                        <PropertyRentRulesSummaryCard
+                          status={propertySettingsStatus}
+                          lines={rentRulesSummaryLines}
+                        />
+                        <div className="border-t border-gray-100 pt-8">
                           <h2 className="text-lg font-semibold text-gray-900">
-                            Notification Preferences
+                            Update grace periods
                           </h2>
-                          <p className="mt-1 text-sm text-gray-600">
-                            Choose how you want to receive notifications for
-                            this property.
+                          <p className="mt-1 text-sm text-gray-600 max-w-2xl">
+                            Grace periods add extra time after the due date
+                            before rent is treated as late. Choose the window
+                            that matches how often tenants pay (monthly,
+                            quarterly, or yearly).
                           </p>
-                          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
-                            The API does not expose property-scoped notification
-                            preferences. Use{" "}
-                            <Link
-                              href="/dashboard/settings"
-                              className="font-medium underline"
-                            >
-                              Account → Settings
-                            </Link>{" "}
-                            for landlord notification preferences (
-                            <code className="text-[0.65rem]">
-                              PATCH
-                              /landlord/…/settings/notification-preferences
-                            </code>
-                            ).
-                          </p>
-                        </div>
-                        <div className="space-y-4">
-                          <div className="rounded-lg border border-gray-200 p-4">
-                            <p className="text-sm font-medium text-gray-900">
-                              Payment Notifications
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Get notified when tenants make payments
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-4">
-                              {(["email", "push", "sms"] as const).map((ch) => (
-                                <label
-                                  key={ch}
-                                  className="inline-flex items-center gap-2"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={propertyNotif.payment[ch]}
-                                    onChange={() =>
-                                      handlePropertyNotifToggle("payment", ch)
-                                    }
-                                    className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
-                                  />
-                                  <span className="text-sm text-gray-700 capitalize">
-                                    {ch === "push" ? "Push" : ch}
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 p-4">
-                            <p className="text-sm font-medium text-gray-900">
-                              Maintenance Requests
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Get notified about new maintenance requests
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-4">
-                              {(["email", "push", "sms"] as const).map((ch) => (
-                                <label
-                                  key={ch}
-                                  className="inline-flex items-center gap-2"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={propertyNotif.maintenance[ch]}
-                                    onChange={() =>
-                                      handlePropertyNotifToggle(
-                                        "maintenance",
-                                        ch,
-                                      )
-                                    }
-                                    className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
-                                  />
-                                  <span className="text-sm text-gray-700 capitalize">
-                                    {ch === "push" ? "Push" : ch}
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 p-4">
-                            <p className="text-sm font-medium text-gray-900">
-                              Overdue Rent Alerts
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Get notified when rent payments are overdue
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-4">
-                              {(["email", "push", "sms"] as const).map((ch) => (
-                                <label
-                                  key={ch}
-                                  className="inline-flex items-center gap-2"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={propertyNotif.overdue[ch]}
-                                    onChange={() =>
-                                      handlePropertyNotifToggle("overdue", ch)
-                                    }
-                                    className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
-                                  />
-                                  <span className="text-sm text-gray-700 capitalize">
-                                    {ch === "push" ? "Push" : ch}
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 p-4">
-                            <p className="text-sm font-medium text-gray-900">
-                              Weekly Reports
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Receive weekly summary reports
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-4">
-                              <label className="inline-flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={propertyNotif.reports.email}
-                                  onChange={() =>
-                                    handlePropertyNotifToggle(
-                                      "reports",
-                                      "email",
-                                    )
-                                  }
-                                  className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
-                                />
-                                <span className="text-sm text-gray-700">
-                                  Email
-                                </span>
+                          <div className="mt-6 grid gap-4 sm:grid-cols-2 max-w-3xl">
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Monthly rent grace period
                               </label>
+                              <select
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                value={gracePeriods.monthlyRentGracePeriod}
+                                onChange={(e) =>
+                                  setGracePeriods((prev) => ({
+                                    ...prev,
+                                    monthlyRentGracePeriod: e.target.value,
+                                  }))
+                                }
+                              >
+                                {MONTHLY_GRACE_VALUES.map((v) => (
+                                  <option key={v} value={v}>
+                                    {gracePeriodLabel(v)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Quarterly rent grace period
+                              </label>
+                              <select
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                value={gracePeriods.quarterlyRentGracePeriod}
+                                onChange={(e) =>
+                                  setGracePeriods((prev) => ({
+                                    ...prev,
+                                    quarterlyRentGracePeriod: e.target.value,
+                                  }))
+                                }
+                              >
+                                {QUARTERLY_GRACE_VALUES.map((v) => (
+                                  <option key={v} value={v}>
+                                    {gracePeriodLabel(v)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Yearly rent grace period
+                              </label>
+                              <select
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                value={gracePeriods.yearlyRentGracePeriod}
+                                onChange={(e) =>
+                                  setGracePeriods((prev) => ({
+                                    ...prev,
+                                    yearlyRentGracePeriod: e.target.value,
+                                  }))
+                                }
+                              >
+                                {YEARLY_GRACE_VALUES.map((v) => (
+                                  <option key={v} value={v}>
+                                    {gracePeriodLabel(v)}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveGracePeriods()}
+                            disabled={isSavingGracePeriod}
+                            className="mt-6 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                          >
+                            {isSavingGracePeriod
+                              ? "Saving…"
+                              : "Save grace periods"}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            showToast(
-                              "Property-specific notifications are not synced yet. Use Account Settings for landlord-wide alerts.",
-                              "info",
-                            )
-                          }
-                          className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                        >
-                          Save Preferences
-                        </button>
                       </div>
                     )}
 
@@ -1657,10 +1599,9 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                           payments for this property.
                         </p>
                         <p className="text-xs text-gray-500 max-w-lg">
-                          There is no property-level payout endpoint in the API;
-                          withdrawals use the landlord wallet flow (
-                          <code className="text-[0.65rem]">/withdrawal</code>
-                          ). Fields below are not persisted.
+                          For now, bank details you enter here are not saved.
+                          Use your account wallet and withdrawal flow for
+                          payouts.
                         </p>
                         <div className="space-y-4 max-w-lg">
                           <div>
@@ -1737,12 +1678,14 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                             Preferences
                           </h2>
                           <p className="mt-1 text-sm text-gray-600 max-w-lg">
-                            Late fee and grace periods sync with{" "}
-                            <code className="text-xs">
-                              GET/PATCH /property/…/settings
-                            </code>
-                            . Currency and language here are for reference only;
-                            landlord defaults live under Account Settings.
+                            Set how late fees are calculated for this property.
+                            A summary also appears under{" "}
+                            <span className="font-medium text-gray-800">
+                              Settings → Rent grace periods
+                            </span>
+                            . Currency and language below are for your
+                            reference—change defaults anytime in Account
+                            Settings.
                           </p>
                           <div className="mt-4 space-y-4 max-w-lg">
                             <div>
@@ -1820,87 +1763,15 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                               />
                             </div>
                           </div>
-                        </div>
-                        <div className="border-t border-gray-200 pt-8">
-                          <h3 className="text-base font-semibold text-gray-900 mb-4">
-                            Rent Grace Periods
-                          </h3>
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div>
-                              <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Monthly Rent Grace Period
-                              </label>
-                              <select
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                                value={gracePeriods.monthlyRentGracePeriod}
-                                onChange={(e) =>
-                                  setGracePeriods((prev) => ({
-                                    ...prev,
-                                    monthlyRentGracePeriod: e.target.value,
-                                  }))
-                                }
-                              >
-                                {MONTHLY_GRACE_VALUES.map((v) => (
-                                  <option key={v} value={v}>
-                                    {GRACE_LABELS[v] ?? v}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Quarterly Rent Grace Period
-                              </label>
-                              <select
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                                value={gracePeriods.quarterlyRentGracePeriod}
-                                onChange={(e) =>
-                                  setGracePeriods((prev) => ({
-                                    ...prev,
-                                    quarterlyRentGracePeriod: e.target.value,
-                                  }))
-                                }
-                              >
-                                {QUARTERLY_GRACE_VALUES.map((v) => (
-                                  <option key={v} value={v}>
-                                    {GRACE_LABELS[v] ?? v}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Yearly Rent Grace Period
-                              </label>
-                              <select
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                                value={gracePeriods.yearlyRentGracePeriod}
-                                onChange={(e) =>
-                                  setGracePeriods((prev) => ({
-                                    ...prev,
-                                    yearlyRentGracePeriod: e.target.value,
-                                  }))
-                                }
-                              >
-                                {YEARLY_GRACE_VALUES.map((v) => (
-                                  <option key={v} value={v}>
-                                    {GRACE_LABELS[v] ?? v}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
                           <button
                             type="button"
-                            onClick={() =>
-                              void handleSavePropertyRentSettings()
-                            }
-                            disabled={isSavingGracePeriod}
+                            onClick={() => void handleSavePropertyPreferences()}
+                            disabled={isSavingPreferences}
                             className="mt-6 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
                           >
-                            {isSavingGracePeriod
+                            {isSavingPreferences
                               ? "Saving…"
-                              : "Save rent settings"}
+                              : "Save preferences"}
                           </button>
                         </div>
                       </div>

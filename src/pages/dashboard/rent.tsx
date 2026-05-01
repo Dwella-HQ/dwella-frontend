@@ -32,6 +32,12 @@ import {
   resolveTenantActiveLeaseId,
 } from "@/api/rent";
 import type { RentItemDTO } from "@/api/rent";
+import { getPropertySettings } from "@/api/properties";
+import {
+  buildRentRulesCardLines,
+  formatRentRulesPolicyTooltip,
+  type PropertyRentRulesCardLines,
+} from "@/lib/propertyRentRulesFromSettings";
 import { getTenantByUser, getTenant, getTenantList } from "@/api/tenants";
 import type { TenantRecordDTO } from "@/api/tenants";
 import { useUser } from "@/contexts/UserContext";
@@ -47,6 +53,11 @@ type LandlordRentRow = {
   tenantName: string;
   propertyName: string;
   unit: string;
+  propertyId: string | null;
+  /** Base rent from API (`amount`). */
+  rentBaseAmount: number;
+  /** Late component on this rent row from API (`lateFee`). */
+  rentLateFeeAmount: number;
   rentAmount: number;
   dueDate: string;
   lastPayment?: string;
@@ -76,7 +87,31 @@ type LandlordTenantPick = {
   activeLeaseId: string;
   propertyName: string;
   unit: string;
+  /** Property UUID when `currentUnit.property` or active lease `unit.property` is present. */
+  propertyId: string | null;
 };
+
+function propertyIdFromTenantRecord(rec: Record<string, unknown>): string | null {
+  const cu = rec.currentUnit as Record<string, unknown> | undefined;
+  const propFromUnit = cu?.property as Record<string, unknown> | undefined;
+  if (
+    propFromUnit &&
+    typeof propFromUnit.id === "string" &&
+    propFromUnit.id
+  ) {
+    return propFromUnit.id;
+  }
+  const leases = Array.isArray(rec.leases)
+    ? (rec.leases as Array<Record<string, unknown>>)
+    : [];
+  for (const lease of leases) {
+    if (!isLeaseActiveFlag(lease)) continue;
+    const u = lease.unit as Record<string, unknown> | undefined;
+    const p = u?.property as Record<string, unknown> | undefined;
+    if (p && typeof p.id === "string" && p.id) return p.id;
+  }
+  return null;
+}
 
 function formatRentDueForLandlordTable(iso: string): string {
   if (!iso || iso === "—") return "—";
@@ -107,12 +142,14 @@ function tenantDetailToLandlordPick(
   const unit = typeof cu?.name === "string" ? cu.name : "—";
   const prop = cu?.property as Record<string, unknown> | undefined;
   const propertyName = typeof prop?.name === "string" ? prop.name : "—";
+  const propertyId = propertyIdFromTenantRecord(tr);
   return {
     id: tenantId,
     label: String(label),
     activeLeaseId,
     propertyName,
     unit,
+    propertyId,
   };
 }
 
@@ -145,12 +182,14 @@ function landlordPickFromListRecord(
     (typeof user.fullName === "string" && user.fullName) ||
     (typeof rec.fullName === "string" && rec.fullName) ||
     (typeof rec.email === "string" ? rec.email : `Tenant ${tenantId}`);
+  const propertyId = propertyIdFromTenantRecord(rec);
   return {
     id: tenantId,
     label: String(label),
     activeLeaseId,
     propertyName: prop.name,
     unit: cu.name,
+    propertyId,
   };
 }
 
@@ -190,6 +229,9 @@ function mapRentItemToLandlordRow(
     tenantName: pick?.label ?? "Tenant",
     propertyName: pick?.propertyName ?? "—",
     unit: pick?.unit ?? "—",
+    propertyId: pick?.propertyId ?? null,
+    rentBaseAmount: rent.amount ?? 0,
+    rentLateFeeAmount: rent.lateFee ?? 0,
     rentAmount: rent.totalAmount ?? rent.amount ?? 0,
     dueDate: formatRentDueForLandlordTable(dueRaw === "—" ? "" : dueRaw),
     lastPayment:
@@ -304,16 +346,23 @@ const TenantPaymentHistory = () => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [payingRentId, setPayingRentId] = React.useState<string | null>(null);
   const paymentHistoryLoadGenRef = React.useRef(0);
+  const [tenantPropertyRules, setTenantPropertyRules] =
+    React.useState<PropertyRentRulesCardLines | null>(null);
+  const [tenantPropertyRulesStatus, setTenantPropertyRulesStatus] =
+    React.useState<"idle" | "loading" | "ready" | "error">("idle");
 
   React.useEffect(() => {
     if (!user?.id || user.role !== "tenant") {
       setTenantPayments([]);
+      setTenantPropertyRules(null);
+      setTenantPropertyRulesStatus("idle");
       setIsLoading(false);
       return;
     }
 
     const gen = ++paymentHistoryLoadGenRef.current;
     setIsLoading(true);
+    setTenantPropertyRulesStatus("loading");
 
     const storedLeaseId =
       typeof window !== "undefined" ? localStorage.getItem("leaseId") : null;
@@ -324,8 +373,16 @@ const TenantPaymentHistory = () => {
         if (gen !== paymentHistoryLoadGenRef.current) return;
         if (!tenantResult.success) {
           setTenantPayments([]);
+          setTenantPropertyRules(null);
+          setTenantPropertyRulesStatus("error");
           return;
         }
+
+        const tenantRec = tenantResult.data as unknown as Record<
+          string,
+          unknown
+        >;
+        const propertyId = propertyIdFromTenantRecord(tenantRec);
 
         const activeLeaseId = resolveTenantActiveLeaseId(
           tenantResult.data.leases as
@@ -335,6 +392,8 @@ const TenantPaymentHistory = () => {
         );
         if (!activeLeaseId) {
           setTenantPayments([]);
+          setTenantPropertyRules(null);
+          setTenantPropertyRulesStatus("idle");
           return;
         }
         if (typeof window !== "undefined") {
@@ -345,7 +404,27 @@ const TenantPaymentHistory = () => {
         if (gen !== paymentHistoryLoadGenRef.current) return;
         if (!rentsResult.success) {
           setTenantPayments([]);
+          setTenantPropertyRules(null);
+          setTenantPropertyRulesStatus("error");
           return;
+        }
+        if (propertyId) {
+          const rulesResult = await getPropertySettings(propertyId);
+          if (gen !== paymentHistoryLoadGenRef.current) return;
+          if (rulesResult.success) {
+            setTenantPropertyRules(
+              buildRentRulesCardLines(
+                rulesResult.data as Record<string, unknown>,
+              ),
+            );
+            setTenantPropertyRulesStatus("ready");
+          } else {
+            setTenantPropertyRules(null);
+            setTenantPropertyRulesStatus("error");
+          }
+        } else {
+          setTenantPropertyRules(null);
+          setTenantPropertyRulesStatus("idle");
         }
         const rows = rentsResult.data.map(
           (rent): TenantPaymentRow => ({
@@ -366,7 +445,11 @@ const TenantPaymentHistory = () => {
         setTenantPayments(rows);
       } catch (e) {
         console.error("[TenantPaymentHistory] load failed:", e);
-        if (gen === paymentHistoryLoadGenRef.current) setTenantPayments([]);
+        if (gen === paymentHistoryLoadGenRef.current) {
+          setTenantPayments([]);
+          setTenantPropertyRules(null);
+          setTenantPropertyRulesStatus("error");
+        }
       } finally {
         if (gen === paymentHistoryLoadGenRef.current) setIsLoading(false);
       }
@@ -471,6 +554,67 @@ const TenantPaymentHistory = () => {
           View all your rent payment transactions
         </p>
       </div>
+
+      {/* Property rent policy (same source as landlord property Settings) */}
+      {(tenantPropertyRulesStatus === "loading" ||
+        tenantPropertyRulesStatus === "ready" ||
+        tenantPropertyRulesStatus === "error") && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-brand-main" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Your unit&apos;s property rent rules
+              </h3>
+              {tenantPropertyRulesStatus === "loading" ? (
+                <p className="mt-1 text-sm text-gray-600">Loading…</p>
+              ) : tenantPropertyRulesStatus === "error" ||
+                !tenantPropertyRules ? (
+                <p className="mt-1 text-sm text-gray-600">
+                  We couldn&apos;t load property settings. Amounts in the list
+                  still come from each rent row (
+                  <span className="font-medium">total = base + late fee</span>{" "}
+                  when the API provides them).
+                </p>
+              ) : (
+                <>
+                  <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-gray-500">Late fee (property)</dt>
+                      <dd className="font-medium text-gray-900">
+                        {tenantPropertyRules.late}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">Monthly grace</dt>
+                      <dd className="font-medium text-gray-900">
+                        {tenantPropertyRules.monthly}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">Quarterly grace</dt>
+                      <dd className="font-medium text-gray-900">
+                        {tenantPropertyRules.quarterly}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">Yearly grace</dt>
+                      <dd className="font-medium text-gray-900">
+                        {tenantPropertyRules.yearly}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Hover a row amount: totals use{" "}
+                    <code className="text-[0.65rem]">totalAmount</code> from the
+                    API when present.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -684,6 +828,9 @@ const LandlordRentPage = () => {
   const [markingPaidRentId, setMarkingPaidRentId] = React.useState<
     string | null
   >(null);
+  const [propertyRulesById, setPropertyRulesById] = React.useState<
+    Record<string, PropertyRentRulesCardLines>
+  >({});
 
   const handleMarkRentPaid = React.useCallback(
     async (rentId: string) => {
@@ -717,6 +864,7 @@ const LandlordRentPage = () => {
       if (!tenantListResult.success) {
         setRows([]);
         setTenantOptions([]);
+        setPropertyRulesById({});
         setIsLoading(false);
         return;
       }
@@ -791,8 +939,28 @@ const LandlordRentPage = () => {
         return db - da;
       });
 
+      const propertyIds = [
+        ...new Set(
+          tableRows
+            .map((r) => r.propertyId)
+            .filter((x): x is string => Boolean(x)),
+        ),
+      ];
+      const rulesMap: Record<string, PropertyRentRulesCardLines> = {};
+      await Promise.all(
+        propertyIds.map(async (pid) => {
+          const sr = await getPropertySettings(pid);
+          if (sr.success) {
+            rulesMap[pid] = buildRentRulesCardLines(
+              sr.data as Record<string, unknown>,
+            );
+          }
+        }),
+      );
+
       if (!cancelled) {
         setRows(tableRows);
+        setPropertyRulesById(rulesMap);
         setTenantOptions(
           forDropdown.map((p) => ({ id: p.id, label: p.label })),
         );
@@ -1185,7 +1353,16 @@ const LandlordRentPage = () => {
                 Unit
               </th>
               <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Rent Amount
+                Total
+              </th>
+              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Base rent
+              </th>
+              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Late (row)
+              </th>
+              <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Property policy
               </th>
               <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Due Date
@@ -1208,7 +1385,7 @@ const LandlordRentPage = () => {
             {isLoading ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={12}
                   className="px-6 py-10 text-center text-sm text-gray-500"
                 >
                   Loading rent payments...
@@ -1217,7 +1394,7 @@ const LandlordRentPage = () => {
             ) : filteredPayments.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={12}
                   className="px-6 py-10 text-center text-sm text-gray-500"
                 >
                   No rent payments found.
@@ -1251,6 +1428,30 @@ const LandlordRentPage = () => {
                   </td>
                   <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
                     {formatCurrency(payment.rentAmount)}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                    {formatCurrency(payment.rentBaseAmount)}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                    {formatCurrency(payment.rentLateFeeAmount)}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-xs text-gray-600 max-w-[200px]">
+                    {payment.propertyId &&
+                    propertyRulesById[payment.propertyId] ? (
+                      <span
+                        className="line-clamp-2 cursor-help"
+                        title={formatRentRulesPolicyTooltip(
+                          propertyRulesById[payment.propertyId],
+                        )}
+                      >
+                        {propertyRulesById[payment.propertyId].late} · M:{" "}
+                        {propertyRulesById[payment.propertyId].monthly}
+                      </span>
+                    ) : payment.propertyId ? (
+                      <span className="text-gray-400">Policy unavailable</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="px-3 lg:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
                     {payment.dueDate}
