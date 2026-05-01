@@ -191,8 +191,11 @@ const PayRentPage: NextPageWithLayout = () => {
       window.location.href = checkoutUrl;
       return;
     }
-    showToast("Payment initialized", "success");
-    router.push("/dashboard/rent/payment-success");
+    showToast(
+      "Payment started, but no checkout link was returned. Try again, or contact support if this keeps happening.",
+      "error",
+      7000,
+    );
   }, [router, selectedRentId, showToast]);
 
   const formatCurrency = (amount: number) => {

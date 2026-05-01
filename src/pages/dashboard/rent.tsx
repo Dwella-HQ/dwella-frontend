@@ -406,7 +406,6 @@ function LandlordRentRowActionsMenu({
 // Tenant Payment History Component
 const TenantPaymentHistory = () => {
   const { user } = useUser();
-  const router = useRouter();
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [tenantPayments, setTenantPayments] = React.useState<
@@ -591,10 +590,13 @@ const TenantPaymentHistory = () => {
         window.location.href = checkoutUrl;
         return;
       }
-      showToast("Payment initialized", "success");
-      router.push("/dashboard/rent/payment-success");
+      showToast(
+        "Payment started, but no checkout link was returned. Tap Pay again, or contact support if this keeps happening.",
+        "error",
+        7000,
+      );
     },
-    [router, showToast],
+    [showToast],
   );
 
   return (

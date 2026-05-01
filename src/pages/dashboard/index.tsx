@@ -34,7 +34,7 @@ import type {
 } from "@/data/mockLandlordData";
 import { getMaintenanceRequests } from "@/api/maintenance";
 import { getRentPayments } from "@/api/rent-payment";
-import { fetchLandlordAggregatedOverdue } from "@/lib/landlordAggregatedOverdue";
+import { fetchLandlordRentDashboardMetrics } from "@/lib/landlordAggregatedOverdue";
 import {
   type AnnouncementItemDTO,
   createAnnouncementLandlord,
@@ -1223,9 +1223,10 @@ const LandlordDashboard = () => {
   const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
   const [allRentPayments, setAllRentPayments] = React.useState<Payment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = React.useState(true);
-  const [landlordOverdue, setLandlordOverdue] = React.useState({
-    amount: 0,
-    count: 0,
+  const [landlordRentMetrics, setLandlordRentMetrics] = React.useState({
+    overdueAmount: 0,
+    overdueCount: 0,
+    rentCollectedThisMonth: 0,
   });
   const [overdueMetricsLoading, setOverdueMetricsLoading] =
     React.useState(false);
@@ -1248,7 +1249,11 @@ const LandlordDashboard = () => {
     );
 
     if (propertyIdSet.size === 0) {
-      setLandlordOverdue({ amount: 0, count: 0 });
+      setLandlordRentMetrics({
+        overdueAmount: 0,
+        overdueCount: 0,
+        rentCollectedThisMonth: 0,
+      });
       setOverdueMetricsLoading(false);
       return () => {
         cancelled = true;
@@ -1256,9 +1261,9 @@ const LandlordDashboard = () => {
     }
 
     setOverdueMetricsLoading(true);
-    void fetchLandlordAggregatedOverdue(propertyIdSet).then((res) => {
+    void fetchLandlordRentDashboardMetrics(propertyIdSet).then((res) => {
       if (cancelled) return;
-      setLandlordOverdue(res);
+      setLandlordRentMetrics(res);
       setOverdueMetricsLoading(false);
     });
 
@@ -1471,12 +1476,15 @@ const LandlordDashboard = () => {
       pendingVerification,
       totalUnits,
       unitsUnderMaintenance,
-      rentCollected: 0,
-      rentCollectedPeriod: "No payment data yet",
-      overdueAmount: landlordOverdue.amount,
-      overdueCount: landlordOverdue.count,
+      rentCollected: landlordRentMetrics.rentCollectedThisMonth,
+      rentCollectedPeriod:
+        landlordRentMetrics.rentCollectedThisMonth > 0
+          ? "This month"
+          : "No collections this month",
+      overdueAmount: landlordRentMetrics.overdueAmount,
+      overdueCount: landlordRentMetrics.overdueCount,
     };
-  }, [properties, allMaintenanceForStats, landlordOverdue]);
+  }, [properties, allMaintenanceForStats, landlordRentMetrics]);
 
   const summaryCardsLoading =
     isLoadingProperties ||

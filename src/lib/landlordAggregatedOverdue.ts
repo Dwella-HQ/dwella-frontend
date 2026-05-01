@@ -1,6 +1,7 @@
 /**
- * Landlord overdue totals from the same sources as the Rent page:
+ * Landlord rent KPIs from the same sources as the Rent page:
  * GET /rent/lease/leaseId (aggregated rents) scoped to leases on the landlord's properties.
+ * Includes overdue totals and rent collected in the current calendar month (paid rows).
  */
 
 import { isValid, parse, parseISO } from "date-fns";
@@ -185,11 +186,49 @@ export function summarizeOverdueFromAggregatedRents(
   return { amount, count };
 }
 
-export async function fetchLandlordAggregatedOverdue(
+function isDateInCurrentMonth(d: Date): boolean {
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+  );
+}
+
+/** Paid rent charges with payment (or fallback due) date in the current calendar month. */
+export function summarizeRentCollectedCurrentMonthFromAggregatedRents(
+  rents: RentItemDTO[],
+  scopedLeaseIds: Set<string>,
+): number {
+  let sum = 0;
+  for (const rent of rents) {
+    if (!scopedLeaseIds.has(rent.leaseId)) continue;
+    const paid = (rent.status || "").toLowerCase() === "paid";
+    if (!paid) continue;
+    const payRaw =
+      rent.paymentDate != null && String(rent.paymentDate).length > 0
+        ? String(rent.paymentDate)
+        : rent.dueDate || "";
+    const payDate = parseRentDueDate(payRaw);
+    if (!payDate || !isDateInCurrentMonth(payDate)) continue;
+    sum += rent.totalAmount ?? rent.amount ?? 0;
+  }
+  return sum;
+}
+
+export type LandlordRentDashboardMetrics = {
+  overdueAmount: number;
+  overdueCount: number;
+  rentCollectedThisMonth: number;
+};
+
+export async function fetchLandlordRentDashboardMetrics(
   allowedPropertyIds: Set<string>,
-): Promise<{ amount: number; count: number }> {
+): Promise<LandlordRentDashboardMetrics> {
   if (allowedPropertyIds.size === 0) {
-    return { amount: 0, count: 0 };
+    return {
+      overdueAmount: 0,
+      overdueCount: 0,
+      rentCollectedThisMonth: 0,
+    };
   }
 
   const [scopedLeaseIds, rentsResult] = await Promise.all([
@@ -198,8 +237,24 @@ export async function fetchLandlordAggregatedOverdue(
   ]);
 
   if (!rentsResult.success || scopedLeaseIds.size === 0) {
-    return { amount: 0, count: 0 };
+    return {
+      overdueAmount: 0,
+      overdueCount: 0,
+      rentCollectedThisMonth: 0,
+    };
   }
 
-  return summarizeOverdueFromAggregatedRents(rentsResult.data, scopedLeaseIds);
+  const rents = rentsResult.data;
+  const overdue = summarizeOverdueFromAggregatedRents(rents, scopedLeaseIds);
+  const rentCollectedThisMonth =
+    summarizeRentCollectedCurrentMonthFromAggregatedRents(
+      rents,
+      scopedLeaseIds,
+    );
+
+  return {
+    overdueAmount: overdue.amount,
+    overdueCount: overdue.count,
+    rentCollectedThisMonth,
+  };
 }

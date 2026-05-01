@@ -7,31 +7,63 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { CheckCircle2 } from "lucide-react";
 import type { NextPageWithLayout } from "../../_app";
 
+function firstQueryString(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  try {
+    return decodeURIComponent(raw.trim());
+  } catch {
+    return raw.trim();
+  }
+}
+
 /**
  * Tenant-facing page after Paystack (or similar) completes a rent payment.
  *
  * Configure your backend / Paystack `callback_url` to redirect here, e.g.:
  *   `${origin}/dashboard/rent/payment-success`
- * Paystack often appends `reference` and `trxref` query params.
+ *
+ * Query params (optional, for richer UI when backend appends them):
+ * - `reference`, `trxref` — Paystack reference
+ * - `amount` — numeric amount (NGN) for display
+ * - `propertyName`, `unit` or `unitName`, `narration` or `period` — context lines
  */
 const PaymentSuccessPage: NextPageWithLayout = () => {
   const router = useRouter();
 
   const reference = React.useMemo(() => {
-    const r = router.query.reference;
-    const t = router.query.trxref;
-    if (typeof r === "string" && r) return r;
-    if (typeof t === "string" && t) return t;
-    return null;
+    return (
+      firstQueryString(router.query.reference) ??
+      firstQueryString(router.query.trxref)
+    );
   }, [router.query.reference, router.query.trxref]);
 
   const amountLabel = React.useMemo(() => {
-    const raw = router.query.amount;
-    if (typeof raw !== "string" || !raw) return null;
+    const raw = firstQueryString(router.query.amount);
+    if (!raw) return null;
     const n = Number(raw);
     if (!Number.isFinite(n) || n <= 0) return null;
     return `₦${n.toLocaleString("en-NG")}`;
   }, [router.query.amount]);
+
+  const propertyName = React.useMemo(
+    () => firstQueryString(router.query.propertyName),
+    [router.query.propertyName],
+  );
+
+  const unitLabel = React.useMemo(() => {
+    return (
+      firstQueryString(router.query.unit) ??
+      firstQueryString(router.query.unitName)
+    );
+  }, [router.query.unit, router.query.unitName]);
+
+  const narrationOrPeriod = React.useMemo(() => {
+    return (
+      firstQueryString(router.query.narration) ??
+      firstQueryString(router.query.period)
+    );
+  }, [router.query.narration, router.query.period]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -51,7 +83,7 @@ const PaymentSuccessPage: NextPageWithLayout = () => {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.3 }}
-          className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8 shadow-xl sm:p-12"
+          className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8 shadow-xl sm:max-w-lg sm:p-12"
         >
           <div className="text-center">
             <motion.div
@@ -89,6 +121,34 @@ const PaymentSuccessPage: NextPageWithLayout = () => {
                 </>
               ) : null}
             </motion.p>
+
+            {propertyName || unitLabel || narrationOrPeriod ? (
+              <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50/90 px-4 py-3 text-left text-sm text-gray-700">
+                {propertyName ? (
+                  <p>
+                    <span className="font-medium text-gray-500">
+                      Property:{" "}
+                    </span>
+                    {propertyName}
+                  </p>
+                ) : null}
+                {unitLabel ? (
+                  <p className={propertyName ? "mt-1" : ""}>
+                    <span className="font-medium text-gray-500">Unit: </span>
+                    {unitLabel}
+                  </p>
+                ) : null}
+                {narrationOrPeriod ? (
+                  <p
+                    className={
+                      propertyName || unitLabel ? "mt-1 text-gray-600" : ""
+                    }
+                  >
+                    {narrationOrPeriod}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {reference ? (
               <p className="mt-3 break-all text-xs text-gray-500">
