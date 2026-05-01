@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { isValid, parse, parseISO } from "date-fns";
 import {
   ArrowLeft,
   Phone,
@@ -26,6 +27,11 @@ import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import { getTenant } from "@/api/tenants";
 import { getRentPayments } from "@/api/rent-payment";
 import { getMaintenanceRequests } from "@/api/maintenance";
+import {
+  getRentsByLease,
+  resolveTenantActiveLeaseId,
+  type RentItemDTO,
+} from "@/api/rent";
 
 // Mock data for tenant documents
 const mockTenantDocuments = [
@@ -94,6 +100,49 @@ const mockEmergencyContact = {
   email: "john.emmanuel@email.com",
 };
 
+type PaymentStatusTone = "green" | "red" | "amber" | "gray";
+
+function parseRentDueDate(value: string): Date | null {
+  if (!value) return null;
+  try {
+    const iso = parseISO(value);
+    if (isValid(iso)) return iso;
+  } catch {
+    /* noop */
+  }
+  try {
+    const d = parse(value, "dd/MM/yyyy", new Date());
+    if (isValid(d)) return d;
+  } catch {
+    /* noop */
+  }
+  const fb = new Date(value);
+  return isValid(fb) ? fb : null;
+}
+
+function rentRowsPaymentSummary(rents: RentItemDTO[]): {
+  label: string;
+  tone: PaymentStatusTone;
+} {
+  if (!rents.length) {
+    return { label: "No rent charges", tone: "gray" };
+  }
+  const unpaid = rents.filter((r) => (r.status || "").toLowerCase() !== "paid");
+  if (unpaid.length === 0) {
+    return { label: "Paid", tone: "green" };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const hasOverdue = unpaid.some((r) => {
+    const d = parseRentDueDate(r.dueDate || "");
+    return d != null && d < today;
+  });
+  if (hasOverdue) {
+    return { label: "Overdue", tone: "red" };
+  }
+  return { label: "Pending", tone: "amber" };
+}
+
 type TenantMaintenanceRow = {
   id: string;
   type: string;
@@ -118,26 +167,35 @@ const TenantProfilePage: NextPageWithLayout = () => {
   const [liveTenantMaintenance, setLiveTenantMaintenance] = React.useState<
     TenantMaintenanceRow[]
   >([]);
+  const [leaseRents, setLeaseRents] = React.useState<RentItemDTO[] | null>(
+    null,
+  );
 
   React.useEffect(() => {
     if (!id || typeof id !== "string") return;
     let cancelled = false;
     setIsLoading(true);
     setLoadError(null);
-    void Promise.all([
-      getTenant(id),
-      getRentPayments({ limit: 200 }),
-      getMaintenanceRequests({ limit: 200 }),
-    ])
-      .then(([tenantResult, paymentsResult, maintenanceResult]) => {
+    setLeaseRents(null);
+
+    void (async () => {
+      try {
+        const tenantResult = await getTenant(id);
         if (cancelled) return;
         if (!tenantResult.success) {
           setLoadError(tenantResult.error || "Tenant not found");
           setTenantData(null);
+          setLeaseRents([]);
           return;
         }
+
         const record = tenantResult.data as unknown as Record<string, unknown>;
         setTenantData(record);
+
+        const leases = Array.isArray(record.leases)
+          ? (record.leases as Array<Record<string, unknown>>)
+          : [];
+        const activeLeaseId = resolveTenantActiveLeaseId(leases, null);
 
         const tenantName = (
           ((record.user as Record<string, unknown> | undefined)?.fullName as
@@ -151,6 +209,24 @@ const TenantProfilePage: NextPageWithLayout = () => {
           .toLowerCase();
 
         const tenantId = String(record.id ?? "");
+
+        const [paymentsResult, maintenanceResult, rentsResult] =
+          await Promise.all([
+            getRentPayments({ limit: 200 }),
+            getMaintenanceRequests({ limit: 200 }),
+            activeLeaseId
+              ? getRentsByLease(activeLeaseId)
+              : Promise.resolve({ success: false as const, error: "No lease" }),
+          ]);
+
+        if (cancelled) return;
+
+        if (rentsResult.success) {
+          setLeaseRents(rentsResult.data);
+        } else {
+          setLeaseRents([]);
+        }
+
         const scopedPayments = paymentsResult.success
           ? paymentsResult.data.filter((p) => {
               const byName = tenantName
@@ -200,16 +276,16 @@ const TenantProfilePage: NextPageWithLayout = () => {
           resolvedDate: m.status === "resolved" ? "Resolved" : undefined,
         }));
         setLiveTenantMaintenance(mappedMaintenance);
-      })
-      .catch((error) => {
+      } catch (error) {
         if (cancelled) return;
         setLoadError(
           error instanceof Error ? error.message : "Failed to load tenant",
         );
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setIsLoading(false);
-      });
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -255,9 +331,30 @@ const TenantProfilePage: NextPageWithLayout = () => {
 
   const tenantPayments = React.useMemo(() => {
     if (!tenant) return [];
-    if (liveTenantPayments.length > 0) return liveTenantPayments;
-    return mockPaymentHistory.filter((p) => p.tenantId === tenant.id);
-  }, [liveTenantPayments, tenant]);
+    if (tenantData) {
+      return liveTenantPayments;
+    }
+    return liveTenantPayments.length > 0
+      ? liveTenantPayments
+      : mockPaymentHistory.filter((p) => p.tenantId === tenant.id);
+  }, [liveTenantPayments, tenant, tenantData]);
+
+  const paymentStatusDisplay = React.useMemo(() => {
+    if (leaseRents === null) {
+      return { label: "…", tone: "gray" as const };
+    }
+    if (leaseRents.length > 0) {
+      return rentRowsPaymentSummary(leaseRents);
+    }
+    const hasSuccess = tenantPayments.some((p) => p.status === "success");
+    if (hasSuccess) {
+      return { label: "Paid", tone: "green" as const };
+    }
+    if (tenantPayments.some((p) => p.status === "failed")) {
+      return { label: "Pending", tone: "amber" as const };
+    }
+    return { label: "Unpaid", tone: "amber" as const };
+  }, [leaseRents, tenantPayments]);
 
   const tenantMaintenance = React.useMemo(() => {
     if (!tenant) return [];
@@ -300,14 +397,21 @@ const TenantProfilePage: NextPageWithLayout = () => {
       .slice(0, 2);
   };
 
-  // Calculate total paid (sum of all payments)
-  const totalPaid = tenantPayments.reduce(
-    (sum, payment) => sum + payment.amount,
-    0,
-  );
+  const totalPaid = tenantPayments
+    .filter((p) => p.status === "success")
+    .reduce((sum, payment) => sum + payment.amount, 0);
 
   // Get monthly rent - default to 120000 for Ada Emmanuel
   const monthlyRent = (tenant as any)?.monthlyRent || 120000;
+
+  const paymentStatusBadgeClasses: Record<PaymentStatusTone, string> = {
+    green: "bg-green-100 text-green-700",
+    red: "bg-red-100 text-red-700",
+    amber: "bg-amber-100 text-amber-700",
+    gray: "bg-gray-100 text-gray-600",
+  };
+  const paymentStatusBadgeClass =
+    paymentStatusBadgeClasses[paymentStatusDisplay.tone];
 
   const tabs = [
     { id: "overview", label: "Overview" },
@@ -357,10 +461,11 @@ const TenantProfilePage: NextPageWithLayout = () => {
 
         {/* Tenant Information Card */}
         <div className="rounded-lg border border-gray-200 bg-white p-6 relative">
-          {/* Paid Badge */}
           <div className="absolute right-6 top-6">
-            <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
-              Paid
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${paymentStatusBadgeClass}`}
+            >
+              {paymentStatusDisplay.label}
             </span>
           </div>
 
@@ -463,8 +568,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                 Move-in Date
               </p>
               <p className="mt-1 text-xl font-bold text-gray-900">
-                {tenant.leaseStart.split(" ")[1]}{" "}
-                {tenant.leaseStart.split(" ")[2]}
+                {tenant.leaseStart === "—" ? "—" : tenant.leaseStart}
               </p>
             </div>
             <div
@@ -478,7 +582,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                 Rent/Lease Ends
               </p>
               <p className="mt-1 text-xl font-bold text-gray-900">
-                {tenant.leaseEnd.split(" ")[1]} {tenant.leaseEnd.split(" ")[2]}
+                {tenant.leaseEnd === "—" ? "—" : tenant.leaseEnd}
               </p>
             </div>
             <div
@@ -589,8 +693,10 @@ const TenantProfilePage: NextPageWithLayout = () => {
                           Payment Status
                         </p>
                         <p className="mt-1">
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
-                            Paid
+                          <span
+                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${paymentStatusBadgeClass}`}
+                          >
+                            {paymentStatusDisplay.label}
                           </span>
                         </p>
                       </div>
@@ -643,35 +749,47 @@ const TenantProfilePage: NextPageWithLayout = () => {
               </div>
               <div className="space-y-3">
                 {tenantPayments.length > 0 ? (
-                  tenantPayments.map((payment) => (
-                    <div
-                      key={payment.id}
-                      className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
-                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  tenantPayments.map((payment) => {
+                    const isSuccess = payment.status === "success";
+                    return (
+                      <div
+                        key={payment.id}
+                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={`flex h-10 w-10 items-center justify-center rounded-full ${isSuccess ? "bg-green-100" : "bg-amber-100"}`}
+                          >
+                            <CheckCircle2
+                              className={`h-5 w-5 ${isSuccess ? "text-green-600" : "text-amber-600"}`}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {payment.method}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {payment.date} •{" "}
+                              {payment.transactionId.replace(
+                                "TXN-",
+                                "TXN-2025-",
+                              )}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {payment.method}
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-900">
+                            ₦{payment.amount.toLocaleString()}
                           </p>
-                          <p className="text-xs text-gray-500">
-                            {payment.date} •{" "}
-                            {payment.transactionId.replace("TXN-", "TXN-2025-")}
-                          </p>
+                          <span
+                            className={`mt-1 inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${isSuccess ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+                          >
+                            {isSuccess ? "Completed" : "Pending"}
+                          </span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-900">
-                          ₦{payment.amount.toLocaleString()}
-                        </p>
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700 mt-1">
-                          Completed
-                        </span>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="flex flex-col items-center justify-center py-12">
                     <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
