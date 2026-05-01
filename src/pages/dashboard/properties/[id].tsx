@@ -21,6 +21,11 @@ import {
   Home,
   DollarSign,
   User,
+  FileText,
+  Bell,
+  CreditCard,
+  Globe,
+  Upload,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 
@@ -51,7 +56,12 @@ import {
   mockPropertyDocuments,
 } from "@/data/mockPropertyDetails";
 import { getRentPayments } from "@/api/rent-payment";
-import { getProperty } from "@/api/properties";
+import {
+  getProperty,
+  getPropertySettings,
+  updatePropertyGracePeriodSettings,
+  updatePropertyLateFeeSettings,
+} from "@/api/properties";
 import {
   getPropertyManagersByLandlord,
   getPropertyManagersByProperty,
@@ -60,13 +70,14 @@ import type { PropertyManagerDTO } from "@/api/property-managers";
 import { getMaintenanceRequests } from "@/api/maintenance";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
 import type { PropertyDTO } from "@/api/properties";
-import { updatePropertyGracePeriodSettings } from "@/api/properties";
+import { createPropertyVerification } from "@/api/verification";
 import { createAnnouncementProperty } from "@/api/announcement";
 import { getUnitsByProperty } from "@/api/units";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
 import type { Unit } from "@/data/mockLandlordData";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
+import { uploadFile } from "@/api/files";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -148,6 +159,100 @@ function findManagerNameForProperty(
   return null;
 }
 
+type PropertySettingsSection =
+  | "documents"
+  | "notifications"
+  | "payment"
+  | "preferences";
+
+const MONTHLY_GRACE_VALUES = [
+  "NO_GRACE_PERIOD",
+  "ONE_WEEK",
+  "TWO_WEEKS",
+] as const;
+
+const QUARTERLY_GRACE_VALUES = [
+  "NO_GRACE_PERIOD",
+  "ONE_WEEK",
+  "TWO_WEEKS",
+  "THREE_WEEKS",
+  "ONE_MONTH",
+  "FIVE_WEEKS",
+  "SIX_WEEKS",
+] as const;
+
+const YEARLY_GRACE_VALUES = [
+  "NO_GRACE_PERIOD",
+  "ONE_MONTH",
+  "TWO_MONTHS",
+  "THREE_MONTHS",
+  "FOUR_MONTHS",
+  "FIVE_MONTHS",
+  "SIX_MONTHS",
+] as const;
+
+const GRACE_LABELS: Record<string, string> = {
+  NO_GRACE_PERIOD: "No grace period",
+  ONE_WEEK: "One week",
+  TWO_WEEKS: "Two weeks",
+  THREE_WEEKS: "Three weeks",
+  ONE_MONTH: "One month",
+  FIVE_WEEKS: "Five weeks",
+  SIX_WEEKS: "Six weeks",
+  TWO_MONTHS: "Two months",
+  THREE_MONTHS: "Three months",
+  FOUR_MONTHS: "Four months",
+  FIVE_MONTHS: "Five months",
+  SIX_MONTHS: "Six months",
+};
+
+function pickGraceValue(raw: unknown, allowed: readonly string[]): string {
+  const s = typeof raw === "string" ? raw : "NO_GRACE_PERIOD";
+  return allowed.includes(s) ? s : "NO_GRACE_PERIOD";
+}
+
+function applyPropertySettingsFromApi(d: Record<string, unknown>): {
+  grace: {
+    monthlyRentGracePeriod: string;
+    quarterlyRentGracePeriod: string;
+    yearlyRentGracePeriod: string;
+  };
+  lateFee: { lateFeeAmount: string; lateFeeType: "fixed" | "percentage" };
+} {
+  const gp = d.gracePeriodPeriods as Record<string, unknown> | undefined;
+  const grace = {
+    monthlyRentGracePeriod: pickGraceValue(
+      gp?.monthlyRentDueDateGracePeriod ?? gp?.monthlyRentGracePeriod,
+      MONTHLY_GRACE_VALUES as unknown as string[],
+    ),
+    quarterlyRentGracePeriod: pickGraceValue(
+      gp?.quarterlyRentDueDateGracePeriod ?? gp?.quarterlyRentGracePeriod,
+      QUARTERLY_GRACE_VALUES as unknown as string[],
+    ),
+    yearlyRentGracePeriod: pickGraceValue(
+      gp?.yearlyRentDueDateGracePeriod ?? gp?.yearlyRentGracePeriod,
+      YEARLY_GRACE_VALUES as unknown as string[],
+    ),
+  };
+  const lf = d.lateFeeSettings as Record<string, unknown> | undefined;
+  const lateFeeType: "fixed" | "percentage" =
+    lf?.lateFeeType === "percentage" ? "percentage" : "fixed";
+  const rawAmt = lf?.lateFeeAmount;
+  const amt =
+    typeof rawAmt === "number"
+      ? rawAmt
+      : typeof rawAmt === "string"
+        ? Number(rawAmt)
+        : 0;
+  return {
+    grace,
+    lateFee: {
+      lateFeeAmount: String(Number.isFinite(amt) ? amt : 0),
+      lateFeeType,
+    },
+  };
+}
+
 function pickAssignedManagerNameFromPropertyManagers(
   managers: PropertyManagerDTO[],
 ): string | null {
@@ -188,6 +293,38 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     yearlyRentGracePeriod: "NO_GRACE_PERIOD",
   });
   const [isSavingGracePeriod, setIsSavingGracePeriod] = React.useState(false);
+  const [isSavingVerification, setIsSavingVerification] = React.useState(false);
+  const [propertySettingsSection, setPropertySettingsSection] =
+    React.useState<PropertySettingsSection>("documents");
+  const [propertyVerificationDocs, setPropertyVerificationDocs] =
+    React.useState({
+      govermentIdDocumentId: "",
+      landSurveyDocumentId: "",
+      proofOfOwnershipDocumentId: "",
+      taxIdentificationNumberDocumentId: "",
+    });
+  const [propertyDocUploading, setPropertyDocUploading] = React.useState<
+    string | null
+  >(null);
+  const [propertyNotif, setPropertyNotif] = React.useState({
+    payment: { email: true, push: true, sms: false },
+    maintenance: { email: true, push: true, sms: true },
+    overdue: { email: true, push: false, sms: true },
+    reports: { email: true, push: false, sms: false },
+  });
+  const [propertyBank, setPropertyBank] = React.useState({
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+  });
+  const [propertyLateFee, setPropertyLateFee] = React.useState({
+    lateFeeAmount: "0",
+    lateFeeType: "percentage" as "fixed" | "percentage",
+  });
+  const [propertyPrefsDisplay, setPropertyPrefsDisplay] = React.useState({
+    defaultCurrency: "NGN",
+    language: "en",
+  });
   const [overviewRentPayments, setOverviewRentPayments] = React.useState<
     Payment[]
   >([]);
@@ -221,6 +358,22 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     void fetchProperty();
   }, [fetchProperty]);
+
+  React.useEffect(() => {
+    if (!id || typeof id !== "string") return;
+    let cancelled = false;
+    void getPropertySettings(id).then((result) => {
+      if (cancelled || !result.success) return;
+      const mapped = applyPropertySettingsFromApi(
+        result.data as Record<string, unknown>,
+      );
+      setGracePeriods(mapped.grace);
+      setPropertyLateFee(mapped.lateFee);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   React.useEffect(() => {
     setManagerNameFromPropertyManagersEndpoint(null);
@@ -403,17 +556,80 @@ const PropertyDetailPage: NextPageWithLayout = () => {
       }));
     }, [propertyMaintenanceFromApi, id]);
 
-  const handleSaveGracePeriod = React.useCallback(async () => {
+  const handlePropertyVerificationUpload = React.useCallback(
+    async (key: keyof typeof propertyVerificationDocs, file: File) => {
+      if (!user?.token) {
+        showToast("You must be signed in to upload files", "error");
+        return;
+      }
+      if (!id || typeof id !== "string") return;
+      setPropertyDocUploading(key);
+      const result = await uploadFile({
+        file,
+        folder: "property",
+        label: `${id}-${key}`,
+        token: user.token,
+      });
+      setPropertyDocUploading(null);
+      if (result.success) {
+        setPropertyVerificationDocs((prev) => ({
+          ...prev,
+          [key]: result.data.id,
+        }));
+        showToast("Document uploaded", "success");
+      } else {
+        showToast(result.error || "Upload failed", "error");
+      }
+    },
+    [id, showToast, user?.token],
+  );
+
+  const handlePropertyNotifToggle = (
+    category: keyof typeof propertyNotif,
+    channel: "email" | "push" | "sms",
+  ) => {
+    setPropertyNotif((prev) => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [channel]: !prev[category][channel],
+      },
+    }));
+  };
+
+  const handleSavePropertyRentSettings = React.useCallback(async () => {
     if (!id || typeof id !== "string") return;
     setIsSavingGracePeriod(true);
-    const result = await updatePropertyGracePeriodSettings(id, gracePeriods);
+    const amount = Number(propertyLateFee.lateFeeAmount);
+    const [g, l] = await Promise.all([
+      updatePropertyGracePeriodSettings(id, gracePeriods),
+      updatePropertyLateFeeSettings(id, {
+        lateFeeAmount: Number.isFinite(amount) ? amount : 0,
+        lateFeeType: propertyLateFee.lateFeeType,
+      }),
+    ]);
     setIsSavingGracePeriod(false);
-    if (result.success) {
-      showToast("Grace period preferences saved", "success");
+    if (g.success && l.success) {
+      showToast("Rent grace periods and late fee settings saved.", "success");
     } else {
-      showToast(result.error || "Failed to save grace periods", "error");
+      const parts: string[] = [];
+      if (!g.success) parts.push(g.error || "Failed to save grace periods");
+      if (!l.success) parts.push(l.error || "Failed to save late fee");
+      showToast(parts.join(" · ") || "Failed to save settings", "error");
     }
-  }, [gracePeriods, id, showToast]);
+  }, [gracePeriods, id, propertyLateFee, showToast]);
+
+  const handleSavePropertyVerificationDocs = React.useCallback(async () => {
+    if (!id || typeof id !== "string") return;
+    setIsSavingVerification(true);
+    const result = await createPropertyVerification(id);
+    setIsSavingVerification(false);
+    if (result.success) {
+      showToast("Property verification submitted.", "success");
+    } else {
+      showToast(result.error || "Verification request failed", "error");
+    }
+  }, [id, showToast]);
 
   const propertyTenants = React.useMemo<Tenant[]>(() => {
     return units
@@ -467,7 +683,18 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     { id: "payments", label: "Payments" },
     { id: "maintenance", label: "Maintenance" },
     { id: "documents", label: "Documents" },
-    { id: "grace-period", label: "Grace Period Preference" },
+    { id: "settings", label: "Settings" },
+  ];
+
+  const propertySettingsNav: Array<{
+    id: PropertySettingsSection;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
+    { id: "documents", label: "Documents", icon: FileText },
+    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "payment", label: "Payment Details", icon: CreditCard },
+    { id: "preferences", label: "Preferences", icon: Globe },
   ];
 
   // Helper function to get amenity icon
@@ -1053,88 +1280,633 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 />
               </motion.div>
             )}
-            {activeTab === "grace-period" && (
+            {activeTab === "settings" && (
               <motion.div
-                key="grace-period"
+                key="settings"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
-                className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+                className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden"
               >
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">
-                  Rent Grace Periods
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Monthly Rent Grace Period
-                    </label>
-                    <select
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      value={gracePeriods.monthlyRentGracePeriod}
-                      onChange={(e) =>
-                        setGracePeriods((prev) => ({
-                          ...prev,
-                          monthlyRentGracePeriod: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
-                      <option value="THREE_DAYS">Three Days</option>
-                      <option value="FIVE_DAYS">Five Days</option>
-                      <option value="SEVEN_DAYS">Seven Days</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Quarterly Rent Grace Period
-                    </label>
-                    <select
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      value={gracePeriods.quarterlyRentGracePeriod}
-                      onChange={(e) =>
-                        setGracePeriods((prev) => ({
-                          ...prev,
-                          quarterlyRentGracePeriod: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
-                      <option value="FIVE_DAYS">Five Days</option>
-                      <option value="SEVEN_DAYS">Seven Days</option>
-                      <option value="FOURTEEN_DAYS">Fourteen Days</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Yearly Rent Grace Period
-                    </label>
-                    <select
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      value={gracePeriods.yearlyRentGracePeriod}
-                      onChange={(e) =>
-                        setGracePeriods((prev) => ({
-                          ...prev,
-                          yearlyRentGracePeriod: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
-                      <option value="SEVEN_DAYS">Seven Days</option>
-                      <option value="FOURTEEN_DAYS">Fourteen Days</option>
-                      <option value="THIRTY_DAYS">Thirty Days</option>
-                    </select>
+                <div className="grid lg:grid-cols-[220px_1fr]">
+                  <nav className="border-b lg:border-b-0 lg:border-r border-gray-200 bg-gray-50/90 p-4 space-y-1">
+                    {propertySettingsNav.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = propertySettingsSection === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setPropertySettingsSection(item.id)}
+                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
+                            isActive
+                              ? "border border-blue-100 bg-blue-50 text-brand-main"
+                              : "text-gray-700 hover:bg-white"
+                          }`}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </nav>
+                  <div className="p-6">
+                    {propertySettingsSection === "documents" && (
+                      <div className="space-y-6">
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          Verification Documents
+                        </h2>
+                        <p className="text-sm text-gray-600">
+                          Upload supporting documents, then submit to open a
+                          property verification record (
+                          <code className="text-xs">
+                            POST /verification/property/…
+                          </code>
+                          ). Attaching file IDs to that record may require a
+                          follow-up API if the backend expects them on status
+                          updates.
+                        </p>
+                        <div className="space-y-6">
+                          <div>
+                            <h3 className="mb-1 text-sm font-semibold text-gray-900">
+                              Government Issued ID
+                            </h3>
+                            <p className="mb-3 text-sm text-gray-600">
+                              Driver&apos;s License, National ID, or
+                              International Passport
+                            </p>
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
+                              <Upload className="h-4 w-4" />
+                              {propertyDocUploading === "govermentIdDocumentId"
+                                ? "Uploading…"
+                                : "Choose File"}
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    void handlePropertyVerificationUpload(
+                                      "govermentIdDocumentId",
+                                      file,
+                                    );
+                                  }
+                                }}
+                              />
+                            </label>
+                            {propertyVerificationDocs.govermentIdDocumentId ? (
+                              <p className="mt-2 text-xs text-gray-500">
+                                File ID:{" "}
+                                {propertyVerificationDocs.govermentIdDocumentId}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3 className="mb-1 text-sm font-semibold text-gray-900">
+                              Land Survey Document
+                            </h3>
+                            <p className="mb-3 text-sm text-gray-600">
+                              Property map, title deed, or official record
+                            </p>
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
+                              <Upload className="h-4 w-4" />
+                              {propertyDocUploading === "landSurveyDocumentId"
+                                ? "Uploading…"
+                                : "Choose File"}
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    void handlePropertyVerificationUpload(
+                                      "landSurveyDocumentId",
+                                      file,
+                                    );
+                                  }
+                                }}
+                              />
+                            </label>
+                            {propertyVerificationDocs.landSurveyDocumentId ? (
+                              <p className="mt-2 text-xs text-gray-500">
+                                File ID:{" "}
+                                {propertyVerificationDocs.landSurveyDocumentId}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3 className="mb-1 text-sm font-semibold text-gray-900">
+                              Proof of Ownership{" "}
+                              <span className="font-normal text-gray-500">
+                                (Optional)
+                              </span>
+                            </h3>
+                            <p className="mb-3 text-sm text-gray-600">
+                              Title deed, receipt of purchase, or transfer
+                              agreement
+                            </p>
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
+                              <Upload className="h-4 w-4" />
+                              {propertyDocUploading ===
+                              "proofOfOwnershipDocumentId"
+                                ? "Uploading…"
+                                : "Choose File (Optional)"}
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    void handlePropertyVerificationUpload(
+                                      "proofOfOwnershipDocumentId",
+                                      file,
+                                    );
+                                  }
+                                }}
+                              />
+                            </label>
+                            {propertyVerificationDocs.proofOfOwnershipDocumentId ? (
+                              <p className="mt-2 text-xs text-gray-500">
+                                File ID:{" "}
+                                {
+                                  propertyVerificationDocs.proofOfOwnershipDocumentId
+                                }
+                              </p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3 className="mb-1 text-sm font-semibold text-gray-900">
+                              Tax Identification Number (TIN){" "}
+                              <span className="font-normal text-gray-500">
+                                (Optional)
+                              </span>
+                            </h3>
+                            <p className="mb-3 text-sm text-gray-600">
+                              Tax certificate or TIN document
+                            </p>
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
+                              <Upload className="h-4 w-4" />
+                              {propertyDocUploading ===
+                              "taxIdentificationNumberDocumentId"
+                                ? "Uploading…"
+                                : "Choose File (Optional)"}
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    void handlePropertyVerificationUpload(
+                                      "taxIdentificationNumberDocumentId",
+                                      file,
+                                    );
+                                  }
+                                }}
+                              />
+                            </label>
+                            {propertyVerificationDocs.taxIdentificationNumberDocumentId ? (
+                              <p className="mt-2 text-xs text-gray-500">
+                                File ID:{" "}
+                                {
+                                  propertyVerificationDocs.taxIdentificationNumberDocumentId
+                                }
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleSavePropertyVerificationDocs()
+                          }
+                          disabled={isSavingVerification}
+                          className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                        >
+                          {isSavingVerification
+                            ? "Submitting…"
+                            : "Submit property verification"}
+                        </button>
+                      </div>
+                    )}
+
+                    {propertySettingsSection === "notifications" && (
+                      <div className="space-y-6">
+                        <div>
+                          <h2 className="text-lg font-semibold text-gray-900">
+                            Notification Preferences
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Choose how you want to receive notifications for
+                            this property.
+                          </p>
+                          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
+                            The API does not expose property-scoped notification
+                            preferences. Use{" "}
+                            <Link
+                              href="/dashboard/settings"
+                              className="font-medium underline"
+                            >
+                              Account → Settings
+                            </Link>{" "}
+                            for landlord notification preferences (
+                            <code className="text-[0.65rem]">
+                              PATCH
+                              /landlord/…/settings/notification-preferences
+                            </code>
+                            ).
+                          </p>
+                        </div>
+                        <div className="space-y-4">
+                          <div className="rounded-lg border border-gray-200 p-4">
+                            <p className="text-sm font-medium text-gray-900">
+                              Payment Notifications
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Get notified when tenants make payments
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-4">
+                              {(["email", "push", "sms"] as const).map((ch) => (
+                                <label
+                                  key={ch}
+                                  className="inline-flex items-center gap-2"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={propertyNotif.payment[ch]}
+                                    onChange={() =>
+                                      handlePropertyNotifToggle("payment", ch)
+                                    }
+                                    className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+                                  />
+                                  <span className="text-sm text-gray-700 capitalize">
+                                    {ch === "push" ? "Push" : ch}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 p-4">
+                            <p className="text-sm font-medium text-gray-900">
+                              Maintenance Requests
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Get notified about new maintenance requests
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-4">
+                              {(["email", "push", "sms"] as const).map((ch) => (
+                                <label
+                                  key={ch}
+                                  className="inline-flex items-center gap-2"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={propertyNotif.maintenance[ch]}
+                                    onChange={() =>
+                                      handlePropertyNotifToggle(
+                                        "maintenance",
+                                        ch,
+                                      )
+                                    }
+                                    className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+                                  />
+                                  <span className="text-sm text-gray-700 capitalize">
+                                    {ch === "push" ? "Push" : ch}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 p-4">
+                            <p className="text-sm font-medium text-gray-900">
+                              Overdue Rent Alerts
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Get notified when rent payments are overdue
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-4">
+                              {(["email", "push", "sms"] as const).map((ch) => (
+                                <label
+                                  key={ch}
+                                  className="inline-flex items-center gap-2"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={propertyNotif.overdue[ch]}
+                                    onChange={() =>
+                                      handlePropertyNotifToggle("overdue", ch)
+                                    }
+                                    className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+                                  />
+                                  <span className="text-sm text-gray-700 capitalize">
+                                    {ch === "push" ? "Push" : ch}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 p-4">
+                            <p className="text-sm font-medium text-gray-900">
+                              Weekly Reports
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Receive weekly summary reports
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-4">
+                              <label className="inline-flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={propertyNotif.reports.email}
+                                  onChange={() =>
+                                    handlePropertyNotifToggle(
+                                      "reports",
+                                      "email",
+                                    )
+                                  }
+                                  className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+                                />
+                                <span className="text-sm text-gray-700">
+                                  Email
+                                </span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            showToast(
+                              "Property-specific notifications are not synced yet. Use Account Settings for landlord-wide alerts.",
+                              "info",
+                            )
+                          }
+                          className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                        >
+                          Save Preferences
+                        </button>
+                      </div>
+                    )}
+
+                    {propertySettingsSection === "payment" && (
+                      <div className="space-y-6">
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          Payment Payout Details
+                        </h2>
+                        <p className="text-sm text-gray-600">
+                          Update your bank account information for receiving
+                          payments for this property.
+                        </p>
+                        <p className="text-xs text-gray-500 max-w-lg">
+                          There is no property-level payout endpoint in the API;
+                          withdrawals use the landlord wallet flow (
+                          <code className="text-[0.65rem]">/withdrawal</code>
+                          ). Fields below are not persisted.
+                        </p>
+                        <div className="space-y-4 max-w-lg">
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Bank Name
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Placeholder"
+                              value={propertyBank.bankName}
+                              onChange={(e) =>
+                                setPropertyBank((p) => ({
+                                  ...p,
+                                  bankName: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Account Number
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Placeholder"
+                              value={propertyBank.accountNumber}
+                              onChange={(e) =>
+                                setPropertyBank((p) => ({
+                                  ...p,
+                                  accountNumber: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Account Name
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Placeholder"
+                              value={propertyBank.accountName}
+                              onChange={(e) =>
+                                setPropertyBank((p) => ({
+                                  ...p,
+                                  accountName: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            showToast(
+                              "Property payout details are not saved to the server yet.",
+                              "info",
+                            )
+                          }
+                          className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                        >
+                          Save Bank Details
+                        </button>
+                      </div>
+                    )}
+
+                    {propertySettingsSection === "preferences" && (
+                      <div className="space-y-8">
+                        <div>
+                          <h2 className="text-lg font-semibold text-gray-900">
+                            Preferences
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-600 max-w-lg">
+                            Late fee and grace periods sync with{" "}
+                            <code className="text-xs">
+                              GET/PATCH /property/…/settings
+                            </code>
+                            . Currency and language here are for reference only;
+                            landlord defaults live under Account Settings.
+                          </p>
+                          <div className="mt-4 space-y-4 max-w-lg">
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Late fee amount
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={propertyLateFee.lateFeeAmount}
+                                onChange={(e) =>
+                                  setPropertyLateFee((p) => ({
+                                    ...p,
+                                    lateFeeAmount: e.target.value,
+                                  }))
+                                }
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                              />
+                              <p className="mt-1 text-xs text-gray-500">
+                                Interpreted as a fixed amount (₦) or a
+                                percentage according to the type below.
+                              </p>
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Late fee type
+                              </label>
+                              <select
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                value={propertyLateFee.lateFeeType}
+                                onChange={(e) =>
+                                  setPropertyLateFee((p) => ({
+                                    ...p,
+                                    lateFeeType: e.target.value as
+                                      | "fixed"
+                                      | "percentage",
+                                  }))
+                                }
+                              >
+                                <option value="percentage">Percentage</option>
+                                <option value="fixed">Fixed (₦)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Default Currency (reference)
+                              </label>
+                              <input
+                                type="text"
+                                value={propertyPrefsDisplay.defaultCurrency}
+                                onChange={(e) =>
+                                  setPropertyPrefsDisplay((p) => ({
+                                    ...p,
+                                    defaultCurrency: e.target.value,
+                                  }))
+                                }
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Language (reference)
+                              </label>
+                              <input
+                                type="text"
+                                value={propertyPrefsDisplay.language}
+                                onChange={(e) =>
+                                  setPropertyPrefsDisplay((p) => ({
+                                    ...p,
+                                    language: e.target.value,
+                                  }))
+                                }
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-200 pt-8">
+                          <h3 className="text-base font-semibold text-gray-900 mb-4">
+                            Rent Grace Periods
+                          </h3>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Monthly Rent Grace Period
+                              </label>
+                              <select
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                value={gracePeriods.monthlyRentGracePeriod}
+                                onChange={(e) =>
+                                  setGracePeriods((prev) => ({
+                                    ...prev,
+                                    monthlyRentGracePeriod: e.target.value,
+                                  }))
+                                }
+                              >
+                                {MONTHLY_GRACE_VALUES.map((v) => (
+                                  <option key={v} value={v}>
+                                    {GRACE_LABELS[v] ?? v}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Quarterly Rent Grace Period
+                              </label>
+                              <select
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                value={gracePeriods.quarterlyRentGracePeriod}
+                                onChange={(e) =>
+                                  setGracePeriods((prev) => ({
+                                    ...prev,
+                                    quarterlyRentGracePeriod: e.target.value,
+                                  }))
+                                }
+                              >
+                                {QUARTERLY_GRACE_VALUES.map((v) => (
+                                  <option key={v} value={v}>
+                                    {GRACE_LABELS[v] ?? v}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Yearly Rent Grace Period
+                              </label>
+                              <select
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                value={gracePeriods.yearlyRentGracePeriod}
+                                onChange={(e) =>
+                                  setGracePeriods((prev) => ({
+                                    ...prev,
+                                    yearlyRentGracePeriod: e.target.value,
+                                  }))
+                                }
+                              >
+                                {YEARLY_GRACE_VALUES.map((v) => (
+                                  <option key={v} value={v}>
+                                    {GRACE_LABELS[v] ?? v}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleSavePropertyRentSettings()
+                            }
+                            disabled={isSavingGracePeriod}
+                            className="mt-6 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                          >
+                            {isSavingGracePeriod
+                              ? "Saving…"
+                              : "Save rent settings"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSaveGracePeriod}
-                  disabled={isSavingGracePeriod}
-                  className="mt-6 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                >
-                  {isSavingGracePeriod ? "Saving..." : "Save Preferences"}
-                </button>
               </motion.div>
             )}
           </AnimatePresence>

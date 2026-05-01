@@ -1,4 +1,5 @@
 export { createVerification } from "./createVerification";
+export { createPropertyVerification } from "./createPropertyVerification";
 export { getVerifications } from "./getVerifications";
 export { getVerificationById } from "./getVerificationById";
 export { queryVerifications } from "./queryVerifications";

@@ -3,7 +3,6 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { useRouter } from "next/router";
 import {
   User,
   FileText,
@@ -14,7 +13,6 @@ import {
   Upload,
   Eye,
   EyeOff,
-  Heart,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
@@ -24,7 +22,6 @@ import {
   getLandlordByUser,
   getLandlordSettings,
   updateLandlordDocumentsSettings,
-  updateLandlordGracePeriodsSettings,
   updateLandlordNotificationPreferencesSettings,
   updateLandlordPlatformPreferencesSettings,
   updateLandlordProfileSettings,
@@ -37,11 +34,9 @@ type SettingsTab =
   | "notifications"
   | "payment-details"
   | "preferences"
-  | "grace-period"
   | "change-password";
 
 const SettingsPage: NextPageWithLayout = () => {
-  const router = useRouter();
   const { user } = useUser();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = React.useState<SettingsTab>("profile");
@@ -76,12 +71,6 @@ const SettingsPage: NextPageWithLayout = () => {
     defaultLateFeeAmount: "0",
     language: "en",
   });
-  const [gracePeriodsForm, setGracePeriodsForm] = React.useState({
-    monthlyRentGracePeriod: "NO_GRACE_PERIOD",
-    quarterlyRentGracePeriod: "NO_GRACE_PERIOD",
-    yearlyRentGracePeriod: "NO_GRACE_PERIOD",
-  });
-
   // Notification preferences state
   const [notifications, setNotifications] = React.useState({
     payment: { email: true, push: true, sms: false },
@@ -192,16 +181,6 @@ const SettingsPage: NextPageWithLayout = () => {
         ),
         language: (data.language as string) ?? prev.language,
       }));
-      setGracePeriodsForm((prev) => ({
-        monthlyRentGracePeriod:
-          (data.monthlyRentGracePeriod as string) ??
-          prev.monthlyRentGracePeriod,
-        quarterlyRentGracePeriod:
-          (data.quarterlyRentGracePeriod as string) ??
-          prev.quarterlyRentGracePeriod,
-        yearlyRentGracePeriod:
-          (data.yearlyRentGracePeriod as string) ?? prev.yearlyRentGracePeriod,
-      }));
       setNotifications((prev) => {
         const toBooleans = (arr: unknown) => {
           const list = Array.isArray(arr) ? arr : [];
@@ -250,11 +229,6 @@ const SettingsPage: NextPageWithLayout = () => {
       id: "preferences" as SettingsTab,
       label: "Preferences",
       icon: SettingsIcon,
-    },
-    {
-      id: "grace-period" as SettingsTab,
-      label: "Grace Period",
-      icon: Heart,
     },
     {
       id: "change-password" as SettingsTab,
@@ -354,19 +328,6 @@ const SettingsPage: NextPageWithLayout = () => {
     if (result.success) showToast("Notification preferences saved", "success");
     else showToast(result.error || "Failed to save notifications", "error");
   }, [landlordId, notifications, showToast, toNotificationArray]);
-
-  const handleSaveGracePeriods = React.useCallback(async () => {
-    if (!landlordId) return;
-    setIsSaving(true);
-    const result = await updateLandlordGracePeriodsSettings(landlordId, {
-      monthlyRentGracePeriod: gracePeriodsForm.monthlyRentGracePeriod,
-      quarterlyRentGracePeriod: gracePeriodsForm.quarterlyRentGracePeriod,
-      yearlyRentGracePeriod: gracePeriodsForm.yearlyRentGracePeriod,
-    });
-    setIsSaving(false);
-    if (result.success) showToast("Grace periods saved", "success");
-    else showToast(result.error || "Failed to save grace periods", "error");
-  }, [gracePeriodsForm, landlordId, showToast]);
 
   const handleUploadDocument = React.useCallback(
     async (
@@ -1136,89 +1097,6 @@ const SettingsPage: NextPageWithLayout = () => {
                   whileTap={{ scale: 0.95 }}
                   type="button"
                   onClick={handleSavePreferences}
-                  disabled={isSaving}
-                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                >
-                  {isSaving ? "Saving..." : "Save Preferences"}
-                </motion.button>
-              </div>
-            )}
-
-            {/* Grace Period Tab */}
-            {activeTab === "grace-period" && (
-              <div className="space-y-6">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Rent Grace Periods
-                </h2>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Monthly Rent Grace Period
-                    </label>
-                    <select
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      value={gracePeriodsForm.monthlyRentGracePeriod}
-                      onChange={(e) =>
-                        setGracePeriodsForm((prev) => ({
-                          ...prev,
-                          monthlyRentGracePeriod: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
-                      <option value="THREE_DAYS">Three Days</option>
-                      <option value="FIVE_DAYS">Five Days</option>
-                      <option value="SEVEN_DAYS">Seven Days</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Quarterly Rent Grace Period
-                    </label>
-                    <select
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      value={gracePeriodsForm.quarterlyRentGracePeriod}
-                      onChange={(e) =>
-                        setGracePeriodsForm((prev) => ({
-                          ...prev,
-                          quarterlyRentGracePeriod: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
-                      <option value="FIVE_DAYS">Five Days</option>
-                      <option value="SEVEN_DAYS">Seven Days</option>
-                      <option value="FOURTEEN_DAYS">Fourteen Days</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Yearly Rent Grace Period
-                    </label>
-                    <select
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                      value={gracePeriodsForm.yearlyRentGracePeriod}
-                      onChange={(e) =>
-                        setGracePeriodsForm((prev) => ({
-                          ...prev,
-                          yearlyRentGracePeriod: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="NO_GRACE_PERIOD">No Grace Period</option>
-                      <option value="SEVEN_DAYS">Seven Days</option>
-                      <option value="FOURTEEN_DAYS">Fourteen Days</option>
-                      <option value="THIRTY_DAYS">Thirty Days</option>
-                    </select>
-                  </div>
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  onClick={handleSaveGracePeriods}
                   disabled={isSaving}
                   className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                 >

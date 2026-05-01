@@ -1,24 +1,24 @@
 import { apiPatch } from "@/lib/apiClient";
 
-export type PropertyGracePeriodSettingsDTO = {
-  monthlyRentGracePeriod: string;
-  quarterlyRentGracePeriod: string;
-  yearlyRentGracePeriod: string;
+/** `PATCH /property/{id}/settings/late-fee` (OpenAPI UpdatePropertyLateFeeDto) */
+export type UpdatePropertyLateFeeDTO = {
+  lateFeeAmount: number;
+  lateFeeType: "fixed" | "percentage";
 };
 
-type UpdatePropertyGracePeriodSettingsResult =
+type Result =
   | { success: true; data: Record<string, unknown> }
   | { success: false; error: string; statusCode?: number };
 
-export const updatePropertyGracePeriodSettings = async (
-  id: string,
-  body: PropertyGracePeriodSettingsDTO,
-): Promise<UpdatePropertyGracePeriodSettingsResult> => {
+export const updatePropertyLateFeeSettings = async (
+  propertyId: string,
+  body: UpdatePropertyLateFeeDTO,
+): Promise<Result> => {
   const result = await apiPatch<{
     success?: boolean;
     message?: string;
     data?: Record<string, unknown>;
-  }>(`/property/${encodeURIComponent(id)}/settings/grace-period`, body);
+  }>(`/property/${encodeURIComponent(propertyId)}/settings/late-fee`, body);
 
   if (!result.success) {
     return result;

@@ -1,6 +1,6 @@
 # API Endpoints (OpenAPI Synced)
 
-This file reflects the backend OpenAPI JSON shared on 2026-04-17.
+This file reflects the backend OpenAPI JSON shared on 2026-04-30.
 
 ## Base URL
 
@@ -310,3 +310,4 @@ This file reflects the backend OpenAPI JSON shared on 2026-04-17.
   - `POST /rent`
   - `PATCH /rent/{rentId}/status/paid`
   - `GET /rent/lease/leaseId` _(aggregate list; not `/rent/lease/{uuid}`)_
+- Frontend wiring (property dashboard Settings): `GET /property/{id}/settings`, `PATCH …/grace-period`, `PATCH …/late-fee`, `POST /verification/property/{propertyId}`.

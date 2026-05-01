@@ -5,6 +5,10 @@ export { getProperty } from "./getProperty";
 export { createProperty } from "./createProperty";
 export { updateProperty } from "./updateProperty";
 export { updatePropertyGracePeriodSettings } from "./updatePropertyGracePeriodSettings";
+export { updatePropertyLateFeeSettings } from "./updatePropertyLateFeeSettings";
+export type { UpdatePropertyLateFeeDTO } from "./updatePropertyLateFeeSettings";
+export { getPropertySettings } from "./getPropertySettings";
+export type { PropertySettingsDTO } from "./getPropertySettings";
 export { deleteProperty } from "./deleteProperty";
 export { approveProperty } from "./approveProperty";
 export {

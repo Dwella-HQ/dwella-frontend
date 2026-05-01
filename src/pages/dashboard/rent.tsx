@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { addDays, format, isValid, parse, parseISO } from "date-fns";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Download,
   Search,
@@ -16,6 +17,7 @@ import {
   ArrowLeft,
   UserRound,
   CalendarClock,
+  MoreVertical,
 } from "lucide-react";
 import {
   createRentPayment,
@@ -25,6 +27,7 @@ import {
   getRentsByLease,
   getAggregatedRents,
   createRent,
+  markRentAsPaid,
   isLeaseActiveFlag,
   resolveTenantActiveLeaseId,
 } from "@/api/rent";
@@ -40,6 +43,7 @@ type LandlordRentStatus = "paid" | "due" | "overdue";
 
 type LandlordRentRow = {
   id: string;
+  tenantId: string;
   tenantName: string;
   propertyName: string;
   unit: string;
@@ -118,9 +122,7 @@ function landlordPickFromListRecord(
 ): LandlordTenantPick | null {
   const leases = rec.leases;
   if (!Array.isArray(leases) || leases.length === 0) return null;
-  if (
-    !leases.some((l) => isLeaseActiveFlag(l as Record<string, unknown>))
-  ) {
+  if (!leases.some((l) => isLeaseActiveFlag(l as Record<string, unknown>))) {
     return null;
   }
   const activeLeaseId = resolveTenantActiveLeaseId(
@@ -154,9 +156,7 @@ function landlordPickFromListRecord(
 
 function leaseHasUnpaidRent(rents: RentItemDTO[], leaseId: string): boolean {
   return rents.some(
-    (r) =>
-      r.leaseId === leaseId &&
-      (r.status || "").toLowerCase() !== "paid",
+    (r) => r.leaseId === leaseId && (r.status || "").toLowerCase() !== "paid",
   );
 }
 
@@ -186,6 +186,7 @@ function mapRentItemToLandlordRow(
 
   return {
     id: rent.id,
+    tenantId: pick?.id ?? "",
     tenantName: pick?.label ?? "Tenant",
     propertyName: pick?.propertyName ?? "—",
     unit: pick?.unit ?? "—",
@@ -199,9 +200,7 @@ function mapRentItemToLandlordRow(
           : "—",
     status,
     balance:
-      status === "overdue"
-        ? rent.totalAmount ?? rent.amount ?? 0
-        : undefined,
+      status === "overdue" ? (rent.totalAmount ?? rent.amount ?? 0) : undefined,
   };
 }
 
@@ -235,6 +234,63 @@ const formatTenantPaymentDueLabel = (value: string): string => {
   if (parsed) return format(parsed, "dd MMM yyyy · h:mm a");
   return value;
 };
+
+function LandlordRentRowActionsMenu({
+  row,
+  onMarkPaid,
+  isMarkingPaid,
+}: {
+  row: LandlordRentRow;
+  onMarkPaid: (rentId: string) => void;
+  isMarkingPaid: boolean;
+}) {
+  const router = useRouter();
+  const alreadyPaid = row.status === "paid";
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className="inline-flex rounded-lg p-1.5 text-brand-main hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-brand-main/25"
+          aria-label="Open row actions"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={6}
+          className="z-[100] min-w-[192px] rounded-lg border border-gray-200 bg-white p-1 shadow-lg"
+        >
+          <DropdownMenu.Item
+            disabled={!row.tenantId}
+            className="flex cursor-pointer select-none items-center rounded-md px-3 py-2 text-sm text-gray-900 outline-none hover:bg-gray-50 focus:bg-gray-50 data-[disabled]:pointer-events-none data-[disabled]:opacity-40"
+            onSelect={() => {
+              if (row.tenantId) {
+                router.push(`/dashboard/tenants/${row.tenantId}`);
+              }
+            }}
+          >
+            Tenant details
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            disabled={alreadyPaid || isMarkingPaid}
+            className="flex cursor-pointer select-none items-center rounded-md px-3 py-2 text-sm text-gray-900 outline-none hover:bg-gray-50 focus:bg-gray-50 data-[disabled]:pointer-events-none data-[disabled]:opacity-40"
+            onSelect={() => {
+              if (!alreadyPaid && !isMarkingPaid) {
+                onMarkPaid(row.id);
+              }
+            }}
+          >
+            {isMarkingPaid ? "Marking…" : "Mark rent as paid"}
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
 
 // Tenant Payment History Component
 const TenantPaymentHistory = () => {
@@ -625,6 +681,24 @@ const LandlordRentPage = () => {
   const [selectedTenantId, setSelectedTenantId] = React.useState("");
   const [isCreatingRent, setIsCreatingRent] = React.useState(false);
   const [landlordRefreshKey, setLandlordRefreshKey] = React.useState(0);
+  const [markingPaidRentId, setMarkingPaidRentId] = React.useState<
+    string | null
+  >(null);
+
+  const handleMarkRentPaid = React.useCallback(
+    async (rentId: string) => {
+      setMarkingPaidRentId(rentId);
+      const result = await markRentAsPaid(rentId);
+      setMarkingPaidRentId(null);
+      if (result.success) {
+        showToast("Rent marked as paid", "success");
+        setLandlordRefreshKey((k) => k + 1);
+      } else {
+        showToast(result.error ?? "Could not update rent status", "error");
+      }
+    },
+    [showToast],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -658,9 +732,7 @@ const LandlordRentPage = () => {
 
         if (Array.isArray(leases) && leases.length > 0) {
           if (
-            !leases.some((l) =>
-              isLeaseActiveFlag(l as Record<string, unknown>),
-            )
+            !leases.some((l) => isLeaseActiveFlag(l as Record<string, unknown>))
           ) {
             continue;
           }
@@ -706,9 +778,7 @@ const LandlordRentPage = () => {
 
       const tableRows = allRents
         .filter((r) => leaseIdsManaged.has(r.leaseId))
-        .map((r) =>
-          mapRentItemToLandlordRow(r, leaseIdToPick.get(r.leaseId)),
-        );
+        .map((r) => mapRentItemToLandlordRow(r, leaseIdToPick.get(r.leaseId)));
 
       const forDropdown = picks.filter(
         (p) => !leaseHasUnpaidRent(allRents, p.activeLeaseId),
@@ -1129,13 +1199,16 @@ const LandlordRentPage = () => {
               <th className="px-3 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Balance
               </th>
+              <th className="px-3 lg:px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-14">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {isLoading ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-6 py-10 text-center text-sm text-gray-500"
                 >
                   Loading rent payments...
@@ -1144,7 +1217,7 @@ const LandlordRentPage = () => {
             ) : filteredPayments.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-6 py-10 text-center text-sm text-gray-500"
                 >
                   No rent payments found.
@@ -1190,6 +1263,13 @@ const LandlordRentPage = () => {
                   </td>
                   <td className="px-3 lg:px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
                     {payment.balance ? formatCurrency(payment.balance) : "—"}
+                  </td>
+                  <td className="px-3 lg:px-6 py-4 text-right whitespace-nowrap">
+                    <LandlordRentRowActionsMenu
+                      row={payment}
+                      onMarkPaid={handleMarkRentPaid}
+                      isMarkingPaid={markingPaidRentId === payment.id}
+                    />
                   </td>
                 </motion.tr>
               ))
