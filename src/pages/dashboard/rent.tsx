@@ -2,7 +2,7 @@ import Head from "next/head";
 import * as React from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
-import { isValid, parse, parseISO } from "date-fns";
+import { addDays, format, isValid, parse, parseISO } from "date-fns";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
   Download,
@@ -14,13 +14,27 @@ import {
   FileText,
   AlertTriangle,
   ArrowLeft,
+  UserRound,
+  CalendarClock,
 } from "lucide-react";
-import { getRentPayments } from "@/api/rent-payment";
-import { getTenantByUser } from "@/api/tenants";
-import type { Payment } from "@/data/mockLandlordData";
+import {
+  createRentPayment,
+  generateRentPaymentIdempotencyKey,
+} from "@/api/rent-payment";
+import {
+  getRentsByLease,
+  getAggregatedRents,
+  createRent,
+  isLeaseActiveFlag,
+  resolveTenantActiveLeaseId,
+} from "@/api/rent";
+import type { RentItemDTO } from "@/api/rent";
+import { getTenantByUser, getTenant, getTenantList } from "@/api/tenants";
+import type { TenantRecordDTO } from "@/api/tenants";
 import { useUser } from "@/contexts/UserContext";
 import type { NextPageWithLayout } from "../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
+import { useToast } from "@/components/Toast";
 
 type LandlordRentStatus = "paid" | "due" | "overdue";
 
@@ -46,6 +60,151 @@ type TenantPaymentRow = {
   status: "paid" | "pending";
 };
 
+type TenantOption = {
+  id: string;
+  label: string;
+};
+
+/** Tenant with resolved active lease + unit (for landlord rent table + create flow). */
+type LandlordTenantPick = {
+  id: string;
+  label: string;
+  activeLeaseId: string;
+  propertyName: string;
+  unit: string;
+};
+
+function formatRentDueForLandlordTable(iso: string): string {
+  if (!iso || iso === "—") return "—";
+  try {
+    const d = parseISO(iso);
+    if (isValid(d)) return format(d, "dd MMM yyyy");
+  } catch {
+    /* ignore */
+  }
+  return iso;
+}
+
+function tenantDetailToLandlordPick(
+  tr: Record<string, unknown>,
+  tenantId: string,
+): LandlordTenantPick | null {
+  const leases = Array.isArray(tr.leases)
+    ? (tr.leases as Array<Record<string, unknown>>)
+    : [];
+  const activeLeaseId = resolveTenantActiveLeaseId(leases, null);
+  if (!activeLeaseId) return null;
+  const user = (tr.user as Record<string, unknown>) || {};
+  const label =
+    (typeof user.fullName === "string" && user.fullName) ||
+    (typeof tr.fullName === "string" && tr.fullName) ||
+    (typeof tr.email === "string" ? tr.email : `Tenant ${tenantId}`);
+  const cu = tr.currentUnit as Record<string, unknown> | undefined;
+  const unit = typeof cu?.name === "string" ? cu.name : "—";
+  const prop = cu?.property as Record<string, unknown> | undefined;
+  const propertyName = typeof prop?.name === "string" ? prop.name : "—";
+  return {
+    id: tenantId,
+    label: String(label),
+    activeLeaseId,
+    propertyName,
+    unit,
+  };
+}
+
+function landlordPickFromListRecord(
+  rec: Record<string, unknown>,
+  tenantId: string,
+): LandlordTenantPick | null {
+  const leases = rec.leases;
+  if (!Array.isArray(leases) || leases.length === 0) return null;
+  if (
+    !leases.some((l) => isLeaseActiveFlag(l as Record<string, unknown>))
+  ) {
+    return null;
+  }
+  const activeLeaseId = resolveTenantActiveLeaseId(
+    leases as Array<Record<string, unknown>>,
+    null,
+  );
+  if (!activeLeaseId) return null;
+  const cu = rec.currentUnit as Record<string, unknown> | undefined;
+  const prop = cu?.property as Record<string, unknown> | undefined;
+  if (
+    !cu ||
+    typeof cu.name !== "string" ||
+    !prop ||
+    typeof prop.name !== "string"
+  ) {
+    return null;
+  }
+  const user = (rec.user as Record<string, unknown>) || {};
+  const label =
+    (typeof user.fullName === "string" && user.fullName) ||
+    (typeof rec.fullName === "string" && rec.fullName) ||
+    (typeof rec.email === "string" ? rec.email : `Tenant ${tenantId}`);
+  return {
+    id: tenantId,
+    label: String(label),
+    activeLeaseId,
+    propertyName: prop.name,
+    unit: cu.name,
+  };
+}
+
+function leaseHasUnpaidRent(rents: RentItemDTO[], leaseId: string): boolean {
+  return rents.some(
+    (r) =>
+      r.leaseId === leaseId &&
+      (r.status || "").toLowerCase() !== "paid",
+  );
+}
+
+function mapRentItemToLandlordRow(
+  rent: RentItemDTO,
+  pick: LandlordTenantPick | undefined,
+): LandlordRentRow {
+  const dueRaw = rent.dueDate || "—";
+  const dueDateObj = parsePaymentDate(dueRaw);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const paid = (rent.status || "").toLowerCase() === "paid";
+  let status: LandlordRentStatus = "due";
+  if (paid) {
+    status = "paid";
+  } else if (!dueDateObj || dueRaw === "—") {
+    status = "due";
+  } else if (dueDateObj < today) {
+    status = "overdue";
+  } else {
+    status = "due";
+  }
+  const payDateRaw =
+    rent.paymentDate != null && String(rent.paymentDate).length > 0
+      ? String(rent.paymentDate)
+      : null;
+
+  return {
+    id: rent.id,
+    tenantName: pick?.label ?? "Tenant",
+    propertyName: pick?.propertyName ?? "—",
+    unit: pick?.unit ?? "—",
+    rentAmount: rent.totalAmount ?? rent.amount ?? 0,
+    dueDate: formatRentDueForLandlordTable(dueRaw === "—" ? "" : dueRaw),
+    lastPayment:
+      paid && payDateRaw
+        ? formatRentDueForLandlordTable(payDateRaw)
+        : paid
+          ? formatRentDueForLandlordTable(dueRaw === "—" ? "" : dueRaw)
+          : "—",
+    status,
+    balance:
+      status === "overdue"
+        ? rent.totalAmount ?? rent.amount ?? 0
+        : undefined,
+  };
+}
+
 const parsePaymentDate = (value: string): Date | null => {
   if (!value || value === "—") return null;
   try {
@@ -64,44 +223,31 @@ const parsePaymentDate = (value: string): Date | null => {
   return isValid(fallback) ? fallback : null;
 };
 
-const mapPaymentToRentRow = (payment: Payment): LandlordRentRow => {
-  const dueDateObj = parsePaymentDate(payment.dueDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  let status: LandlordRentStatus;
-  if (payment.paymentReceived === true) {
-    status = "paid";
-  } else if (!dueDateObj || payment.dueDate === "—") {
-    status = "due";
-  } else if (dueDateObj < today) {
-    status = "overdue";
-  } else {
-    status = "due";
+const formatTenantPaymentDueLabel = (value: string): string => {
+  if (!value || value === "—") return "—";
+  try {
+    const d = parseISO(value);
+    if (isValid(d)) return format(d, "dd MMM yyyy · h:mm a");
+  } catch {
+    /* ignore */
   }
-
-  return {
-    id: payment.id,
-    tenantName: payment.tenantName || "Tenant",
-    propertyName: payment.propertyName || "Property",
-    unit: payment.unit || "—",
-    rentAmount: payment.amount || 0,
-    dueDate: payment.dueDate || "—",
-    lastPayment: payment.paymentReceived ? payment.dueDate || "—" : "—",
-    status,
-    balance: status === "overdue" ? payment.amount : undefined,
-  };
+  const parsed = parsePaymentDate(value);
+  if (parsed) return format(parsed, "dd MMM yyyy · h:mm a");
+  return value;
 };
 
 // Tenant Payment History Component
 const TenantPaymentHistory = () => {
   const { user } = useUser();
   const router = useRouter();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [tenantPayments, setTenantPayments] = React.useState<TenantPaymentRow[]>(
-    [],
-  );
+  const [tenantPayments, setTenantPayments] = React.useState<
+    TenantPaymentRow[]
+  >([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [payingRentId, setPayingRentId] = React.useState<string | null>(null);
+  const paymentHistoryLoadGenRef = React.useRef(0);
 
   React.useEffect(() => {
     if (!user?.id || user.role !== "tenant") {
@@ -110,63 +256,72 @@ const TenantPaymentHistory = () => {
       return;
     }
 
-    let cancelled = false;
+    const gen = ++paymentHistoryLoadGenRef.current;
     setIsLoading(true);
 
-    Promise.all([getTenantByUser(String(user.id)), getRentPayments({ limit: 200 })])
-      .then(([tenantResult, paymentsResult]) => {
-        if (cancelled) return;
-        if (!tenantResult.success || !paymentsResult.success) {
+    const storedLeaseId =
+      typeof window !== "undefined" ? localStorage.getItem("leaseId") : null;
+
+    void (async () => {
+      try {
+        const tenantResult = await getTenantByUser(String(user.id));
+        if (gen !== paymentHistoryLoadGenRef.current) return;
+        if (!tenantResult.success) {
           setTenantPayments([]);
           return;
         }
 
-        const tenant = tenantResult.data;
-        const tenantName =
-          tenant.user?.fullName?.trim().toLowerCase() ||
-          tenant.user?.email?.split("@")[0]?.toLowerCase() ||
-          "";
-        const unitName = tenant.currentUnit?.name?.trim().toLowerCase() || "";
-        const tenantId = tenant.id;
+        const activeLeaseId = resolveTenantActiveLeaseId(
+          tenantResult.data.leases as
+            | Array<Record<string, unknown>>
+            | undefined,
+          storedLeaseId,
+        );
+        if (!activeLeaseId) {
+          setTenantPayments([]);
+          return;
+        }
+        if (typeof window !== "undefined") {
+          localStorage.setItem("leaseId", activeLeaseId);
+        }
 
-        const rows = paymentsResult.data
-          .filter((payment) => {
-            const byTenantName = tenantName
-              ? payment.tenantName.trim().toLowerCase() === tenantName
-              : false;
-            const byTenantId =
-              tenantId &&
-              (((payment as unknown as { tenantId?: string }).tenantId ?? "") ===
-                tenantId);
-            const byUnit = unitName
-              ? payment.unit.trim().toLowerCase().includes(unitName)
-              : false;
-            return byTenantName || byTenantId || byUnit;
-          })
-          .map((payment): TenantPaymentRow => ({
-            id: payment.id,
-            type: "Rent Payment",
-            date: payment.dueDate || "—",
-            method: payment.paymentReceived ? "Completed" : undefined,
-            confirmationNumber: payment.id,
-            amount: payment.amount || 0,
-            status: payment.paymentReceived ? "paid" : "pending",
-          }));
+        const rentsResult = await getRentsByLease(activeLeaseId);
+        if (gen !== paymentHistoryLoadGenRef.current) return;
+        if (!rentsResult.success) {
+          setTenantPayments([]);
+          return;
+        }
+        const rows = rentsResult.data.map(
+          (rent): TenantPaymentRow => ({
+            id: rent.id,
+            type: "Rent",
+            date: rent.dueDate || "—",
+            method:
+              (rent.status || "").toLowerCase() === "paid"
+                ? "Completed"
+                : undefined,
+            confirmationNumber: rent.id,
+            amount: rent.totalAmount ?? rent.amount ?? 0,
+            status:
+              (rent.status || "").toLowerCase() === "paid" ? "paid" : "pending",
+          }),
+        );
 
         setTenantPayments(rows);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      } catch (e) {
+        console.error("[TenantPaymentHistory] load failed:", e);
+        if (gen === paymentHistoryLoadGenRef.current) setTenantPayments([]);
+      } finally {
+        if (gen === paymentHistoryLoadGenRef.current) setIsLoading(false);
+      }
+    })();
   }, [user?.id, user?.role]);
 
   const summary = React.useMemo(() => {
     const paidPayments = tenantPayments.filter((p) => p.status === "paid");
-    const pendingPayments = tenantPayments.filter((p) => p.status === "pending");
+    const pendingPayments = tenantPayments.filter(
+      (p) => p.status === "pending",
+    );
     const totalPaid = paidPayments.reduce((sum, p) => sum + p.amount, 0);
     const averagePayment =
       paidPayments.length > 0 ? totalPaid / paidPayments.length : 0;
@@ -185,7 +340,9 @@ const TenantPaymentHistory = () => {
   const filteredPayments = tenantPayments.filter(
     (payment) =>
       payment.date.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (payment.method || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (payment.method || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
       payment.confirmationNumber
         .toLowerCase()
         .includes(searchQuery.toLowerCase()),
@@ -195,27 +352,68 @@ const TenantPaymentHistory = () => {
     return `₦${amount.toLocaleString()}`;
   };
 
+  const handlePayRentRow = React.useCallback(
+    async (rentId: string) => {
+      const idempotencyKey = generateRentPaymentIdempotencyKey();
+      const requestBody = { rentId };
+      console.log("[rent-payment] request", {
+        method: "POST",
+        path: "/rent-payment",
+        body: requestBody,
+        headers: { "Idempotency-Key": idempotencyKey },
+      });
+      setPayingRentId(rentId);
+      let result: Awaited<ReturnType<typeof createRentPayment>>;
+      try {
+        result = await createRentPayment(rentId, { idempotencyKey });
+      } catch (e) {
+        console.error("[rent-payment] request failed (network/throw)", e);
+        setPayingRentId(null);
+        showToast("Payment request failed", "error");
+        return;
+      }
+      setPayingRentId(null);
+      console.log("[rent-payment] response", result);
+      if (!result.success) {
+        showToast(result.error || "Failed to initialize rent payment", "error");
+        return;
+      }
+      const payload = result.data;
+      if (payload && typeof payload === "object") {
+        const root = payload as Record<string, unknown>;
+        const nested = root.data as Record<string, unknown> | undefined;
+        const url =
+          (typeof root.authorizationUrl === "string" &&
+            root.authorizationUrl) ||
+          (typeof root.checkoutUrl === "string" && root.checkoutUrl) ||
+          (nested &&
+            typeof nested.authorizationUrl === "string" &&
+            nested.authorizationUrl) ||
+          (nested &&
+            typeof nested.checkoutUrl === "string" &&
+            nested.checkoutUrl) ||
+          null;
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+      }
+      showToast("Payment initialized", "success");
+      router.push("/dashboard/rent/payment-success");
+    },
+    [router, showToast],
+  );
+
   return (
     <section className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-            Payment History
-          </h1>
-          <p className="mt-1 text-xs sm:text-sm text-gray-600">
-            View all your rent payment transactions
-          </p>
-        </div>
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => router.push("/dashboard/rent/pay")}
-          className="w-full lg:w-auto h-10 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2"
-        >
-          Pay Rent
-        </motion.button>
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+          Payment History
+        </h1>
+        <p className="mt-1 text-xs sm:text-sm text-gray-600">
+          View all your rent payment transactions
+        </p>
       </div>
 
       {/* Summary Cards */}
@@ -322,73 +520,93 @@ const TenantPaymentHistory = () => {
             Loading payment history...
           </div>
         ) : filteredPayments.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
-            No payment history yet.
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-600 space-y-2">
+            <p>No rent charges for your active lease yet.</p>
+            <p className="text-gray-500">
+              After your landlord creates rent, it appears here. Use{" "}
+              <span className="font-medium text-gray-700">Pay</span> on a
+              pending row to start checkout.
+            </p>
           </div>
         ) : (
           filteredPayments.map((payment, index) => (
-          <motion.div
-            key={payment.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, delay: index * 0.03 }}
-            className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div
-                className={`flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full flex-shrink-0 ${
-                  payment.status === "paid" ? "bg-green-100" : "bg-yellow-100"
-                }`}
-              >
-                {payment.status === "paid" ? (
-                  <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
-                ) : (
-                  <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
+            <motion.div
+              key={payment.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: index * 0.03 }}
+              className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div
+                  className={`flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full flex-shrink-0 ${
+                    payment.status === "paid" ? "bg-green-100" : "bg-yellow-100"
+                  }`}
+                >
+                  {payment.status === "paid" ? (
+                    <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm sm:text-base font-medium text-gray-900">
+                      {payment.type}
+                    </p>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        payment.status === "paid"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {payment.status === "paid" ? "Paid" : "Pending"}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-600">
+                    <span
+                      className="tabular-nums"
+                      title={payment.date !== "—" ? payment.date : undefined}
+                    >
+                      Due {formatTenantPaymentDueLabel(payment.date)}
+                    </span>
+                    {payment.method && (
+                      <>
+                        <span>•</span>
+                        <span>{payment.method}</span>
+                      </>
+                    )}
+                    <span>•</span>
+                    <span>{payment.confirmationNumber}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 flex-shrink-0">
+                <span className="text-sm sm:text-base font-semibold text-gray-900">
+                  {formatCurrency(payment.amount)}
+                </span>
+                {payment.status !== "paid" && (
+                  <button
+                    type="button"
+                    onClick={() => void handlePayRentRow(payment.id)}
+                    disabled={payingRentId !== null}
+                    className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {payingRentId === payment.id ? "Processing…" : "Pay"}
+                  </button>
+                )}
+                {payment.status === "paid" && (
+                  <button
+                    type="button"
+                    className="p-2 text-gray-400 hover:text-gray-600 transition"
+                    title="Download receipt"
+                  >
+                    <Download className="h-5 w-5" />
+                  </button>
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm sm:text-base font-medium text-gray-900">
-                    {payment.type}
-                  </p>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                      payment.status === "paid"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {payment.status === "paid" ? "Paid" : "Pending"}
-                  </span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-600">
-                  <span>{payment.date}</span>
-                  {payment.method && (
-                    <>
-                      <span>•</span>
-                      <span>{payment.method}</span>
-                    </>
-                  )}
-                  <span>•</span>
-                  <span>{payment.confirmationNumber}</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <span className="text-sm sm:text-base font-semibold text-gray-900">
-                {formatCurrency(payment.amount)}
-              </span>
-              {payment.status === "paid" && (
-                <button
-                  type="button"
-                  className="p-2 text-gray-400 hover:text-gray-600 transition"
-                  title="Download receipt"
-                >
-                  <Download className="h-5 w-5" />
-                </button>
-              )}
-            </div>
-          </motion.div>
+            </motion.div>
           ))
         )}
       </div>
@@ -398,27 +616,190 @@ const TenantPaymentHistory = () => {
 
 // Landlord/Manager Rent Page (existing)
 const LandlordRentPage = () => {
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedPeriod, setSelectedPeriod] = React.useState("all");
   const [rows, setRows] = React.useState<LandlordRentRow[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [tenantOptions, setTenantOptions] = React.useState<TenantOption[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = React.useState("");
+  const [isCreatingRent, setIsCreatingRent] = React.useState(false);
+  const [landlordRefreshKey, setLandlordRefreshKey] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
-    getRentPayments({ limit: 200 }).then((result) => {
+    const BATCH = 12;
+
+    void (async () => {
+      const [tenantListResult, rentsResult] = await Promise.all([
+        getTenantList({ page: 1, limit: 200 }),
+        getAggregatedRents(),
+      ]);
       if (cancelled) return;
-      if (result.success) {
-        setRows(result.data.map(mapPaymentToRentRow));
-      } else {
+
+      const allRents = rentsResult.success ? rentsResult.data : [];
+
+      if (!tenantListResult.success) {
         setRows([]);
+        setTenantOptions([]);
+        setIsLoading(false);
+        return;
       }
-      setIsLoading(false);
-    });
+
+      const picks: LandlordTenantPick[] = [];
+      const needDetail: TenantRecordDTO[] = [];
+      const seenPickIds = new Set<string>();
+
+      for (const t of tenantListResult.data) {
+        const rec = t as unknown as Record<string, unknown>;
+        const id = String(rec.id ?? "");
+        const leases = rec.leases;
+
+        if (Array.isArray(leases) && leases.length > 0) {
+          if (
+            !leases.some((l) =>
+              isLeaseActiveFlag(l as Record<string, unknown>),
+            )
+          ) {
+            continue;
+          }
+          const quick = landlordPickFromListRecord(rec, id);
+          if (quick) {
+            if (!seenPickIds.has(quick.id)) {
+              seenPickIds.add(quick.id);
+              picks.push(quick);
+            }
+          } else {
+            needDetail.push(t);
+          }
+        } else {
+          needDetail.push(t);
+        }
+      }
+
+      for (let i = 0; i < needDetail.length; i += BATCH) {
+        if (cancelled) return;
+        const chunk = needDetail.slice(i, i + BATCH);
+        const details = await Promise.all(
+          chunk.map((row) =>
+            getTenant(String((row as unknown as Record<string, unknown>).id)),
+          ),
+        );
+        for (let j = 0; j < chunk.length; j++) {
+          const detail = details[j];
+          if (!detail.success) continue;
+          const tr = detail.data as unknown as Record<string, unknown>;
+          const tid = String(tr.id ?? "");
+          const pick = tenantDetailToLandlordPick(tr, tid);
+          if (pick && !seenPickIds.has(pick.id)) {
+            seenPickIds.add(pick.id);
+            picks.push(pick);
+          }
+        }
+      }
+
+      const leaseIdsManaged = new Set(picks.map((p) => p.activeLeaseId));
+      const leaseIdToPick = new Map(
+        picks.map((p) => [p.activeLeaseId, p] as const),
+      );
+
+      const tableRows = allRents
+        .filter((r) => leaseIdsManaged.has(r.leaseId))
+        .map((r) =>
+          mapRentItemToLandlordRow(r, leaseIdToPick.get(r.leaseId)),
+        );
+
+      const forDropdown = picks.filter(
+        (p) => !leaseHasUnpaidRent(allRents, p.activeLeaseId),
+      );
+
+      forDropdown.sort((a, b) => a.label.localeCompare(b.label));
+      tableRows.sort((a, b) => {
+        const da = parsePaymentDate(a.dueDate)?.getTime() ?? 0;
+        const db = parsePaymentDate(b.dueDate)?.getTime() ?? 0;
+        return db - da;
+      });
+
+      if (!cancelled) {
+        setRows(tableRows);
+        setTenantOptions(
+          forDropdown.map((p) => ({ id: p.id, label: p.label })),
+        );
+        setIsLoading(false);
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [landlordRefreshKey]);
+
+  React.useEffect(() => {
+    if (
+      selectedTenantId &&
+      !tenantOptions.some((o) => o.id === selectedTenantId)
+    ) {
+      setSelectedTenantId("");
+    }
+  }, [tenantOptions, selectedTenantId]);
+
+  const handleCreateRent = React.useCallback(async () => {
+    if (!selectedTenantId) {
+      showToast("Select a tenant", "error");
+      return;
+    }
+    setIsCreatingRent(true);
+    const tenantResult = await getTenant(selectedTenantId);
+    if (!tenantResult.success) {
+      showToast(tenantResult.error || "Failed to fetch tenant", "error");
+      setIsCreatingRent(false);
+      return;
+    }
+    const tenant = tenantResult.data as unknown as Record<string, unknown>;
+    const leases = Array.isArray(tenant.leases)
+      ? (tenant.leases as Array<Record<string, unknown>>)
+      : [];
+    const activeLease =
+      leases.find((l) => isLeaseActiveFlag(l)) ??
+      leases.find((l) => typeof l.id === "string") ??
+      null;
+    if (!activeLease) {
+      showToast("Tenant has no active lease", "error");
+      setIsCreatingRent(false);
+      return;
+    }
+
+    const dueDate = addDays(new Date(), 7);
+    const payload = {
+      leaseId: String(activeLease.id),
+      startDate: String(activeLease.startDate ?? ""),
+      endDate: String(activeLease.endDate ?? ""),
+      dueDate: dueDate.toISOString(),
+      amount: Number(activeLease.rentAmount ?? 0),
+    };
+    if (
+      !payload.leaseId ||
+      !payload.startDate ||
+      !payload.endDate ||
+      !payload.amount
+    ) {
+      showToast("Active lease is missing required rent fields", "error");
+      setIsCreatingRent(false);
+      return;
+    }
+
+    const createResult = await createRent(payload);
+    if (!createResult.success) {
+      showToast(createResult.error || "Failed to create rent", "error");
+      setIsCreatingRent(false);
+      return;
+    }
+    showToast("Rent created successfully", "success");
+    setIsCreatingRent(false);
+    setSelectedTenantId("");
+    setLandlordRefreshKey((k) => k + 1);
+  }, [selectedTenantId, showToast]);
 
   const availableYears = React.useMemo(() => {
     const years = new Set<string>();
@@ -520,6 +901,73 @@ const LandlordRentPage = () => {
           <span className="hidden lg:inline">Export Data</span>
           <span className="lg:hidden">Export</span>
         </motion.button>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 bg-gray-50/80 px-5 py-4 sm:px-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-main/10 text-brand-main">
+              <UserRound className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-semibold text-gray-900">
+                Create rent
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Bill a tenant using their active rent/lease. Amount and period
+                come from the lease; no extra fields required. Tenants with an
+                active lease and{" "}
+                <span className="font-medium text-gray-800">
+                  no unpaid rent charge yet
+                </span>{" "}
+                appear in the list.
+              </p>
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">
+                <CalendarClock className="h-3.5 w-3.5 text-brand-main" />
+                Due date:{" "}
+                <span className="text-gray-900">
+                  {format(addDays(new Date(), 7), "dd MMM yyyy")}{" "}
+                </span>
+                <span className="font-normal text-gray-500">
+                  (one week from today)
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="create-rent-tenant"
+                className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500"
+              >
+                Tenant
+              </label>
+              <select
+                id="create-rent-tenant"
+                value={selectedTenantId}
+                onChange={(e) => setSelectedTenantId(e.target.value)}
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm transition focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main/20"
+              >
+                <option value="">Choose a tenant…</option>
+                {tenantOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={handleCreateRent}
+              disabled={isCreatingRent || tenantOptions.length === 0}
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg bg-brand-main px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-main/90 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[160px]"
+            >
+              {isCreatingRent ? "Creating…" : "Create rent"}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}

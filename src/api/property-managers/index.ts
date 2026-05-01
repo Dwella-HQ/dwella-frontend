@@ -1,6 +1,7 @@
 export { getPropertyManagers } from "./getPropertyManagers";
 export { getPropertyManager } from "./getPropertyManager";
 export { getPropertyManagersByLandlord } from "./getPropertyManagersByLandlord";
+export { getPropertyManagersByProperty } from "./getPropertyManagersByProperty";
 export { getPropertyManagerByUser } from "./getPropertyManagerByUser";
 export {
   createPropertyManager,

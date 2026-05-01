@@ -52,7 +52,10 @@ import {
 } from "@/data/mockPropertyDetails";
 import { getRentPayments } from "@/api/rent-payment";
 import { getProperty } from "@/api/properties";
-import { getPropertyManagersByLandlord } from "@/api/property-managers";
+import {
+  getPropertyManagersByLandlord,
+  getPropertyManagersByProperty,
+} from "@/api/property-managers";
 import type { PropertyManagerDTO } from "@/api/property-managers";
 import { getMaintenanceRequests } from "@/api/maintenance";
 import { mapPropertyDTOToProperty } from "@/api/properties/mapProperty";
@@ -145,6 +148,17 @@ function findManagerNameForProperty(
   return null;
 }
 
+function pickAssignedManagerNameFromPropertyManagers(
+  managers: PropertyManagerDTO[],
+): string | null {
+  const withName = managers
+    .map((m) => ({ m, name: pickPropertyManagerRecordName(m as any) }))
+    .filter((row) => Boolean(row.name));
+  if (withName.length === 0) return null;
+  const active = withName.find((row) => row.m.isActive === true);
+  return (active?.name ?? withName[0]?.name ?? null) || null;
+}
+
 const PropertyDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { user } = useUser();
@@ -177,6 +191,10 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   const [overviewRentPayments, setOverviewRentPayments] = React.useState<
     Payment[]
   >([]);
+  const [
+    managerNameFromPropertyManagersEndpoint,
+    setManagerNameFromPropertyManagersEndpoint,
+  ] = React.useState<string | null>(null);
   const [managerNameFromLandlordList, setManagerNameFromLandlordList] =
     React.useState<string | null>(null);
 
@@ -205,7 +223,24 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   }, [fetchProperty]);
 
   React.useEffect(() => {
+    setManagerNameFromPropertyManagersEndpoint(null);
     setManagerNameFromLandlordList(null);
+  }, [id]);
+
+  // Strong fallback: use GET /property-manager/property/:propertyId and pick active manager.
+  React.useEffect(() => {
+    if (!id || typeof id !== "string") return;
+    let cancelled = false;
+    void getPropertyManagersByProperty(id).then((result) => {
+      if (cancelled || !result.success) return;
+      const found = pickAssignedManagerNameFromPropertyManagers(result.data);
+      if (found) {
+        setManagerNameFromPropertyManagersEndpoint(found);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   // When GET /property omits nested manager objects, resolve via landlord managers list.
@@ -573,6 +608,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         )
       : null
     )?.name as string | undefined) ||
+    managerNameFromPropertyManagersEndpoint ||
     managerNameFromLandlordList ||
     (user?.role === "property_manager" ? user.name : undefined) ||
     "Not assigned";

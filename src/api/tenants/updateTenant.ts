@@ -1,15 +1,19 @@
 import { apiPatch } from "@/lib/apiClient";
 
-import type { UpdateTenantRequestDTO, TenantResponseDTO, TenantDTO } from "./tenants.schema";
+import type {
+  UpdateTenantRequestDTO,
+  TenantResponseDTO,
+  TenantRecordDTO,
+} from "./tenants.schema";
 import { tenantResponseSchema } from "./tenants.schema";
 
-type UpdateTenantResult = 
-  | { success: true; data: TenantDTO }
+type UpdateTenantResult =
+  | { success: true; data: TenantRecordDTO }
   | { success: false; error: string };
 
 export const updateTenant = async (
   id: string | number,
-  data: UpdateTenantRequestDTO
+  data: UpdateTenantRequestDTO,
 ): Promise<UpdateTenantResult> => {
   const result = await apiPatch<TenantResponseDTO>(`/user/${id}`, data);
 
@@ -21,7 +25,7 @@ export const updateTenant = async (
   try {
     const parsed = tenantResponseSchema.parse(result.data);
     // Handle both direct tenant object and object with data property
-    const tenant = parsed.data || (parsed as unknown as TenantDTO);
+    const tenant = parsed.data ?? (parsed as unknown as TenantRecordDTO);
     return { success: true, data: tenant };
   } catch (parseError) {
     console.error("Update tenant schema validation error:", parseError);
@@ -31,8 +35,3 @@ export const updateTenant = async (
     };
   }
 };
-
-
-
-
-

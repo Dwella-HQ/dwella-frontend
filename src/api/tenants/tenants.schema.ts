@@ -12,9 +12,11 @@ export const createTenantRequestSchema = z.object({
 export type CreateTenantRequestDTO = z.infer<typeof createTenantRequestSchema>;
 
 // Update Tenant Request
-export const updateTenantRequestSchema = createTenantRequestSchema.partial().extend({
-  roleName: z.literal("tenant").optional(),
-});
+export const updateTenantRequestSchema = createTenantRequestSchema
+  .partial()
+  .extend({
+    roleName: z.literal("tenant").optional(),
+  });
 
 export type UpdateTenantRequestDTO = z.infer<typeof updateTenantRequestSchema>;
 
@@ -38,12 +40,14 @@ export type TenantDTO = z.infer<typeof tenantSchema>;
 // Tenants Response (list)
 export const tenantsResponseSchema = z.object({
   success: z.boolean().optional(),
-  data: z.array(tenantSchema).or(z.object({
-    users: z.array(tenantSchema),
-    total: z.number().optional(),
-    page: z.number().optional(),
-    limit: z.number().optional(),
-  })),
+  data: z.array(tenantSchema).or(
+    z.object({
+      users: z.array(tenantSchema),
+      total: z.number().optional(),
+      page: z.number().optional(),
+      limit: z.number().optional(),
+    }),
+  ),
   message: z.string().optional(),
 });
 
@@ -58,16 +62,11 @@ export const tenantRecordSchema = z
 
 export type TenantRecordDTO = z.infer<typeof tenantRecordSchema>;
 
-// Single Tenant Response
+// Single Tenant Response — `data` must allow full API shape (leases, user, currentUnit, etc.)
 export const tenantResponseSchema = z.object({
   success: z.boolean().optional(),
-  data: tenantSchema,
+  data: tenantRecordSchema,
   message: z.string().optional(),
 });
 
 export type TenantResponseDTO = z.infer<typeof tenantResponseSchema>;
-
-
-
-
-

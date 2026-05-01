@@ -8,6 +8,7 @@ import { useUser, type UserRole } from "@/contexts/UserContext";
 import { login } from "@/api/auth";
 import { getLandlordByUser } from "@/api/landlord";
 import { getTenantByUser } from "@/api/tenants";
+import { resolveTenantActiveLeaseId } from "@/api/rent";
 import { ensureLandlordWallet } from "@/api/wallet";
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
 
@@ -45,6 +46,7 @@ const LoginPage: NextPageWithLayout = () => {
       "userId",
       "landlordId",
       "tenantId",
+      "leaseId",
       "selectedLandlord",
       "selectedLandlordId",
       "lastCreatedPropertyId",
@@ -126,6 +128,7 @@ const LoginPage: NextPageWithLayout = () => {
         // Defensive: ensure role-specific stale identifiers are reset.
         localStorage.removeItem("tenantId");
         localStorage.removeItem("landlordId");
+        localStorage.removeItem("leaseId");
       }
 
       if (role === "property_manager") {
@@ -170,12 +173,23 @@ const LoginPage: NextPageWithLayout = () => {
 
       if (role === "tenant") {
         const tenantResult = await getTenantByUser(apiUser.id);
-        if (
-          tenantResult.success &&
-          tenantResult.data?.id &&
-          typeof window !== "undefined"
-        ) {
-          localStorage.setItem("tenantId", tenantResult.data.id);
+        if (typeof window !== "undefined") {
+          if (tenantResult.success && tenantResult.data?.id) {
+            localStorage.setItem("tenantId", tenantResult.data.id);
+            const activeLeaseId = resolveTenantActiveLeaseId(
+              tenantResult.data.leases as
+                | Array<Record<string, unknown>>
+                | undefined,
+              null,
+            );
+            if (activeLeaseId) {
+              localStorage.setItem("leaseId", activeLeaseId);
+            } else {
+              localStorage.removeItem("leaseId");
+            }
+          } else {
+            localStorage.removeItem("leaseId");
+          }
         }
       }
 
@@ -233,11 +247,7 @@ const LoginPage: NextPageWithLayout = () => {
       <Head>
         <title>DWELLA NG · Sign in</title>
       </Head>
-      <LoginForm
-        onSubmit={handleLogin}
-        error={error}
-        isLoading={isLoading}
-      />
+      <LoginForm onSubmit={handleLogin} error={error} isLoading={isLoading} />
     </>
   );
 };

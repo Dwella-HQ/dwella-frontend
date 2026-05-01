@@ -18,7 +18,9 @@ import {
   updateMaintenanceRequestStatus,
 } from "@/api/maintenance";
 import type { MaintenanceRequestItemDTO } from "@/api/maintenance";
+import { getTenantByUser } from "@/api/tenants";
 import { useUser } from "@/contexts/UserContext";
+import { maintenanceRequestOwnedByTenant } from "@/utils/maintenanceTenantAccess";
 import { EditMaintenanceRequestModal } from "@/components/EditMaintenanceRequestModal";
 import type { NextPageWithLayout } from "../../_app";
 
@@ -106,15 +108,53 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isMarkingResolved, setIsMarkingResolved] = React.useState(false);
+  const [tenantGate, setTenantGate] = React.useState<{
+    loading: boolean;
+    error: boolean;
+    tenantId: string | null;
+  }>({ loading: false, error: false, tenantId: null });
 
   const isTenant = user?.role === "tenant";
   const isLandlordOrManager =
     user?.role === "landlord" || user?.role === "property_manager";
-  const canEdit = isTenant;
+
+  React.useEffect(() => {
+    if (!user?.id || user.role !== "tenant") {
+      setTenantGate({ loading: false, error: false, tenantId: null });
+      return;
+    }
+    let cancelled = false;
+    setTenantGate({ loading: true, error: false, tenantId: null });
+    void getTenantByUser(String(user.id)).then((r) => {
+      if (cancelled) return;
+      if (r.success && r.data?.id) {
+        setTenantGate({ loading: false, error: false, tenantId: r.data.id });
+      } else {
+        setTenantGate({ loading: false, error: true, tenantId: null });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
+
+  const tenantAllowedToViewRequest = React.useMemo(() => {
+    if (!isTenant || !request) return true;
+    if (tenantGate.error || !tenantGate.tenantId) return false;
+    return maintenanceRequestOwnedByTenant(
+      request,
+      tenantGate.tenantId,
+      user?.id != null ? String(user.id) : undefined,
+    );
+  }, [isTenant, request, tenantGate.error, tenantGate.tenantId, user?.id]);
+
+  const canEdit = isTenant && tenantAllowedToViewRequest;
   const showMarkResolved =
     isLandlordOrManager &&
     request &&
     normalizeStatus(request.status) !== "Resolved";
+
+  const pageLoading = loading || (isTenant && tenantGate.loading);
 
   React.useEffect(() => {
     if (!id) return;
@@ -144,7 +184,7 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
   );
 
   const handleDeleteConfirm = React.useCallback(async () => {
-    if (!id) return;
+    if (!id || !canEdit) return;
     setIsDeleting(true);
     const result = await deleteMaintenanceRequest(id);
     setIsDeleting(false);
@@ -152,7 +192,7 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
     if (result.success) {
       router.push("/dashboard/maintenance");
     }
-  }, [id, router]);
+  }, [id, router, canEdit]);
 
   const handleMarkResolved = React.useCallback(async () => {
     if (!id || !request) return;
@@ -202,13 +242,13 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
           </Link>
         </div>
 
-        {loading && (
+        {pageLoading && (
           <div className="flex items-center justify-center py-16">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
           </div>
         )}
 
-        {error && (
+        {!pageLoading && error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
             <div>
@@ -220,7 +260,50 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
           </div>
         )}
 
-        {!loading && !error && request && (
+        {!pageLoading &&
+          !error &&
+          isTenant &&
+          tenantGate.error && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-900">
+                  Could not verify your account
+                </p>
+                <p className="text-sm text-amber-800 mt-1">
+                  Refresh the page or sign in again to view maintenance requests.
+                </p>
+              </div>
+            </div>
+          )}
+
+        {!pageLoading &&
+          !error &&
+          isTenant &&
+          !tenantGate.error &&
+          request &&
+          !tenantAllowedToViewRequest && (
+            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-medium text-gray-900">
+                You don&apos;t have access to this maintenance request
+              </p>
+              <p className="text-sm text-gray-600 mt-1">
+                You can only open requests submitted under your tenant account.
+              </p>
+              <Link
+                href="/dashboard/maintenance"
+                className="inline-flex mt-4 text-sm font-medium text-brand-main hover:underline"
+              >
+                Back to Maintenance
+              </Link>
+            </div>
+          )}
+
+        {!pageLoading &&
+          !error &&
+          request &&
+          (!isTenant ||
+            (!tenantGate.error && tenantAllowedToViewRequest)) && (
           <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="border-b border-gray-200 px-4 py-4 sm:px-6 sm:flex sm:items-center sm:justify-between">
               <div>
@@ -267,7 +350,13 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
                     <button
                       type="button"
                       onClick={() => setIsEditOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      disabled={status === "Resolved"}
+                      title={
+                        status === "Resolved"
+                          ? "Resolved requests cannot be edited"
+                          : undefined
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Pencil className="h-4 w-4" />
                       Edit
@@ -394,7 +483,7 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
         )}
       </section>
 
-      {request && canEdit && (
+      {request && canEdit && status !== "Resolved" && (
         <EditMaintenanceRequestModal
           isOpen={isEditOpen}
           onClose={() => setIsEditOpen(false)}

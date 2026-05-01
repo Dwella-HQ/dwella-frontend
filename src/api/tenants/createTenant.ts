@@ -1,14 +1,18 @@
 import { apiPost } from "@/lib/apiClient";
 
-import type { CreateTenantRequestDTO, TenantResponseDTO, TenantDTO } from "./tenants.schema";
+import type {
+  CreateTenantRequestDTO,
+  TenantResponseDTO,
+  TenantRecordDTO,
+} from "./tenants.schema";
 import { tenantResponseSchema } from "./tenants.schema";
 
-type CreateTenantResult = 
-  | { success: true; data: TenantDTO }
+type CreateTenantResult =
+  | { success: true; data: TenantRecordDTO }
   | { success: false; error: string };
 
 export const createTenant = async (
-  data: CreateTenantRequestDTO
+  data: CreateTenantRequestDTO,
 ): Promise<CreateTenantResult> => {
   const result = await apiPost<TenantResponseDTO>("/user", {
     ...data,
@@ -23,7 +27,7 @@ export const createTenant = async (
   try {
     const parsed = tenantResponseSchema.parse(result.data);
     // Handle both direct tenant object and object with data property
-    const tenant = parsed.data || (parsed as unknown as TenantDTO);
+    const tenant = parsed.data ?? (parsed as unknown as TenantRecordDTO);
     return { success: true, data: tenant };
   } catch (parseError) {
     console.error("Create tenant schema validation error:", parseError);
@@ -33,8 +37,3 @@ export const createTenant = async (
     };
   }
 };
-
-
-
-
-

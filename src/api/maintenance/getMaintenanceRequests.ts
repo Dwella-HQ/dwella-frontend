@@ -11,6 +11,8 @@ export type GetMaintenanceRequestsParams = {
   page?: number;
   cursor?: string;
   limit?: number;
+  /** If the API supports it, scopes results server-side */
+  tenantId?: string;
 };
 
 type GetMaintenanceRequestsResult =
@@ -63,6 +65,7 @@ function mapItemToWithDetails(
     propertyName: item.propertyName ?? item.property_name ?? "",
     unit: unitLabel || "",
     tenantName: item.tenantName ?? item.tenant_name ?? "",
+    tenantId: item.tenantId ?? item.tenant_id ?? undefined,
     type: typeRaw ? formatLabel(typeRaw) : "",
     subType: subTypeRaw ? formatLabel(subTypeRaw) : "",
     priority: normalizePriority(item.priority),

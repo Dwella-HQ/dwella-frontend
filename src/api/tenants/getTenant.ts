@@ -1,10 +1,10 @@
 import { apiGet } from "@/lib/apiClient";
 
-import type { TenantResponseDTO, TenantDTO } from "./tenants.schema";
+import type { TenantResponseDTO, TenantRecordDTO } from "./tenants.schema";
 import { tenantResponseSchema } from "./tenants.schema";
 
 type GetTenantResult =
-  | { success: true; data: TenantDTO }
+  | { success: true; data: TenantRecordDTO }
   | { success: false; error: string };
 
 export const getTenant = async (
@@ -19,8 +19,7 @@ export const getTenant = async (
   // Validate response with Zod
   try {
     const parsed = tenantResponseSchema.parse(result.data);
-    // Handle both direct tenant object and object with data property
-    const tenant = parsed.data || (parsed as unknown as TenantDTO);
+    const tenant = parsed.data ?? (parsed as unknown as TenantRecordDTO);
     return { success: true, data: tenant };
   } catch (parseError) {
     console.error("Get tenant schema validation error:", parseError);

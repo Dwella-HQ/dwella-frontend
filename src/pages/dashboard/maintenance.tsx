@@ -53,22 +53,35 @@ const TenantMaintenancePage = () => {
     });
   }, [user?.id, user?.role]);
 
-  // Always keep history count in sync, even before history tab is opened
   React.useEffect(() => {
+    if (user?.role !== "tenant") return;
+    if (tenantLoading) return;
+    const tid = tenantDetails?.id;
+    if (!tid) {
+      setHistoryCount(0);
+      return;
+    }
     let cancelled = false;
-    getMaintenanceRequests({ limit: 100 }).then((result) => {
-      if (cancelled) return;
-      if (result.success) {
-        setHistoryCount(result.data.length);
-      }
-    });
+    void getMaintenanceRequests({ limit: 200, tenantId: tid }).then(
+      (result) => {
+        if (cancelled) return;
+        if (result.success) {
+          setHistoryCount(
+            result.data.filter((r) => r.tenantId === tid).length,
+          );
+        } else {
+          setHistoryCount(0);
+        }
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.role, tenantLoading, tenantDetails?.id]);
 
-  const tenantId =
+  const fallbackTenantId =
     typeof window !== "undefined" ? localStorage.getItem("tenantId") : null;
+  const tenantId = tenantDetails?.id ?? fallbackTenantId;
   const unitId = tenantDetails?.currentUnit?.id ?? null;
 
   return (
@@ -121,7 +134,11 @@ const TenantMaintenancePage = () => {
           onHistoryCountChange={setHistoryCount}
         />
       ) : (
-        <TenantRequestHistory onCountChange={setHistoryCount} />
+        <TenantRequestHistory
+          tenantRecordId={tenantDetails?.id ?? null}
+          tenantProfileLoading={tenantLoading}
+          onCountChange={setHistoryCount}
+        />
       )}
     </section>
   );
@@ -534,55 +551,51 @@ const TenantNewRequestForm = ({
 const PAGE_SIZE = 20;
 
 const TenantRequestHistory = ({
+  tenantRecordId,
+  tenantProfileLoading,
   onCountChange,
 }: {
+  tenantRecordId: string | null;
+  tenantProfileLoading: boolean;
   onCountChange?: (n: number) => void;
 }) => {
   const [requests, setRequests] = React.useState<
     MaintenanceRequestWithDetails[]
   >([]);
   const [loading, setLoading] = React.useState(true);
-  const [page, setPage] = React.useState(1);
-  const [hasMore, setHasMore] = React.useState(true);
-  const [loadingMore, setLoadingMore] = React.useState(false);
 
   React.useEffect(() => {
+    if (tenantProfileLoading) {
+      return;
+    }
+    if (!tenantRecordId) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
-    setPage(1);
-    setHasMore(true);
-    getMaintenanceRequests({ page: 1, limit: PAGE_SIZE }).then((result) => {
-      if (cancelled) return;
-      if (result.success) {
-        setRequests(result.data);
-        setHasMore(result.data.length >= PAGE_SIZE);
-      }
-      setLoading(false);
-    });
+    getMaintenanceRequests({ limit: 200, tenantId: tenantRecordId }).then(
+      (result) => {
+        if (cancelled) return;
+        if (result.success) {
+          setRequests(
+            result.data.filter((r) => r.tenantId === tenantRecordId),
+          );
+        } else {
+          setRequests([]);
+        }
+        setLoading(false);
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [onCountChange]);
+  }, [tenantRecordId, tenantProfileLoading]);
 
   React.useEffect(() => {
     onCountChange?.(requests.length);
   }, [requests.length, onCountChange]);
-
-  const loadMore = async () => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    const nextPage = page + 1;
-    const result = await getMaintenanceRequests({
-      page: nextPage,
-      limit: PAGE_SIZE,
-    });
-    setLoadingMore(false);
-    if (result.success) {
-      setRequests((prev) => [...prev, ...result.data]);
-      setHasMore(result.data.length >= PAGE_SIZE);
-      setPage(nextPage);
-    }
-  };
 
   const getPriorityBadge = (
     priority: MaintenanceRequestWithDetails["priority"],
@@ -688,18 +701,6 @@ const TenantRequestHistory = ({
           </Link>
         </motion.div>
       ))}
-      {hasMore && (
-        <div className="flex justify-center pt-4">
-          <button
-            type="button"
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-          >
-            {loadingMore ? "Loading…" : "Load more"}
-          </button>
-        </div>
-      )}
     </div>
   );
 };

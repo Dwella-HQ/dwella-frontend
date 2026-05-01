@@ -2,25 +2,205 @@ import Head from "next/head";
 import * as React from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
+import { format, isValid, parseISO } from "date-fns";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { ArrowLeft, Building2, Wallet, Shield } from "lucide-react";
-import { mockTenantRentalInfo } from "@/data/mockTenantData";
+import { ArrowLeft, Wallet, Shield } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
+import { getTenantByUser } from "@/api/tenants";
+import { getRentsByLease, resolveTenantActiveLeaseId } from "@/api/rent";
+import { createRentPayment } from "@/api/rent-payment";
+import { getProperty } from "@/api/properties";
+import { useToast } from "@/components/Toast";
 import type { NextPageWithLayout } from "../../_app";
+
+function formatDueDateLabel(value: string): string {
+  if (!value || value === "—") return "—";
+  try {
+    const d = parseISO(value);
+    return isValid(d) ? format(d, "dd MMM yyyy") : value;
+  } catch {
+    return value;
+  }
+}
+
+function landlordDisplayFromProperty(
+  property: Record<string, unknown> | null,
+): string {
+  if (!property) return "Landlord";
+  const landlordRecord = property.landlord as
+    | Record<string, unknown>
+    | undefined;
+  const landlordUser = landlordRecord?.user as
+    | Record<string, unknown>
+    | undefined;
+  const fullName =
+    typeof landlordUser?.fullName === "string" ? landlordUser.fullName : "";
+  const businessName =
+    typeof landlordRecord?.businessName === "string"
+      ? landlordRecord.businessName
+      : "";
+  const landLordName =
+    typeof landlordRecord?.landLordName === "string"
+      ? landlordRecord.landLordName
+      : "";
+  return (
+    fullName.trim() || businessName.trim() || landLordName.trim() || "Landlord"
+  );
+}
 
 const PayRentPage: NextPageWithLayout = () => {
   const router = useRouter();
+  const { user } = useUser();
+  const { showToast } = useToast();
   const [paymentMethod, setPaymentMethod] = React.useState<
     "bank" | "card" | "mobile"
   >("bank");
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [amountDue, setAmountDue] = React.useState(0);
+  const [dueDate, setDueDate] = React.useState("—");
+  const [propertyName, setPropertyName] = React.useState("—");
+  const [unitName, setUnitName] = React.useState("—");
+  const [landlordName, setLandlordName] = React.useState("—");
+  const [selectedRentId, setSelectedRentId] = React.useState<string | null>(
+    null,
+  );
+  const [rentLoadState, setRentLoadState] = React.useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [rentLoadMessage, setRentLoadMessage] = React.useState<string | null>(
+    null,
+  );
+  const payPageLoadGenRef = React.useRef(0);
+
+  React.useEffect(() => {
+    if (!router.isReady || !user?.id || user.role !== "tenant") return;
+
+    const gen = ++payPageLoadGenRef.current;
+    setRentLoadState("loading");
+    setRentLoadMessage(null);
+
+    const rentIdFromQuery =
+      typeof router.query.rentId === "string" ? router.query.rentId : undefined;
+    const storedLeaseId =
+      typeof window !== "undefined" ? localStorage.getItem("leaseId") : null;
+
+    void (async () => {
+      try {
+        const tenantResult = await getTenantByUser(String(user.id));
+        if (gen !== payPageLoadGenRef.current) return;
+        if (!tenantResult.success) {
+          setRentLoadState("error");
+          setRentLoadMessage(
+            tenantResult.error || "Could not load tenant profile",
+          );
+          return;
+        }
+
+        const leaseId = resolveTenantActiveLeaseId(
+          tenantResult.data.leases as
+            | Array<Record<string, unknown>>
+            | undefined,
+          storedLeaseId,
+        );
+        if (!leaseId) {
+          setRentLoadState("error");
+          setRentLoadMessage(
+            "No active rent/lease found. Contact your landlord.",
+          );
+          return;
+        }
+        if (typeof window !== "undefined")
+          localStorage.setItem("leaseId", leaseId);
+
+        const propertyId = tenantResult.data.currentUnit?.property?.id;
+        let propertyRecord: Record<string, unknown> | null = null;
+        if (propertyId) {
+          const propertyResult = await getProperty(String(propertyId));
+          if (gen === payPageLoadGenRef.current && propertyResult.success) {
+            propertyRecord = propertyResult.data as Record<string, unknown>;
+          }
+        }
+
+        const rentsResult = await getRentsByLease(leaseId);
+        if (gen !== payPageLoadGenRef.current) return;
+        if (!rentsResult.success || rentsResult.data.length === 0) {
+          setRentLoadState("error");
+          setRentLoadMessage(
+            !rentsResult.success
+              ? rentsResult.error || "Could not load rent records"
+              : "No rent records yet for this lease.",
+          );
+          return;
+        }
+        const byQuery = rentIdFromQuery
+          ? rentsResult.data.find((r) => r.id === rentIdFromQuery)
+          : undefined;
+        if (rentIdFromQuery && !byQuery) {
+          setRentLoadState("error");
+          setRentLoadMessage("That rent item was not found for your lease.");
+          return;
+        }
+        const pending =
+          byQuery ||
+          (rentsResult.data.find(
+            (r) => (r.status || "").toLowerCase() !== "paid",
+          ) ??
+            rentsResult.data[0]);
+        setSelectedRentId(pending.id);
+        setAmountDue(pending.totalAmount ?? pending.amount ?? 0);
+        setDueDate(formatDueDateLabel(pending.dueDate ?? "—"));
+        setUnitName(tenantResult.data.currentUnit?.name ?? "—");
+        setPropertyName(
+          (propertyRecord?.name as string | undefined) ||
+            tenantResult.data.currentUnit?.property?.name ||
+            "—",
+        );
+        setLandlordName(landlordDisplayFromProperty(propertyRecord));
+        setRentLoadState("ready");
+      } catch (e) {
+        console.error("[PayRentPage] load failed:", e);
+        if (gen === payPageLoadGenRef.current) {
+          setRentLoadState("error");
+          setRentLoadMessage("Something went wrong loading rent.");
+        }
+      }
+    })();
+  }, [user?.id, user?.role, router.isReady, router.query.rentId]);
 
   const handleProceed = React.useCallback(async () => {
+    if (!selectedRentId) {
+      showToast("No pending rent found for payment", "error");
+      return;
+    }
     setIsProcessing(true);
-    // Simulate payment processing
-    setTimeout(() => {
-      router.push("/dashboard/rent/payment-success");
-    }, 1500);
-  }, [router]);
+    const result = await createRentPayment(selectedRentId);
+    setIsProcessing(false);
+    if (!result.success) {
+      showToast(result.error || "Failed to initialize rent payment", "error");
+      return;
+    }
+    const payload = result.data;
+    if (payload && typeof payload === "object") {
+      const root = payload as Record<string, unknown>;
+      const nested = root.data as Record<string, unknown> | undefined;
+      const url =
+        (typeof root.authorizationUrl === "string" && root.authorizationUrl) ||
+        (typeof root.checkoutUrl === "string" && root.checkoutUrl) ||
+        (nested &&
+          typeof nested.authorizationUrl === "string" &&
+          nested.authorizationUrl) ||
+        (nested &&
+          typeof nested.checkoutUrl === "string" &&
+          nested.checkoutUrl) ||
+        null;
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+    }
+    showToast("Payment initialized", "success");
+    router.push("/dashboard/rent/payment-success");
+  }, [router, selectedRentId, showToast]);
 
   const formatCurrency = (amount: number) => {
     return `₦${amount.toLocaleString()}`;
@@ -58,13 +238,21 @@ const PayRentPage: NextPageWithLayout = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mx-auto max-w-2xl rounded-lg bg-green-600 p-6 sm:p-8 text-white shadow-lg"
         >
+          {rentLoadState === "loading" && (
+            <p className="mb-4 text-sm text-white/90">Loading your rent…</p>
+          )}
+          {rentLoadState === "error" && rentLoadMessage && (
+            <p className="mb-4 rounded-md bg-white/15 px-3 py-2 text-sm text-white">
+              {rentLoadMessage}
+            </p>
+          )}
           <div className="flex items-center justify-between mb-6">
             <div>
               <p className="text-sm sm:text-base font-medium text-white/90">
                 Amount Due
               </p>
               <p className="mt-2 text-3xl sm:text-4xl font-bold">
-                {formatCurrency(mockTenantRentalInfo.amountDue)}
+                {rentLoadState === "ready" ? formatCurrency(amountDue) : "—"}
               </p>
             </div>
             <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-white/20">
@@ -99,25 +287,25 @@ const PayRentPage: NextPageWithLayout = () => {
             <div>
               <p className="text-xs sm:text-sm text-white/80">Property</p>
               <p className="mt-1 text-sm sm:text-base font-semibold">
-                {mockTenantRentalInfo.property.name}
+                {propertyName}
               </p>
             </div>
             <div>
               <p className="text-xs sm:text-sm text-white/80">Unit</p>
               <p className="mt-1 text-sm sm:text-base font-semibold">
-                {mockTenantRentalInfo.unit.number}
+                {unitName}
               </p>
             </div>
             <div>
               <p className="text-xs sm:text-sm text-white/80">Due Date</p>
               <p className="mt-1 text-sm sm:text-base font-semibold">
-                {mockTenantRentalInfo.dueDate}
+                {dueDate}
               </p>
             </div>
             <div>
               <p className="text-xs sm:text-sm text-white/80">Landlord</p>
               <p className="mt-1 text-sm sm:text-base font-semibold">
-                {mockTenantRentalInfo.landlord.name}
+                {landlordName}
               </p>
             </div>
           </div>
@@ -241,7 +429,9 @@ const PayRentPage: NextPageWithLayout = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleProceed}
-              disabled={isProcessing}
+              disabled={
+                isProcessing || rentLoadState !== "ready" || !selectedRentId
+              }
               className="flex-1 px-6 py-3 rounded-lg bg-green-600 text-sm sm:text-base font-medium text-white hover:bg-green-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isProcessing ? (
@@ -271,7 +461,7 @@ const PayRentPage: NextPageWithLayout = () => {
               ) : (
                 <>
                   <Wallet className="h-5 w-5" />
-                  Proceed to Pay {formatCurrency(mockTenantRentalInfo.amountDue)}
+                  Proceed to Pay {formatCurrency(amountDue)}
                 </>
               )}
             </motion.button>
@@ -287,7 +477,7 @@ const PayRentPage: NextPageWithLayout = () => {
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Rent Amount</span>
               <span className="text-sm font-medium text-gray-900">
-                {formatCurrency(mockTenantRentalInfo.amountDue)}
+                {formatCurrency(amountDue)}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -301,7 +491,7 @@ const PayRentPage: NextPageWithLayout = () => {
                 Total Amount
               </span>
               <span className="text-base font-bold text-green-600">
-                {formatCurrency(mockTenantRentalInfo.amountDue)}
+                {formatCurrency(amountDue)}
               </span>
             </div>
           </div>
@@ -316,4 +506,3 @@ PayRentPage.getLayout = (page: React.ReactElement) => (
 );
 
 export default PayRentPage;
-

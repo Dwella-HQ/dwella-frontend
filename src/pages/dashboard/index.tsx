@@ -20,6 +20,11 @@ import { getPropertiesByLandlord } from "@/api/properties";
 import { mapPropertiesWithLiveUnitCounts } from "@/api/properties";
 import { getTenantByUser } from "@/api/tenants";
 import { getLandlordByUser } from "@/api/landlord";
+import { getProperty } from "@/api/properties";
+import {
+  getPropertyManagersByProperty,
+  type PropertyManagerDTO,
+} from "@/api/property-managers";
 import type { TenantByUserDTO } from "@/api/tenants";
 import type {
   Property,
@@ -562,6 +567,66 @@ const ManagerDashboard = () => {
   );
 };
 
+function managerUserDisplayFromUnknown(node: unknown): string | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  const u = node as Record<string, unknown>;
+  const first = String(u.firstName ?? "").trim();
+  const last = String(u.lastName ?? "").trim();
+  const composed = [first, last].filter(Boolean).join(" ").trim();
+  const full = typeof u.fullName === "string" ? u.fullName.trim() : "";
+  const name = typeof u.name === "string" ? u.name.trim() : "";
+  return full || name || composed || undefined;
+}
+
+function pickPropertyManagerRecordName(
+  record: Record<string, unknown>,
+): string {
+  const fromUser = managerUserDisplayFromUnknown(record.user);
+  if (fromUser) return fromUser;
+  const full =
+    typeof record.fullName === "string" ? record.fullName.trim() : "";
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  return full || name || "";
+}
+
+function pickActivePropertyManagerForDisplay(
+  managers: PropertyManagerDTO[],
+): PropertyManagerDTO | null {
+  if (!managers.length) return null;
+  const scored = managers.map((m) => ({
+    m,
+    name: pickPropertyManagerRecordName(
+      m as unknown as Record<string, unknown>,
+    ),
+  }));
+  const withName = scored.filter((s) => s.name.length > 0);
+  const list = withName.length > 0 ? withName.map((s) => s.m) : managers;
+  const active = list.find((m) => m.isActive === true);
+  return active ?? list[0] ?? null;
+}
+
+function propertyManagerContactFromDto(m: PropertyManagerDTO): {
+  name: string;
+  email: string;
+  phone: string;
+} {
+  const rec = m as unknown as Record<string, unknown>;
+  const user = (rec.user as Record<string, unknown>) || {};
+  const name =
+    pickPropertyManagerRecordName(rec) ||
+    (typeof user.fullName === "string" && user.fullName.trim()) ||
+    "Property Manager";
+  const email =
+    (typeof user.email === "string" && user.email) ||
+    (typeof rec.email === "string" && rec.email) ||
+    "—";
+  const phone =
+    (typeof user.phoneNumber === "string" && user.phoneNumber) ||
+    (typeof rec.phone === "string" && rec.phone) ||
+    "—";
+  return { name, email, phone };
+}
+
 /** Pick the latest lease (by end date descending); active lease first if present */
 function getLatestLease(leases: TenantByUserDTO["leases"]) {
   if (!leases?.length) return null;
@@ -580,6 +645,10 @@ const TenantDashboard = () => {
   const [tenantDetails, setTenantDetails] =
     React.useState<TenantByUserDTO | null>(null);
   const [tenantPayments, setTenantPayments] = React.useState<Payment[]>([]);
+  const [tenantPropertyDetails, setTenantPropertyDetails] =
+    React.useState<Record<string, unknown> | null>(null);
+  const [tenantPropertyManagerContact, setTenantPropertyManagerContact] =
+    React.useState<{ name: string; email: string; phone: string } | null>(null);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [tenantError, setTenantError] = React.useState<string | null>(null);
   const [isTenantUnassigned, setIsTenantUnassigned] = React.useState(false);
@@ -598,12 +667,38 @@ const TenantDashboard = () => {
     setTenantLoading(true);
     setTenantError(null);
     setIsTenantUnassigned(false);
+    setTenantPropertyDetails(null);
+    setTenantPropertyManagerContact(null);
     getTenantByUser(String(user.id))
-      .then((result) => {
+      .then(async (result) => {
         if (cancelled) return;
         console.log("[TenantDashboard] getTenantByUser result:", result);
         if (result.success) {
           setTenantDetails(result.data);
+          const propertyId =
+            result.data.currentUnit?.property?.id &&
+            String(result.data.currentUnit.property.id);
+          if (propertyId) {
+            const [propertyResult, managersResult] = await Promise.all([
+              getProperty(propertyId),
+              getPropertyManagersByProperty(propertyId),
+            ]);
+            if (!cancelled && propertyResult.success) {
+              setTenantPropertyDetails(
+                propertyResult.data as Record<string, unknown>,
+              );
+            }
+            if (!cancelled && managersResult.success) {
+              const pm = pickActivePropertyManagerForDisplay(
+                managersResult.data,
+              );
+              setTenantPropertyManagerContact(
+                pm ? propertyManagerContactFromDto(pm) : null,
+              );
+            } else if (!cancelled) {
+              setTenantPropertyManagerContact(null);
+            }
+          }
           return;
         }
         const message = (result.error || "").toLowerCase();
@@ -728,6 +823,29 @@ const TenantDashboard = () => {
   const unitImage =
     currentUnit?.images?.[0]?.url ||
     "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop";
+  const landlordRecord =
+    (tenantPropertyDetails?.landlord as Record<string, unknown> | undefined) ??
+    undefined;
+  const landlordUser =
+    (landlordRecord?.user as Record<string, unknown> | undefined) ?? undefined;
+  const landlordName =
+    (typeof landlordUser?.fullName === "string" && landlordUser.fullName) ||
+    (typeof landlordRecord?.businessName === "string" &&
+      landlordRecord.businessName) ||
+    (typeof landlordRecord?.landLordName === "string" &&
+      landlordRecord.landLordName) ||
+    "Landlord";
+  const landlordEmail =
+    (typeof landlordUser?.email === "string" && landlordUser.email) ||
+    (typeof landlordRecord?.businessEmail === "string" &&
+      landlordRecord.businessEmail) ||
+    "—";
+  const landlordPhone =
+    (typeof landlordUser?.phoneNumber === "string" &&
+      landlordUser.phoneNumber) ||
+    (typeof landlordRecord?.businessPhoneNumber === "string" &&
+      landlordRecord.businessPhoneNumber) ||
+    "—";
   const sortedTenantPayments = React.useMemo(() => {
     return [...tenantPayments].sort((a, b) => {
       const ta = parsePaymentDueDate(a)?.getTime() ?? 0;
@@ -1002,6 +1120,23 @@ const TenantDashboard = () => {
             Property Manager
           </h3>
           <div className="space-y-3 sm:space-y-4">
+            {tenantPropertyManagerContact ? (
+              <>
+                <p className="text-sm font-semibold text-gray-900">
+                  {tenantPropertyManagerContact.name}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {tenantPropertyManagerContact.email}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {tenantPropertyManagerContact.phone}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">
+                No property manager assigned to this property yet.
+              </p>
+            )}
             <p className="text-sm text-gray-500">Contact via Messages</p>
           </div>
           <button
@@ -1031,6 +1166,11 @@ const TenantDashboard = () => {
             Landlord
           </h3>
           <div className="space-y-3 sm:space-y-4">
+            <p className="text-sm font-semibold text-gray-900">
+              {landlordName}
+            </p>
+            <p className="text-sm text-gray-600">{landlordEmail}</p>
+            <p className="text-sm text-gray-600">{landlordPhone}</p>
             <p className="text-sm text-gray-500">Contact via Messages</p>
           </div>
           <button

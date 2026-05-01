@@ -425,6 +425,8 @@ export type MaintenanceRequestWithDetails = {
   propertyName: string;
   unit: string;
   tenantName: string;
+  /** Present when mapped from API; used to scope tenant views */
+  tenantId?: string;
   type: string;
   subType: string;
   priority: "low" | "medium" | "high";

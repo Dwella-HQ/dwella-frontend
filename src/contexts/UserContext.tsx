@@ -74,6 +74,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("userId");
         localStorage.removeItem("landlordId");
         localStorage.removeItem("tenantId");
+        localStorage.removeItem("leaseId");
         localStorage.removeItem("lastCreatedPropertyId");
         localStorage.removeItem("selectedLandlord");
         localStorage.removeItem("selectedLandlordId");
@@ -95,6 +96,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem("userId");
       localStorage.removeItem("landlordId");
       localStorage.removeItem("tenantId");
+      localStorage.removeItem("leaseId");
       localStorage.removeItem("lastCreatedPropertyId");
       localStorage.removeItem("selectedLandlord");
       localStorage.removeItem("selectedLandlordId");

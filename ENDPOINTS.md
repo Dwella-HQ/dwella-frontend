@@ -1,4 +1,4 @@
-﻿# API Endpoints (OpenAPI Synced)
+# API Endpoints (OpenAPI Synced)
 
 This file reflects the backend OpenAPI JSON shared on 2026-04-17.
 
@@ -69,6 +69,8 @@ This file reflects the backend OpenAPI JSON shared on 2026-04-17.
 - `GET /property/{id}`
 - `PATCH /property/{id}`
 - `DELETE /property/{id}`
+- `GET /property/bulk-upload`
+- `POST /property/bulk-upload/{landlordId}` _(multipart/form-data: `file`)_
 - `GET /property/query`
 - `GET /property/landlord/{landlordId}`
 
@@ -122,6 +124,7 @@ This file reflects the backend OpenAPI JSON shared on 2026-04-17.
 ### Tenant Invitations
 
 - `POST /tenant/invite`
+- `GET /tenant/invite/query`
 - `GET /tenant/invite/accept-invite?token=...`
 - `GET /tenant/invite/reject-invite?token=...`
 
@@ -136,6 +139,7 @@ This file reflects the backend OpenAPI JSON shared on 2026-04-17.
 - `DELETE /property-manager/{id}`
 - `GET /property-manager/landlord/{landlordId}`
 - `GET /property-manager/user/{userId}`
+- `GET /property-manager/property/{propertyId}`
 - `POST /property-manager/invite/{landlordId}`
 - `GET /property-manager/invite/accept-invite?token=...`
 - `GET /property-manager/invite/reject-invite?token=...`
@@ -225,6 +229,12 @@ This file reflects the backend OpenAPI JSON shared on 2026-04-17.
 - `GET /rent-payment/{id}`
 - `DELETE /rent-payment/{id}`
 
+### Rent
+
+- `POST /rent`
+- `PATCH /rent/{rentId}/status/paid`
+- `GET /rent/lease/leaseId` _(literal path; returns all rents—filter client-side by tenant’s `leaseId` / nested `lease.id`)_
+
 ---
 
 ## File
@@ -292,3 +302,11 @@ This file reflects the backend OpenAPI JSON shared on 2026-04-17.
 - This file is now an endpoint inventory from OpenAPI, not a frontend "implemented vs not implemented" tracker.
 - For auth resend verification, frontend should call:
   - `GET /auth/verify-email-token?email={email}`
+- Newly added in this sync (compared to previous endpoint inventory):
+  - `GET /property/bulk-upload`
+  - `POST /property/bulk-upload/{landlordId}`
+  - `GET /tenant/invite/query`
+  - `GET /property-manager/property/{propertyId}`
+  - `POST /rent`
+  - `PATCH /rent/{rentId}/status/paid`
+  - `GET /rent/lease/leaseId` _(aggregate list; not `/rent/lease/{uuid}`)_
