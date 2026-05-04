@@ -25,24 +25,52 @@ export default function PropertyDetailPage() {
   const [similar, setSimilar] = React.useState<Property[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [guestPreview, setGuestPreview] = React.useState(false);
 
   React.useEffect(() => {
     if (!id) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getProperty(id)
-      .then((result) => {
+    setGuestPreview(false);
+
+    void (async () => {
+      const authed = await getProperty(id);
+      if (cancelled) return;
+
+      if (authed.success) {
+        setProperty(mapPropertyDTOToProperty(authed.data));
+        setLoading(false);
+        return;
+      }
+
+      const statusCode = "statusCode" in authed ? authed.statusCode : undefined;
+      const isUnauthorized =
+        authed.error === "Unauthorized" || statusCode === 401;
+
+      if (isUnauthorized) {
+        const pub = await getPropertiesQuery();
         if (cancelled) return;
-        if (result.success) {
-          setProperty(mapPropertyDTOToProperty(result.data));
-        } else {
-          setError(result.error);
+        if (pub.success) {
+          const dto = pub.data.find((p) => p.id === id);
+          if (dto) {
+            setProperty(mapPropertyDTOToPublicListingProperty(dto));
+            setGuestPreview(true);
+            setLoading(false);
+            return;
+          }
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+        setProperty(null);
+        setGuestPreview(true);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      setError(authed.error);
+      setLoading(false);
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -64,7 +92,7 @@ export default function PropertyDetailPage() {
     };
   }, [property?.id]);
 
-  if (router.isFallback || loading || (!property && !error)) {
+  if (router.isFallback || loading || (!property && !error && !guestPreview)) {
     return (
       <>
         <LandingHeader />
@@ -76,16 +104,70 @@ export default function PropertyDetailPage() {
     );
   }
 
-  if (error || !property) {
+  if (error || (!property && !guestPreview)) {
     return (
       <>
         <LandingHeader />
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <p className="text-red-600">{error ?? "Property not found"}</p>
+        <div className="flex min-h-[50vh] items-center justify-center px-4">
+          <p className="text-center text-red-600">
+            {error ?? "Property not found"}
+          </p>
         </div>
         <LandingFooter />
       </>
     );
+  }
+
+  if (guestPreview && !property) {
+    const loginHref = `/auth/login?redirect=${encodeURIComponent(`/property/${id}`)}`;
+    return (
+      <>
+        <Head>
+          <title>Property | DWELLA NG</title>
+        </Head>
+        <div className="flex min-h-screen flex-col bg-gray-50">
+          <LandingHeader />
+          <main className="flex flex-1 flex-col px-4 py-10 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-2xl">
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
+                <h1 className="text-lg font-semibold text-blue-950">
+                  Sign in to view this property
+                </h1>
+                <p className="mt-2 text-sm text-blue-900/90">
+                  This listing is available to signed-in users. Log in to see
+                  full details and contact the landlord.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link
+                    href={loginHref}
+                    className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/auth/signup?role=tenant"
+                    className="inline-flex items-center justify-center rounded-lg border border-blue-300 bg-white px-4 py-2.5 text-sm font-semibold text-blue-900 transition hover:bg-blue-100/60"
+                  >
+                    Create an account
+                  </Link>
+                  <Link
+                    href="/properties"
+                    className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium text-blue-900 underline-offset-4 hover:underline"
+                  >
+                    Browse properties
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </main>
+          <LandingFooter />
+        </div>
+      </>
+    );
+  }
+
+  if (!property) {
+    return null;
   }
 
   return (
@@ -107,6 +189,33 @@ export default function PropertyDetailPage() {
             </div>
           </div>
           <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+            {guestPreview && id ? (
+              <div className="mb-8 rounded-xl border border-blue-200 bg-blue-50 px-4 py-4 sm:px-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <p className="text-sm text-blue-950">
+                    <span className="font-semibold">
+                      You&apos;re viewing a public preview.
+                    </span>{" "}
+                    Sign in to see full property details, availability, and to
+                    contact the landlord.
+                  </p>
+                  <div className="flex flex-shrink-0 flex-wrap gap-2">
+                    <Link
+                      href={`/auth/login?redirect=${encodeURIComponent(`/property/${id}`)}`}
+                      className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+                    >
+                      Log in
+                    </Link>
+                    <Link
+                      href="/auth/signup?role=tenant"
+                      className="inline-flex items-center justify-center rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-900 transition hover:bg-blue-100/70"
+                    >
+                      Sign up
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div className="grid gap-8 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-gray-100">

@@ -49,14 +49,18 @@ export const passwordResetRequestSchema = z.object({
   email: z.string().email(),
 });
 
-export type PasswordResetRequestDTO = z.infer<typeof passwordResetRequestSchema>;
+export type PasswordResetRequestDTO = z.infer<
+  typeof passwordResetRequestSchema
+>;
 
 export const passwordResetResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 });
 
-export type PasswordResetResponseDTO = z.infer<typeof passwordResetResponseSchema>;
+export type PasswordResetResponseDTO = z.infer<
+  typeof passwordResetResponseSchema
+>;
 
 // Reset Password (with OTP)
 export const resetPasswordRequestSchema = z.object({
@@ -64,7 +68,9 @@ export const resetPasswordRequestSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
-export type ResetPasswordRequestDTO = z.infer<typeof resetPasswordRequestSchema>;
+export type ResetPasswordRequestDTO = z.infer<
+  typeof resetPasswordRequestSchema
+>;
 
 export const resetPasswordResponseSchema = z.object({
   success: z.boolean(),
@@ -74,7 +80,9 @@ export const resetPasswordResponseSchema = z.object({
   }),
 });
 
-export type ResetPasswordResponseDTO = z.infer<typeof resetPasswordResponseSchema>;
+export type ResetPasswordResponseDTO = z.infer<
+  typeof resetPasswordResponseSchema
+>;
 
 // Role object from API (defined early so it can be used in other schemas)
 export const roleSchema = z.object({
@@ -88,9 +96,11 @@ export const roleSchema = z.object({
 export type RoleDTO = z.infer<typeof roleSchema>;
 
 // Partner Profile (updated to match actual API response)
-export const profileWalletSchema = z.object({
-  balance: z.string(),
-}).optional();
+export const profileWalletSchema = z
+  .object({
+    balance: z.string(),
+  })
+  .optional();
 
 export const profileDataSchema = z.object({
   id: z.string().uuid(),
@@ -109,7 +119,10 @@ export const profileDataSchema = z.object({
   device_token: z.string().nullable().optional(),
   isSuspended: z.number().optional(),
   notification_count: z.number().optional(),
-  profilePicture: z.object({ id: z.string(), url: z.string().url() }).optional().nullable(),
+  profilePicture: z
+    .object({ id: z.string(), url: z.string().url() })
+    .optional()
+    .nullable(),
   account_mode: z.preprocess(
     (val) => {
       // Handle null, undefined, or convert to string
@@ -117,7 +130,7 @@ export const profileDataSchema = z.object({
       const str = String(val).toLowerCase().trim();
       return str === "sandbox" || str === "live" ? str : "sandbox";
     },
-    z.union([z.literal("sandbox"), z.literal("live")]).optional()
+    z.union([z.literal("sandbox"), z.literal("live")]).optional(),
   ),
   deletedAt: z.string().nullable().optional(),
   wallet: profileWalletSchema.optional(),
@@ -145,29 +158,41 @@ export const apiKeyResponseSchema = z.object({
 export type ApiKeyResponseDTO = z.infer<typeof apiKeyResponseSchema>;
 
 // Change Password
-export const changePasswordRequestSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string().min(8, "Please confirm your password"),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+export const changePasswordRequestSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string().min(8, "Please confirm your password"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
-export type ChangePasswordRequestDTO = z.infer<typeof changePasswordRequestSchema>;
+export type ChangePasswordRequestDTO = z.infer<
+  typeof changePasswordRequestSchema
+>;
 
 export const changePasswordResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 });
 
-export type ChangePasswordResponseDTO = z.infer<typeof changePasswordResponseSchema>;
+export type ChangePasswordResponseDTO = z.infer<
+  typeof changePasswordResponseSchema
+>;
 
 // Register Request
 export const registerRequestSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  roleName: z.enum(["tenant", "landlord", "admin", "manager", "property_manager"]),
+  roleName: z.enum([
+    "tenant",
+    "landlord",
+    "admin",
+    "manager",
+    "property_manager",
+  ]),
   fullName: z.string().min(1, "Full name is required"),
   phoneNumber: z.string().min(1, "Phone number is required"),
   registrationType: z.enum(["EMAIL", "GOOGLE", "FACEBOOK"]).default("EMAIL"),
@@ -179,32 +204,44 @@ export type RegisterRequestDTO = z.infer<typeof registerRequestSchema>;
 
 // Register Response (different from login - no accessToken, user needs to verify email)
 // Note: API has typo "sucess" instead of "success" - we handle both
-export const registerResponseSchema = z.object({
-  sucess: z.boolean().optional(), // API typo
-  success: z.boolean().optional(), // Correct spelling (for future compatibility)
-  message: z.string(),
-  data: z.object({
-    email: z.string().email(),
-    registrationType: z.string(),
-    fullName: z.string(),
-    phoneNumber: z.string(),
-    role: roleSchema,
-    id: z.string(),
-    isEmailVerified: z.boolean(),
-    isActive: z.boolean(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  }),
-}).refine((data) => data.sucess === true || data.success === true, {
-  message: "Response must have either 'sucess' or 'success' set to true",
-});
+export const registerResponseSchema = z
+  .object({
+    sucess: z.boolean().optional(), // API typo
+    success: z.boolean().optional(), // Correct spelling (for future compatibility)
+    message: z.string(),
+    data: z
+      .object({
+        email: z.string().email(),
+        registrationType: z.string(),
+        fullName: z.string(),
+        phoneNumber: z.string(),
+        role: roleSchema,
+        id: z.string(),
+        isEmailVerified: z.boolean(),
+        isActive: z.boolean(),
+        createdAt: z.string(),
+        updatedAt: z.string(),
+      })
+      .passthrough(),
+  })
+  .passthrough()
+  .refine((data) => data.sucess === true || data.success === true, {
+    message: "Response must have either 'sucess' or 'success' set to true",
+  });
 
 export type RegisterResponseDTO = z.infer<typeof registerResponseSchema>;
 
 // Social Login Request (POST /auth/google-login, POST /auth/facebook-login)
 export const socialLoginRequestSchema = z.object({
   token: z.string().min(1, "OAuth token is required"),
-  roleName: z.enum(["tenant", "landlord", "admin", "manager", "property_manager", "super_admin"]),
+  roleName: z.enum([
+    "tenant",
+    "landlord",
+    "admin",
+    "manager",
+    "property_manager",
+    "super_admin",
+  ]),
 });
 
 export type SocialLoginRequestDTO = z.infer<typeof socialLoginRequestSchema>;
@@ -264,4 +301,3 @@ export const newLoginResponseSchema = z.object({
 });
 
 export type NewLoginResponseDTO = z.infer<typeof newLoginResponseSchema>;
-
