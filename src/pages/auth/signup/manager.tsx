@@ -11,7 +11,11 @@ import Link from "next/link";
 import { AuthLayout } from "@/components/AuthLayout";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 import { register, type RegisterRequestDTO } from "@/api/auth";
-import { useUser } from "@/contexts/UserContext";
+import { persistFreshAuth, resetClientSession } from "@/lib/clientSession";
+import { useUser, type UserRole } from "@/contexts/UserContext";
+import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
+import { loginAfterInviteRegistration } from "@/utils/invitePostRegisterAuth";
+import { getPropertyManagerInviteIdFromQuery } from "@/lib/propertyManagerInviteFromQuery";
 import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../../_app";
@@ -29,7 +33,9 @@ const propertyManagerSignUpSchema = z
     path: ["confirmPassword"],
   });
 
-export type PropertyManagerSignUpValues = z.infer<typeof propertyManagerSignUpSchema>;
+export type PropertyManagerSignUpValues = z.infer<
+  typeof propertyManagerSignUpSchema
+>;
 
 const PropertyManagerSignUpPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -55,17 +61,31 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
     },
   });
 
+  const mapRoleNameToUserRole = React.useCallback(
+    (roleName: string): UserRole => {
+      if (roleName === "super_admin" || roleName === "admin") {
+        return "super_admin";
+      }
+      if (roleName === "property_manager" || roleName === "manager") {
+        return "property_manager";
+      }
+      if (roleName === "tenant") {
+        return "tenant";
+      }
+      return "landlord";
+    },
+    [],
+  );
+
   const onSubmit = handleSubmit(async (data) => {
     setError(null);
     setIsSubmitting(true);
 
     try {
-      // Check for propertyManagerId in URL query params (from invitation link)
-      const propertyManagerIdFromQuery = router.query.propertyManagerId as string | undefined;
-      const tokenFromQuery = router.query.token as string | undefined;
-      
-      // Use propertyManagerId if present, otherwise try token
-      const propertyManagerId = propertyManagerIdFromQuery || tokenFromQuery;
+      const propertyManagerId = getPropertyManagerInviteIdFromQuery(
+        router.query,
+      );
+      const isInvitedManagerSignup = propertyManagerId.length > 0;
 
       // Prepare request payload - always include these fields
       const payload: RegisterRequestDTO = {
@@ -87,26 +107,80 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
 
       if (!result.success) {
         setError(result.error);
-        setIsSubmitting(false);
         return;
       }
 
-      // If user was created successfully, we might need to log them in
-      // For now, redirect to login page with a success message
-      // Or if the API returns auth token, we can log them in directly
-      
-      // Store success message in sessionStorage to show on login page
+      if (isInvitedManagerSignup) {
+        const regUser = result.data.data;
+        const tokenFromRegister = result.registerAccessToken;
+
+        const applyPmSession = async (
+          accessToken: string,
+          apiUser: {
+            id: string;
+            email: string;
+            fullName?: string;
+            name?: string;
+            role?: { name?: string };
+          },
+        ) => {
+          resetClientSession();
+          setUser({
+            id: apiUser.id,
+            name:
+              apiUser.fullName ||
+              apiUser.name ||
+              data.fullName ||
+              apiUser.email.split("@")[0],
+            email: apiUser.email,
+            role: mapRoleNameToUserRole(apiUser.role?.name || ""),
+            token: accessToken,
+          });
+          persistFreshAuth(String(apiUser.id), accessToken);
+          await router.push(
+            consumePostLoginRedirect() ?? "/dashboard/select-landlord",
+          );
+        };
+
+        if (tokenFromRegister) {
+          await applyPmSession(tokenFromRegister, regUser);
+          return;
+        }
+
+        const loginResult = await loginAfterInviteRegistration(
+          data.email,
+          data.password,
+        );
+
+        if (loginResult.success) {
+          await applyPmSession(
+            loginResult.data.data.accessToken,
+            loginResult.data.data.user,
+          );
+          return;
+        }
+
+        sessionStorage.setItem(
+          "postRegisterLoginHint",
+          "Your account is ready. Please sign in with the password you just created.",
+        );
+      }
+
       if (typeof window !== "undefined") {
         sessionStorage.setItem("propertyManagerSignupSuccess", "true");
       }
 
-      // Redirect to login page
-      router.push({
+      await router.push({
         pathname: "/auth/login",
         query: { email: data.email },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An error occurred. Please try again.",
+      );
+    } finally {
       setIsSubmitting(false);
     }
   });
@@ -135,7 +209,9 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
 
         {/* Sign Up Form Card */}
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm w-full">
-          <h1 className="mb-2 text-2xl font-bold text-gray-900">Property Manager Sign Up</h1>
+          <h1 className="mb-2 text-2xl font-bold text-gray-900">
+            Property Manager Sign Up
+          </h1>
           <p className="mb-6 text-sm text-gray-600">
             Create your account to start managing properties.
           </p>
@@ -165,7 +241,11 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
                 {...registerField("email")}
               />
               {errors.email && (
-                <p id="email-error" className="mt-1 text-xs text-red-600" role="alert">
+                <p
+                  id="email-error"
+                  className="mt-1 text-xs text-red-600"
+                  role="alert"
+                >
                   {errors.email.message}
                 </p>
               )}
@@ -185,11 +265,17 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
                 placeholder="John Doe"
                 className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                 aria-invalid={!!errors.fullName}
-                aria-describedby={errors.fullName ? "fullName-error" : undefined}
+                aria-describedby={
+                  errors.fullName ? "fullName-error" : undefined
+                }
                 {...registerField("fullName")}
               />
               {errors.fullName && (
-                <p id="fullName-error" className="mt-1 text-xs text-red-600" role="alert">
+                <p
+                  id="fullName-error"
+                  className="mt-1 text-xs text-red-600"
+                  role="alert"
+                >
                   {errors.fullName.message}
                 </p>
               )}
@@ -213,12 +299,18 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
                     onChange={field.onChange}
                     placeholder="801 234 5678"
                     aria-invalid={!!errors.phoneNumber}
-                    aria-describedby={errors.phoneNumber ? "phoneNumber-error" : undefined}
+                    aria-describedby={
+                      errors.phoneNumber ? "phoneNumber-error" : undefined
+                    }
                   />
                 )}
               />
               {errors.phoneNumber && (
-                <p id="phoneNumber-error" className="mt-1 text-xs text-red-600" role="alert">
+                <p
+                  id="phoneNumber-error"
+                  className="mt-1 text-xs text-red-600"
+                  role="alert"
+                >
                   {errors.phoneNumber.message}
                 </p>
               )}
@@ -239,7 +331,9 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
                   placeholder="Enter your password"
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                   aria-invalid={!!errors.password}
-                  aria-describedby={errors.password ? "password-error" : undefined}
+                  aria-describedby={
+                    errors.password ? "password-error" : undefined
+                  }
                   {...registerField("password")}
                 />
                 <button
@@ -256,7 +350,11 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
                 </button>
               </div>
               {errors.password && (
-                <p id="password-error" className="mt-1 text-xs text-red-600" role="alert">
+                <p
+                  id="password-error"
+                  className="mt-1 text-xs text-red-600"
+                  role="alert"
+                >
                   {errors.password.message}
                 </p>
               )}
@@ -277,14 +375,18 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
                   placeholder="Confirm your password"
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                   aria-invalid={!!errors.confirmPassword}
-                  aria-describedby={errors.confirmPassword ? "confirmPassword-error" : undefined}
+                  aria-describedby={
+                    errors.confirmPassword ? "confirmPassword-error" : undefined
+                  }
                   {...registerField("confirmPassword")}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  aria-label={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
                 >
                   {showConfirmPassword ? (
                     <EyeOff className="h-5 w-5" />
@@ -294,7 +396,11 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
                 </button>
               </div>
               {errors.confirmPassword && (
-                <p id="confirmPassword-error" className="mt-1 text-xs text-red-600" role="alert">
+                <p
+                  id="confirmPassword-error"
+                  className="mt-1 text-xs text-red-600"
+                  role="alert"
+                >
                   {errors.confirmPassword.message}
                 </p>
               )}
@@ -335,5 +441,3 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
 PropertyManagerSignUpPage.getLayout = (page) => <AuthLayout>{page}</AuthLayout>;
 
 export default PropertyManagerSignUpPage;
-
-

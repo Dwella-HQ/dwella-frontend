@@ -11,6 +11,7 @@ import { getTenantByUser } from "@/api/tenants";
 import { resolveTenantActiveLeaseId } from "@/api/rent";
 import { ensureLandlordWallet } from "@/api/wallet";
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
+import { persistFreshAuth, resetClientSession } from "@/lib/clientSession";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -19,6 +20,18 @@ const LoginPage: NextPageWithLayout = () => {
   const { setUser } = useUser();
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [postRegisterHint, setPostRegisterHint] = React.useState<string | null>(
+    null,
+  );
+
+  React.useEffect(() => {
+    if (!router.isReady || typeof window === "undefined") return;
+    const hint = sessionStorage.getItem("postRegisterLoginHint");
+    if (hint) {
+      setPostRegisterHint(hint);
+      sessionStorage.removeItem("postRegisterLoginHint");
+    }
+  }, [router.isReady]);
 
   const mapRoleNameToUserRole = React.useCallback(
     (roleName: string): UserRole => {
@@ -32,54 +45,6 @@ const LoginPage: NextPageWithLayout = () => {
         return "tenant";
       }
       return "landlord";
-    },
-    [],
-  );
-
-  const resetClientSession = React.useCallback(() => {
-    if (typeof window === "undefined") return;
-
-    const localKeysToClear = [
-      "user",
-      "authToken",
-      "accessToken",
-      "userId",
-      "landlordId",
-      "tenantId",
-      "leaseId",
-      "selectedLandlord",
-      "selectedLandlordId",
-      "lastCreatedPropertyId",
-    ];
-    localKeysToClear.forEach((k) => localStorage.removeItem(k));
-
-    const sessionKeysToClear = [
-      "landlordOnboardingDetails",
-      "landlordOnboardingDocumentIds",
-      "landlordOnboardingProfilePictureId",
-      "landlordOnboardingStarted",
-    ];
-    sessionKeysToClear.forEach((k) => sessionStorage.removeItem(k));
-
-    const expired = "Thu, 01 Jan 1970 00:00:00 GMT";
-    document.cookie = `selectedLandlord=; Path=/; Expires=${expired}; SameSite=Lax`;
-    document.cookie = `selectedLandlordId=; Path=/; Expires=${expired}; SameSite=Lax`;
-    document.cookie = `accessToken=; Path=/; Expires=${expired}; SameSite=Lax`;
-    document.cookie = `authToken=; Path=/; Expires=${expired}; SameSite=Lax`;
-    document.cookie = `landlordId=; Path=/; Expires=${expired}; SameSite=Lax`;
-  }, []);
-
-  const persistFreshAuth = React.useCallback(
-    (userId: string, accessToken: string) => {
-      if (typeof window === "undefined") return;
-
-      localStorage.setItem("userId", userId);
-      localStorage.setItem("accessToken", accessToken);
-
-      const maxAge = 60 * 60 * 24 * 7; // 7 days
-      const secure = window.location.protocol === "https:" ? "; Secure" : "";
-      document.cookie = `accessToken=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-      document.cookie = `authToken=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
     },
     [],
   );
@@ -195,14 +160,7 @@ const LoginPage: NextPageWithLayout = () => {
 
       await router.push(consumePostLoginRedirect() ?? "/dashboard");
     },
-    [
-      mapRoleNameToUserRole,
-      persistLandlordId,
-      persistFreshAuth,
-      resetClientSession,
-      router,
-      setUser,
-    ],
+    [mapRoleNameToUserRole, persistLandlordId, router, setUser],
   );
 
   const handleLogin = React.useCallback(
@@ -247,6 +205,16 @@ const LoginPage: NextPageWithLayout = () => {
       <Head>
         <title>DWELLA NG · Sign in</title>
       </Head>
+      {postRegisterHint ? (
+        <div className="mx-auto w-full max-w-md px-4 pt-6">
+          <div
+            className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
+            role="status"
+          >
+            {postRegisterHint}
+          </div>
+        </div>
+      ) : null}
       <LoginForm onSubmit={handleLogin} error={error} isLoading={isLoading} />
     </>
   );

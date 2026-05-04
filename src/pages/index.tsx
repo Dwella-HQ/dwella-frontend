@@ -137,7 +137,7 @@ export default function LandingPage() {
                   href="/properties"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3 text-sm font-semibold text-[#103B73] shadow hover:bg-gray-100 md:h-[63px] md:w-[276px] md:rounded-[14px] md:px-12 md:py-[17px] md:text-base"
                 >
-                  Explore Managed Properties <ArrowRight className="h-4 w-4" />
+                  Explore properties <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/auth/signup?role=landlord"

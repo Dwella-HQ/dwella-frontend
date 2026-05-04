@@ -7,18 +7,22 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import Link from "next/link";
-import { login } from "@/api/auth";
+import { register } from "@/api/auth";
 import { getTenantByUser } from "@/api/tenants";
+import { resolveTenantActiveLeaseId } from "@/api/rent";
+import { persistFreshAuth, resetClientSession } from "@/lib/clientSession";
 import { useUser, type UserRole } from "@/contexts/UserContext";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
-import { register } from "@/api/auth";
 import {
   formatRegistrationErrorForUser,
   isDuplicateEmailRegistrationError,
   maskEmailForDisplay,
 } from "@/utils/registrationErrors";
+import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
+import { loginAfterInviteRegistration } from "@/utils/invitePostRegisterAuth";
+import { getPropertyManagerInviteIdFromQuery } from "@/lib/propertyManagerInviteFromQuery";
 import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../../_app";
@@ -65,20 +69,6 @@ const SignUpPage: NextPageWithLayout = () => {
     [],
   );
 
-  const persistFreshAuth = React.useCallback(
-    (userId: string, accessToken: string) => {
-      if (typeof window === "undefined") return;
-      localStorage.setItem("userId", userId);
-      localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("authToken", accessToken);
-      const maxAge = 60 * 60 * 24 * 7;
-      const secure = window.location.protocol === "https:" ? "; Secure" : "";
-      document.cookie = `accessToken=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-      document.cookie = `authToken=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-    },
-    [],
-  );
-
   const getTenantInviteIdFromQuery = React.useCallback((): string => {
     const candidateKeys = [
       "tenant-id",
@@ -88,11 +78,27 @@ const SignUpPage: NextPageWithLayout = () => {
     ];
     for (const key of candidateKeys) {
       const raw = router.query[key];
-      if (typeof raw === "string" && raw.trim().length > 0) {
-        return raw.trim();
+      const s = Array.isArray(raw) ? raw[0] : raw;
+      if (typeof s === "string" && s.trim().length > 0) {
+        return s.trim();
       }
     }
     return "";
+  }, [router.query]);
+
+  /** True when the URL carries invite-style prefill (not plain `role=tenant` self-signup). */
+  const getTenantInviteProfileFromQuery = React.useCallback((): boolean => {
+    const q = router.query;
+    const s = (key: string) =>
+      typeof q[key] === "string" ? (q[key] as string).trim() : "";
+    return (
+      Boolean(s("email")) ||
+      Boolean(s("tenantEmail")) ||
+      Boolean(s("inviteEmail")) ||
+      Boolean(s("fullName")) ||
+      Boolean(s("name")) ||
+      Boolean(s("tenantName"))
+    );
   }, [router.query]);
 
   // Read role from query params; when absent we show the role chooser
@@ -115,19 +121,15 @@ const SignUpPage: NextPageWithLayout = () => {
     } else if (!role && hasTenantInvite) {
       // Invite links may omit role but still carry tenant identifier.
       setSelectedRole("tenant");
+    } else if (
+      !role &&
+      getPropertyManagerInviteIdFromQuery(router.query).length > 0
+    ) {
+      setSelectedRole("manager");
     } else {
       setSelectedRole(null);
     }
-  }, [
-    getTenantInviteIdFromQuery,
-    router.isReady,
-    router.query.role,
-    router.query.email,
-    router.query.tenantEmail,
-    router.query.inviteEmail,
-    router.query.fullName,
-    router.query.tenantName,
-  ]);
+  }, [getTenantInviteIdFromQuery, router.isReady, router.query]);
 
   const {
     register: registerField,
@@ -164,6 +166,70 @@ const SignUpPage: NextPageWithLayout = () => {
     if (prefillPhone) setValue("phoneNumber", prefillPhone);
   }, [router.isReady, router.query, setValue]);
 
+  const completeInviteSignupSession = React.useCallback(
+    async (
+      accessToken: string,
+      apiUser: {
+        id: string;
+        email: string;
+        fullName?: string;
+        name?: string;
+        role?: { name?: string };
+      },
+      formFullName: string,
+    ) => {
+      const role = mapRoleNameToUserRole(apiUser.role?.name || "");
+      resetClientSession();
+      setUser({
+        id: apiUser.id,
+        name:
+          apiUser.fullName ||
+          apiUser.name ||
+          formFullName ||
+          apiUser.email.split("@")[0],
+        email: apiUser.email,
+        role,
+        token: accessToken,
+      });
+      persistFreshAuth(String(apiUser.id), accessToken);
+
+      if (role === "property_manager") {
+        await router.push(
+          consumePostLoginRedirect() ?? "/dashboard/select-landlord",
+        );
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("landlordId");
+        localStorage.removeItem("leaseId");
+      }
+
+      const tenantResult = await getTenantByUser(apiUser.id);
+      if (typeof window !== "undefined") {
+        if (tenantResult.success && tenantResult.data?.id) {
+          localStorage.setItem("tenantId", tenantResult.data.id);
+          const activeLeaseId = resolveTenantActiveLeaseId(
+            tenantResult.data.leases as
+              | Array<Record<string, unknown>>
+              | undefined,
+            null,
+          );
+          if (activeLeaseId) {
+            localStorage.setItem("leaseId", activeLeaseId);
+          } else {
+            localStorage.removeItem("leaseId");
+          }
+        } else {
+          localStorage.removeItem("leaseId");
+        }
+      }
+
+      await router.push("/dashboard");
+    },
+    [mapRoleNameToUserRole, router, setUser],
+  );
+
   const onSubmit = handleSubmit(async (data) => {
     if (!selectedRole) {
       setError("Please choose how you want to get started.");
@@ -185,6 +251,9 @@ const SignUpPage: NextPageWithLayout = () => {
       };
 
       const tenantIdFromQuery = getTenantInviteIdFromQuery();
+      const propertyManagerIdFromQuery = getPropertyManagerInviteIdFromQuery(
+        router.query,
+      );
 
       const payload: Parameters<typeof register>[0] = {
         email: data.email,
@@ -198,6 +267,18 @@ const SignUpPage: NextPageWithLayout = () => {
       if (selectedRole === "tenant" && tenantIdFromQuery) {
         payload.tenantId = tenantIdFromQuery;
       }
+      if (selectedRole === "manager" && propertyManagerIdFromQuery) {
+        payload.propertyManagerId = propertyManagerIdFromQuery;
+      }
+
+      const isInviteRegistration =
+        (selectedRole === "tenant" &&
+          (tenantIdFromQuery.length > 0 ||
+            getTenantInviteProfileFromQuery() ||
+            Boolean(payload.tenantId))) ||
+        (selectedRole === "manager" &&
+          (propertyManagerIdFromQuery.length > 0 ||
+            Boolean(payload.propertyManagerId)));
 
       const result = await register(payload);
 
@@ -206,6 +287,30 @@ const SignUpPage: NextPageWithLayout = () => {
           isDuplicateEmailRegistrationError(result.error) ||
           result.statusCode === 409;
 
+        if (duplicateEmail && isInviteRegistration) {
+          const loginResult = await loginAfterInviteRegistration(
+            data.email,
+            data.password,
+          );
+          if (loginResult.success) {
+            await completeInviteSignupSession(
+              loginResult.data.data.accessToken,
+              loginResult.data.data.user,
+              data.fullName,
+            );
+            return;
+          }
+          sessionStorage.setItem(
+            "postRegisterLoginHint",
+            "An account with this email already exists. Please sign in.",
+          );
+          await router.push({
+            pathname: "/auth/login",
+            query: { email: data.email },
+          });
+          return;
+        }
+
         if (duplicateEmail && typeof window !== "undefined") {
           sessionStorage.setItem("pendingVerificationEmail", data.email);
           const maskedEmail = maskEmailForDisplay(data.email);
@@ -213,52 +318,49 @@ const SignUpPage: NextPageWithLayout = () => {
             pathname: "/auth/send-email-verify",
             query: { email: maskedEmail, existing: "1" },
           });
-          setIsSubmitting(false);
           return;
         }
 
         setError(formatRegistrationErrorForUser(result.error));
-        setIsSubmitting(false);
         return;
       }
 
-      const shouldAutoLoginTenant =
-        selectedRole === "tenant" && tenantIdFromQuery.length > 0;
-      if (shouldAutoLoginTenant) {
-        const loginResult = await login({
-          email: data.email,
-          password: data.password,
-        });
+      if (isInviteRegistration) {
+        const regUser = result.data.data;
+        const tokenFromRegister = result.registerAccessToken;
 
-        if (loginResult.success) {
-          const apiUser = loginResult.data.data.user;
-          const role = mapRoleNameToUserRole(apiUser.role?.name || "");
-          const userForContext = {
-            id: apiUser.id,
-            name:
-              apiUser.fullName ||
-              apiUser.name ||
-              data.fullName ||
-              apiUser.email.split("@")[0],
-            email: apiUser.email,
-            role,
-            token: loginResult.data.data.accessToken,
-          };
-          setUser(userForContext);
-          persistFreshAuth(String(apiUser.id), loginResult.data.data.accessToken);
-
-          const tenantResult = await getTenantByUser(apiUser.id);
-          if (
-            tenantResult.success &&
-            tenantResult.data?.id &&
-            typeof window !== "undefined"
-          ) {
-            localStorage.setItem("tenantId", tenantResult.data.id);
-          }
-
-          await router.push("/dashboard");
+        if (tokenFromRegister) {
+          await completeInviteSignupSession(
+            tokenFromRegister,
+            regUser,
+            data.fullName,
+          );
           return;
         }
+
+        const loginResult = await loginAfterInviteRegistration(
+          data.email,
+          data.password,
+        );
+
+        if (loginResult.success) {
+          await completeInviteSignupSession(
+            loginResult.data.data.accessToken,
+            loginResult.data.data.user,
+            data.fullName,
+          );
+          return;
+        }
+
+        sessionStorage.setItem(
+          "postRegisterLoginHint",
+          "Your account is ready. Please sign in with the password you just created.",
+        );
+        await router.push({
+          pathname: "/auth/login",
+          query: { email: data.email },
+        });
+        return;
       }
 
       // Store actual email in sessionStorage for resend functionality
@@ -268,7 +370,7 @@ const SignUpPage: NextPageWithLayout = () => {
       const maskedEmail = maskEmailForDisplay(data.email);
 
       // Redirect to "check your email" page
-      router.push({
+      await router.push({
         pathname: "/auth/send-email-verify",
         query: { email: maskedEmail },
       });
@@ -278,6 +380,7 @@ const SignUpPage: NextPageWithLayout = () => {
           ? err.message
           : "An error occurred. Please try again.",
       );
+    } finally {
       setIsSubmitting(false);
     }
   });
@@ -289,6 +392,12 @@ const SignUpPage: NextPageWithLayout = () => {
       const tenantIdFromQuery = getTenantInviteIdFromQuery();
       if (tenantIdFromQuery && role === "tenant") {
         nextQuery["tenant-id"] = tenantIdFromQuery;
+      }
+      const propertyManagerIdFromQuery = getPropertyManagerInviteIdFromQuery(
+        router.query,
+      );
+      if (propertyManagerIdFromQuery && role === "manager") {
+        nextQuery.propertyManagerId = propertyManagerIdFromQuery;
       }
       await router.push({
         pathname: "/auth/signup",
