@@ -36,12 +36,30 @@ export const getLandlordByUser = async (
       ...(((result.data as Record<string, unknown>)?.data as
         | Record<string, unknown>
         | undefined) ?? {}),
+      businessName:
+        ((
+          (result.data as Record<string, unknown>)?.data as
+            | Record<string, unknown>
+            | undefined
+        )?.businessName as string | undefined) ??
+        ((
+          (result.data as Record<string, unknown>)?.data as
+            | Record<string, unknown>
+            | undefined
+        )?.landLordName as string | undefined) ??
+        "",
       landLordName:
         ((
           (result.data as Record<string, unknown>)?.data as
             | Record<string, unknown>
             | undefined
-        )?.landLordName as string | undefined) ?? "",
+        )?.landLordName as string | undefined) ??
+        ((
+          (result.data as Record<string, unknown>)?.data as
+            | Record<string, unknown>
+            | undefined
+        )?.businessName as string | undefined) ??
+        "",
     },
   };
 

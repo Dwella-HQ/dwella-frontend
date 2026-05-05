@@ -38,7 +38,8 @@ import type { NextPageWithLayout } from "../_app";
 const TenantMaintenancePage = () => {
   const { user } = useUser();
   const [activeTab, setActiveTab] = React.useState<"new" | "history">("new");
-  const [tenantDetails, setTenantDetails] = React.useState<TenantByUserDTO | null>(null);
+  const [tenantDetails, setTenantDetails] =
+    React.useState<TenantByUserDTO | null>(null);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [historyCount, setHistoryCount] = React.useState(0);
 
@@ -66,9 +67,7 @@ const TenantMaintenancePage = () => {
       (result) => {
         if (cancelled) return;
         if (result.success) {
-          setHistoryCount(
-            result.data.filter((r) => r.tenantId === tid).length,
-          );
+          setHistoryCount(result.data.filter((r) => r.tenantId === tid).length);
         } else {
           setHistoryCount(0);
         }
@@ -579,9 +578,7 @@ const TenantRequestHistory = ({
       (result) => {
         if (cancelled) return;
         if (result.success) {
-          setRequests(
-            result.data.filter((r) => r.tenantId === tenantRecordId),
-          );
+          setRequests(result.data.filter((r) => r.tenantId === tenantRecordId));
         } else {
           setRequests([]);
         }
@@ -707,6 +704,7 @@ const TenantRequestHistory = ({
 
 // Landlord/Manager Maintenance Page (existing)
 const LandlordMaintenancePage = () => {
+  const { user } = useUser();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedPriority, setSelectedPriority] =
     React.useState("All Priorities");
@@ -994,16 +992,18 @@ const LandlordMaintenancePage = () => {
               Track and manage property maintenance requests
             </p>
           </div>
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsModalOpen(true)}
-            className="w-full lg:w-auto h-10 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2 whitespace-nowrap"
-          >
-            <Plus className="h-4 w-4" />
-            Add Request
-          </motion.button>
+          {user?.role !== "landlord" ? (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsModalOpen(true)}
+              className="w-full lg:w-auto h-10 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2 whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4" />
+              Add Request
+            </motion.button>
+          ) : null}
         </div>
 
         {/* Filters */}

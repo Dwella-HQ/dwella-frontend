@@ -22,7 +22,7 @@ export const createLandlord = async (
     // Handle both direct landlord object and object with data property
     const landlordData = parsed.data.data;
     // Ensure required fields exist, otherwise use fallback
-    if (landlordData.id && landlordData.landLordName && landlordData.createdAt && landlordData.updatedAt) {
+    if (landlordData.id && landlordData.createdAt && landlordData.updatedAt) {
       return { success: true, data: landlordData as LandlordDTO };
     }
   }
@@ -38,6 +38,9 @@ export const createLandlord = async (
     success: true, 
     data: {
       id: "",
+      businessName: "",
+      businessEmail: "",
+      businessPhoneNumber: "",
       landLordName: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
