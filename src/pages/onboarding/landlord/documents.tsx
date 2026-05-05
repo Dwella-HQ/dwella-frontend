@@ -174,7 +174,9 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
 
     const payload = {
       userId: String(user.id),
-      landLordName: details.businessName,
+      businessName: details.businessName,
+      businessEmail: user.email,
+      businessPhoneNumber: details.phoneNumber || undefined,
       profilePictureId: profilePictureId || undefined,
       govermentIdDocumentId: docIds.governmentId,
       taxIdentificationNumberDocumentId: docIds.tin,

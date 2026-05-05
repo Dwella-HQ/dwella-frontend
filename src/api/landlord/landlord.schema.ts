@@ -3,7 +3,9 @@ import { z } from "zod";
 // Create Landlord Request
 export const createLandlordRequestSchema = z.object({
   userId: z.string().uuid(),
-  landLordName: z.string().min(1, "Landlord name is required"),
+  businessName: z.string().min(1, "Business name is required"),
+  businessEmail: z.string().email().optional(),
+  businessPhoneNumber: z.string().optional(),
   bvn: z.string().optional(),
   isApproved: z.boolean().optional(),
   isActive: z.boolean().optional(),
@@ -41,6 +43,9 @@ const profilePictureSchema = z
 export const landlordSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid().optional(),
+  businessName: z.string().optional(),
+  businessEmail: z.string().optional(),
+  businessPhoneNumber: z.string().optional(),
   // Some responses omit this field; normalize to empty string so parsing stays stable.
   landLordName: z
     .string()
