@@ -43,9 +43,9 @@ const profilePictureSchema = z
 export const landlordSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid().optional(),
-  businessName: z.string().optional(),
-  businessEmail: z.string().optional(),
-  businessPhoneNumber: z.string().optional(),
+  businessName: z.string().nullish(),
+  businessEmail: z.string().nullish(),
+  businessPhoneNumber: z.string().nullish(),
   // Some responses omit this field; normalize to empty string so parsing stays stable.
   landLordName: z
     .string()

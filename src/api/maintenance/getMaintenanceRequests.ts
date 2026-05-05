@@ -62,6 +62,7 @@ function mapItemToWithDetails(
   return {
     id: item.id,
     requestId: item.requestId ?? item.request_id ?? item.id,
+    propertyId: item.propertyId ?? item.property_id ?? undefined,
     propertyName: item.propertyName ?? item.property_name ?? "",
     unit: unitLabel || "",
     tenantName: item.tenantName ?? item.tenant_name ?? "",

@@ -422,6 +422,8 @@ export type RentPayment = {
 export type MaintenanceRequestWithDetails = {
   id: string;
   requestId: string;
+  /** Present when mapped from API; used to scope landlord/manager views */
+  propertyId?: string;
   propertyName: string;
   unit: string;
   tenantName: string;

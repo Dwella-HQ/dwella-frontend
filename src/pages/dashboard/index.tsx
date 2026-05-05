@@ -57,6 +57,12 @@ const isLandlordLevelAnnouncement = (item: AnnouncementItemDTO) => {
   return (item.level || "").toUpperCase() === "LANDLORD";
 };
 
+const isBroadcastAnnouncement = (item: AnnouncementItemDTO) => {
+  const level = (item.level || "").toUpperCase();
+  // Backend may emit either LANDLORD or PROPERTY for landlord-originated broadcasts.
+  return level === "LANDLORD" || level === "PROPERTY";
+};
+
 const keepExistingWhenIncomingEmpty = (
   previous: AnnouncementItemDTO[],
   incoming: AnnouncementItemDTO[],
@@ -97,6 +103,31 @@ const filterPaymentsForProperties = (
     if (pay.propertyId && idSet.has(pay.propertyId)) return true;
     const key = pay.propertyName.trim().toLowerCase();
     return nameSet.has(key);
+  });
+};
+
+const filterMaintenanceForProperties = (
+  requests: MaintenanceRequest[],
+  properties: Property[],
+): MaintenanceRequest[] => {
+  if (properties.length === 0) return [];
+  const idSet = new Set(properties.map((p) => p.id).filter(Boolean));
+  const nameSet = new Set(
+    properties
+      .map((p) => p.name.trim().toLowerCase())
+      .filter((name) => name.length > 0),
+  );
+  return requests.filter((request) => {
+    const maybePropertyId = (
+      request as unknown as { propertyId?: string; property_id?: string }
+    ).propertyId
+      ? (request as unknown as { propertyId?: string }).propertyId
+      : (request as unknown as { property_id?: string }).property_id;
+    const byId = maybePropertyId ? idSet.has(maybePropertyId) : false;
+    const byName = nameSet.has(
+      (request.propertyName || "").trim().toLowerCase(),
+    );
+    return byId || byName;
   });
 };
 
@@ -246,7 +277,11 @@ const ManagerDashboard = () => {
           priority: r.priority,
           timeAgo: r.reportedTime || "",
         }));
-        setRecentMaintenance(mapped.slice(0, 3));
+        const scoped = filterMaintenanceForProperties(
+          mapped,
+          landlordProperties,
+        );
+        setRecentMaintenance(scoped.slice(0, 3));
       } else {
         setRecentMaintenance([]);
       }
@@ -255,7 +290,7 @@ const ManagerDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [landlordProperties]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -275,7 +310,7 @@ const ManagerDashboard = () => {
     const subscription = subscribeAnnouncements({
       token: user.token,
       onLoad: (items) => {
-        const landlordItems = items.filter(isLandlordLevelAnnouncement);
+        const landlordItems = items.filter(isBroadcastAnnouncement);
         setLiveAnnouncements((prev) =>
           keepExistingWhenIncomingEmpty(prev, landlordItems),
         );
@@ -785,7 +820,7 @@ const TenantDashboard = () => {
     const subscription = subscribeAnnouncements({
       token: user.token,
       onLoad: (items) => {
-        const landlordItems = items.filter(isLandlordLevelAnnouncement);
+        const landlordItems = items.filter(isBroadcastAnnouncement);
         setLiveAnnouncements((prev) =>
           keepExistingWhenIncomingEmpty(prev, landlordItems),
         );
@@ -1331,8 +1366,9 @@ const LandlordDashboard = () => {
           priority: r.priority,
           timeAgo: r.reportedTime || "",
         }));
-        setAllMaintenanceForStats(mapped);
-        setRecentMaintenance(mapped.slice(0, 3));
+        const scoped = filterMaintenanceForProperties(mapped, properties);
+        setAllMaintenanceForStats(scoped);
+        setRecentMaintenance(scoped.slice(0, 3));
       } else {
         setAllMaintenanceForStats([]);
         setRecentMaintenance([]);
@@ -1342,7 +1378,7 @@ const LandlordDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [properties]);
 
   React.useEffect(() => {
     let cancelled = false;

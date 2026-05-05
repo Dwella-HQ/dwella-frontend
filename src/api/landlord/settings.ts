@@ -2,6 +2,7 @@ import { apiGet, apiPatch } from "@/lib/apiClient";
 
 export type LandlordSettingsProfileUpdateDTO = {
   businessName: string;
+  landLordName?: string;
   businessEmail: string;
   businessPhoneNumber: string;
   address: {

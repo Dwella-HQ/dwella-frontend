@@ -4,7 +4,7 @@ import type { NextPageWithLayout } from "../_app";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useToast } from "@/components/Toast";
 import { getWalletsByLandlord, type WalletDTO } from "@/api/wallet";
-import { ensureLandlordWallet, submitWalletBvn } from "@/api/wallet";
+import { ensureLandlordWallet } from "@/api/wallet";
 import {
   getWithdrawals,
   createWithdrawal,
@@ -409,41 +409,20 @@ const FinancePage: NextPageWithLayout = () => {
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Active Wallet
               </p>
-              <p className="mt-1 text-sm font-medium text-gray-900">
-                {activeWallet?.id ?? "—"}
-              </p>
               <p className="mt-1 text-sm text-gray-600">
                 Currency: {activeWallet?.currency ?? "—"}
               </p>
-              <p className="mt-1 text-sm text-gray-600">
-                BVN: {activeWallet?.bvn ? "Verified" : "Not verified"}
-              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-gray-100 bg-gray-50 p-3">
                 <p className="text-xs text-gray-500">Balance</p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">
                   {activeWallet?.balance ?? "0"}
                 </p>
               </div>
-              <div className="rounded-md border border-gray-100 bg-gray-50 p-3">
-                <p className="text-xs text-gray-500">Escrow Balance</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {activeWallet?.escrowBalance ?? "0"}
-                </p>
-              </div>
             </div>
           </div>
-
-          {/* BVN verify (if needed) */}
-          {activeWallet && !activeWallet.bvn ? (
-            <BVNVerifyCard
-              walletId={activeWallet.id}
-              onVerified={refreshLists}
-              onToast={showToast}
-            />
-          ) : null}
         </div>
 
         {/* Tabs */}
@@ -802,65 +781,6 @@ const FinancePage: NextPageWithLayout = () => {
         ) : null}
       </section>
     </>
-  );
-};
-
-const BVNVerifyCard = ({
-  walletId,
-  onVerified,
-  onToast,
-}: {
-  walletId: string;
-  onVerified: () => Promise<void> | void;
-  onToast: (
-    message: string,
-    type?: "success" | "error" | "info" | "warning",
-  ) => void;
-}) => {
-  const [bvn, setBvn] = React.useState("");
-  const [submitting, setSubmitting] = React.useState(false);
-
-  const handleVerify = async () => {
-    if (!bvn) {
-      onToast("Enter your BVN", "error");
-      return;
-    }
-    setSubmitting(true);
-    const result = await submitWalletBvn(walletId, { bvn });
-    if (result.success) {
-      onToast("BVN verified successfully", "success");
-      onVerified();
-    } else {
-      onToast(result.error || "BVN verification failed", "error");
-    }
-    setSubmitting(false);
-  };
-
-  return (
-    <div className="rounded-md border border-blue-200 bg-blue-50 p-4">
-      <p className="text-sm font-semibold text-blue-900">Verify BVN</p>
-      <p className="mt-1 text-sm text-blue-800">
-        Submit your BVN to enable wallet operations.
-      </p>
-
-      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
-        <input
-          value={bvn}
-          onChange={(e) => setBvn(e.target.value)}
-          placeholder="Enter BVN"
-          inputMode="numeric"
-          className="h-11 rounded-lg border border-blue-300 bg-white px-3 text-sm text-gray-900"
-        />
-        <button
-          type="button"
-          onClick={handleVerify}
-          disabled={submitting}
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition disabled:opacity-60"
-        >
-          {submitting ? "Verifying..." : "Verify"}
-        </button>
-      </div>
-    </div>
   );
 };
 

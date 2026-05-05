@@ -23,6 +23,11 @@ const isLandlordLevelAnnouncement = (item: AnnouncementItemDTO) => {
   return (item.level || "").toUpperCase() === "LANDLORD";
 };
 
+const isBroadcastAnnouncement = (item: AnnouncementItemDTO) => {
+  const level = (item.level || "").toUpperCase();
+  return level === "LANDLORD" || level === "PROPERTY";
+};
+
 const AnnouncementsPage: NextPageWithLayout = () => {
   const { user } = useUser();
   const [announcements, setAnnouncements] = React.useState<
@@ -38,7 +43,7 @@ const AnnouncementsPage: NextPageWithLayout = () => {
       onLoad: (items) => {
         const roleFiltered =
           user.role === "tenant" || user.role === "property_manager"
-            ? items.filter(isLandlordLevelAnnouncement)
+            ? items.filter(isBroadcastAnnouncement)
             : items;
 
         setAnnouncements((prev) => {
