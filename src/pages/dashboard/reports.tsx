@@ -143,7 +143,7 @@ const ReportsPage: NextPageWithLayout = () => {
         <title>Reports & Analytics | DWELLA NG</title>
       </Head>
 
-      <section className="space-y-6">
+      <section className="relative space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -282,7 +282,7 @@ const ReportsPage: NextPageWithLayout = () => {
                         (d, i) =>
                           `${(i / (revenueExpensesData.length - 1)) * 400},${
                             100 - (d.revenue / maxRevenue) * 100
-                          }`
+                          }`,
                       )
                       .join(" ")}
                     fill="none"
@@ -308,7 +308,7 @@ const ReportsPage: NextPageWithLayout = () => {
                         (d, i) =>
                           `${(i / (revenueExpensesData.length - 1)) * 400},${
                             100 - (d.expenses / maxRevenue) * 100
-                          }`
+                          }`,
                       )
                       .join(" ")}
                     fill="none"
@@ -734,6 +734,18 @@ const ReportsPage: NextPageWithLayout = () => {
             </table>
           </div>
         </motion.div>
+
+        {/* Coming soon overlay: blocks interaction but keeps page scrollable */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-30 rounded-xl bg-white/60 backdrop-blur-[1px]"
+        >
+          <div className="sticky top-24 flex justify-center px-4">
+            <div className="rounded-full border border-blue-200 bg-blue-50 px-5 py-2 text-sm font-semibold text-blue-900 shadow-sm">
+              Reports are coming soon
+            </div>
+          </div>
+        </div>
       </section>
     </>
   );

@@ -25,17 +25,76 @@ export const login = async (
   try {
     const raw = result.data as {
       refreshToken?: unknown;
+      authorization?: { token?: unknown };
+      data?: {
+        refreshToken?: unknown;
+        accessToken?: unknown;
+        user?: unknown;
+        authorization?: { token?: unknown };
+      };
+    };
+
+    // Support both current and legacy login payloads:
+    // - Current: { data: { accessToken, user } }
+    // - Legacy:  { data: { ...userFields, authorization: { token } } }
+    const normalized = (() => {
+      if (
+        raw?.data &&
+        typeof raw.data === "object" &&
+        typeof raw.data.accessToken === "string" &&
+        raw.data.user &&
+        typeof raw.data.user === "object"
+      ) {
+        return result.data;
+      }
+
+      const legacyUser =
+        raw?.data && typeof raw.data === "object" ? raw.data : null;
+      const legacyToken =
+        (typeof raw?.data?.authorization?.token === "string" &&
+          raw.data.authorization.token) ||
+        (typeof raw?.authorization?.token === "string" &&
+          raw.authorization.token) ||
+        (typeof raw?.data?.accessToken === "string" && raw.data.accessToken) ||
+        (typeof (result.data as { accessToken?: unknown })?.accessToken ===
+          "string" &&
+          (result.data as { accessToken?: string }).accessToken) ||
+        null;
+
+      if (legacyUser && legacyToken) {
+        return {
+          success:
+            (result.data as { success?: unknown })?.success === true
+              ? true
+              : true,
+          message:
+            ((result.data as { message?: unknown })?.message as string) ||
+            "Login successful",
+          data: {
+            accessToken: legacyToken,
+            user: legacyUser,
+          },
+        };
+      }
+
+      return result.data;
+    })();
+
+    const rawNormalized = normalized as {
+      refreshToken?: unknown;
       data?: { refreshToken?: unknown };
     };
     const refreshToken =
-      (typeof raw?.data?.refreshToken === "string" && raw.data.refreshToken) ||
-      (typeof raw?.refreshToken === "string" && raw.refreshToken) ||
+      (typeof rawNormalized?.data?.refreshToken === "string" &&
+        rawNormalized.data.refreshToken) ||
+      (typeof rawNormalized?.refreshToken === "string" &&
+        rawNormalized.refreshToken) ||
       null;
     if (typeof window !== "undefined" && refreshToken) {
       setStoredRefreshToken(refreshToken);
     }
 
-    const parsed = newLoginResponseSchema.parse(result.data);
+    const parsed = newLoginResponseSchema.parse(normalized);
     // Store access token and user id in localStorage
     if (typeof window !== "undefined" && parsed.data.accessToken) {
       localStorage.setItem("accessToken", parsed.data.accessToken);

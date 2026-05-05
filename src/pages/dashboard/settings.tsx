@@ -13,6 +13,8 @@ import {
   Upload,
   Eye,
   EyeOff,
+  Pencil,
+  X,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
@@ -78,6 +80,8 @@ const SettingsPage: NextPageWithLayout = () => {
     overdue: { email: true, push: false, sms: true },
     reports: { email: true, push: false, sms: false },
   });
+  const [isEditingProfile, setIsEditingProfile] = React.useState(false);
+  const [profileSnapshot, setProfileSnapshot] = React.useState(profileForm);
 
   const landlordId = landlord?.id as string | undefined;
 
@@ -117,9 +121,14 @@ const SettingsPage: NextPageWithLayout = () => {
       if (result.success) {
         setLandlord(result.data);
         setProfileForm({
-          businessName: result.data.landLordName ?? "",
-          businessEmail: result.data.user?.email ?? user?.email ?? "",
-          businessPhoneNumber: "",
+          businessName:
+            result.data.businessName ?? result.data.landLordName ?? "",
+          businessEmail:
+            result.data.businessEmail ??
+            result.data.user?.email ??
+            user?.email ??
+            "",
+          businessPhoneNumber: result.data.businessPhoneNumber ?? "",
           address: result.data.address?.address ?? "",
           city: result.data.address?.city ?? "",
           state: result.data.address?.state ?? "",
@@ -212,7 +221,20 @@ const SettingsPage: NextPageWithLayout = () => {
     return `${first}${last}`.toUpperCase() || "JD";
   };
 
-  const profileName = landlord?.landLordName || user?.name || "";
+  const businessDisplayName =
+    profileForm.businessName ||
+    landlord?.businessName ||
+    landlord?.landLordName ||
+    "";
+  const businessDisplayEmail =
+    profileForm.businessEmail ||
+    landlord?.businessEmail ||
+    landlord?.user?.email ||
+    user?.email ||
+    "";
+  const businessDisplayPhone =
+    profileForm.businessPhoneNumber || landlord?.businessPhoneNumber || "";
+  const profileName = businessDisplayName || user?.name || "Landlord";
   const profilePicture = landlord?.profilePicture?.url;
   const initials = getInitials(profileName);
 
@@ -266,6 +288,8 @@ const SettingsPage: NextPageWithLayout = () => {
     setIsSaving(true);
     const result = await updateLandlordProfileSettings(landlordId, {
       businessName: profileForm.businessName,
+      // Backward compatibility for backends still persisting this legacy key.
+      landLordName: profileForm.businessName,
       businessEmail: profileForm.businessEmail,
       businessPhoneNumber: profileForm.businessPhoneNumber,
       address: {
@@ -276,10 +300,20 @@ const SettingsPage: NextPageWithLayout = () => {
         country: profileForm.country,
       },
     });
+    if (result.success) {
+      const refreshedLandlord =
+        user?.id && user.role === "landlord"
+          ? await getLandlordByUser(String(user.id))
+          : null;
+      if (refreshedLandlord?.success) {
+        setLandlord(refreshedLandlord.data);
+      }
+      setProfileSnapshot(profileForm);
+      setIsEditingProfile(false);
+      showToast("Profile updated successfully", "success");
+    } else showToast(result.error || "Failed to update profile", "error");
     setIsSaving(false);
-    if (result.success) showToast("Profile updated successfully", "success");
-    else showToast(result.error || "Failed to update profile", "error");
-  }, [landlordId, profileForm, showToast]);
+  }, [landlordId, profileForm, showToast, user?.id, user?.role]);
 
   const handleSaveDocuments = React.useCallback(async () => {
     if (!landlordId) return;
@@ -457,167 +491,231 @@ const SettingsPage: NextPageWithLayout = () => {
                       </div>
                     </div>
 
-                    {/* Form Fields */}
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          Full Name
-                        </label>
-                        <input
-                          type="text"
-                          value={user?.name ?? ""}
-                          readOnly
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-gray-50 px-4 text-sm text-gray-900"
-                        />
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          User Details
+                        </p>
+                        <div className="mt-3 space-y-2 text-sm text-gray-700">
+                          <p>
+                            <span className="font-medium text-gray-500">
+                              Full Name:
+                            </span>{" "}
+                            {user?.name || "—"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-500">
+                              Email:
+                            </span>{" "}
+                            {user?.email || "—"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-gray-500">
+                              Role:
+                            </span>{" "}
+                            {user?.role || "—"}
+                          </p>
+                        </div>
                       </div>
-
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          Email Address
-                        </label>
-                        <input
-                          type="email"
-                          value={profileForm.businessEmail}
-                          onChange={(e) =>
-                            setProfileForm((prev) => ({
-                              ...prev,
-                              businessEmail: e.target.value,
-                            }))
-                          }
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          Phone Number
-                        </label>
-                        <input
-                          type="tel"
-                          value={profileForm.businessPhoneNumber}
-                          onChange={(e) =>
-                            setProfileForm((prev) => ({
-                              ...prev,
-                              businessPhoneNumber: e.target.value,
-                            }))
-                          }
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          Business Name
-                        </label>
-                        <input
-                          type="text"
-                          value={profileForm.businessName}
-                          onChange={(e) =>
-                            setProfileForm((prev) => ({
-                              ...prev,
-                              businessName: e.target.value,
-                            }))
-                          }
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2">
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          Address
-                        </label>
-                        <input
-                          type="text"
-                          value={profileForm.address}
-                          onChange={(e) =>
-                            setProfileForm((prev) => ({
-                              ...prev,
-                              address: e.target.value,
-                            }))
-                          }
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          City
-                        </label>
-                        <input
-                          type="text"
-                          value={profileForm.city}
-                          onChange={(e) =>
-                            setProfileForm((prev) => ({
-                              ...prev,
-                              city: e.target.value,
-                            }))
-                          }
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          State
-                        </label>
-                        <input
-                          type="text"
-                          value={profileForm.state}
-                          onChange={(e) =>
-                            setProfileForm((prev) => ({
-                              ...prev,
-                              state: e.target.value,
-                            }))
-                          }
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          Postal Code
-                        </label>
-                        <input
-                          type="text"
-                          value={profileForm.postalCode}
-                          onChange={(e) =>
-                            setProfileForm((prev) => ({
-                              ...prev,
-                              postalCode: e.target.value,
-                            }))
-                          }
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                          Country
-                        </label>
-                        <input
-                          type="text"
-                          value={profileForm.country}
-                          onChange={(e) =>
-                            setProfileForm((prev) => ({
-                              ...prev,
-                              country: e.target.value,
-                            }))
-                          }
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                        />
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <p className="text-sm font-semibold text-blue-950">
+                          Business Details
+                        </p>
+                        <div className="mt-3 space-y-2 text-sm text-blue-900">
+                          <p>
+                            <span className="font-medium text-blue-700">
+                              Business Name:
+                            </span>{" "}
+                            {businessDisplayName || "—"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-blue-700">
+                              Business Email:
+                            </span>{" "}
+                            {businessDisplayEmail || "—"}
+                          </p>
+                          <p>
+                            <span className="font-medium text-blue-700">
+                              Business Phone:
+                            </span>{" "}
+                            {businessDisplayPhone || "—"}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      type="button"
-                      onClick={handleSaveProfile}
-                      disabled={isSaving}
-                      className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                    >
-                      {isSaving ? "Saving..." : "Save Changes"}
-                    </motion.button>
+                    {!isEditingProfile ? (
+                      <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        type="button"
+                        onClick={() => {
+                          setProfileSnapshot(profileForm);
+                          setIsEditingProfile(true);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit Profile
+                      </motion.button>
+                    ) : (
+                      <>
+                        <div className="grid gap-4 sm:grid-cols-2 rounded-lg border border-gray-200 bg-white p-4">
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Business Name
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.businessName}
+                              onChange={(e) =>
+                                setProfileForm((prev) => ({
+                                  ...prev,
+                                  businessName: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Email Address
+                            </label>
+                            <input
+                              type="email"
+                              value={profileForm.businessEmail}
+                              onChange={(e) =>
+                                setProfileForm((prev) => ({
+                                  ...prev,
+                                  businessEmail: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Phone Number
+                            </label>
+                            <input
+                              type="tel"
+                              value={profileForm.businessPhoneNumber}
+                              onChange={(e) =>
+                                setProfileForm((prev) => ({
+                                  ...prev,
+                                  businessPhoneNumber: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Address
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.address}
+                              onChange={(e) =>
+                                setProfileForm((prev) => ({
+                                  ...prev,
+                                  address: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              City
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.city}
+                              onChange={(e) =>
+                                setProfileForm((prev) => ({
+                                  ...prev,
+                                  city: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              State
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.state}
+                              onChange={(e) =>
+                                setProfileForm((prev) => ({
+                                  ...prev,
+                                  state: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Postal Code
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.postalCode}
+                              onChange={(e) =>
+                                setProfileForm((prev) => ({
+                                  ...prev,
+                                  postalCode: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Country
+                            </label>
+                            <input
+                              type="text"
+                              value={profileForm.country}
+                              onChange={(e) =>
+                                setProfileForm((prev) => ({
+                                  ...prev,
+                                  country: e.target.value,
+                                }))
+                              }
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <motion.button
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            type="button"
+                            onClick={handleSaveProfile}
+                            disabled={isSaving}
+                            className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                          >
+                            {isSaving ? "Saving..." : "Save Changes"}
+                          </motion.button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProfileForm(profileSnapshot);
+                              setIsEditingProfile(false);
+                            }}
+                            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                          >
+                            <X className="h-4 w-4" />
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
               </div>

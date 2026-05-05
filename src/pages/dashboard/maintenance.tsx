@@ -549,6 +549,26 @@ const TenantNewRequestForm = ({
 // Tenant Request History
 const PAGE_SIZE = 20;
 
+const filterMaintenanceByProperties = (
+  requests: MaintenanceRequestWithDetails[],
+  properties: { id: string; name: string }[],
+) => {
+  if (properties.length === 0) return [];
+  const idSet = new Set(properties.map((p) => p.id).filter(Boolean));
+  const nameSet = new Set(
+    properties
+      .map((p) => p.name.trim().toLowerCase())
+      .filter((name) => name.length > 0),
+  );
+  return requests.filter((request) => {
+    const byId = request.propertyId ? idSet.has(request.propertyId) : false;
+    const byName = nameSet.has(
+      (request.propertyName || "").trim().toLowerCase(),
+    );
+    return byId || byName;
+  });
+};
+
 const TenantRequestHistory = ({
   tenantRecordId,
   tenantProfileLoading,
@@ -786,8 +806,13 @@ const LandlordMaintenancePage = () => {
     }
   };
 
+  const scopedRequests = React.useMemo(() => {
+    if (user?.role === "super_admin") return requests;
+    return filterMaintenanceByProperties(requests, landlordProperties);
+  }, [landlordProperties, requests, user?.role]);
+
   // Filter requests based on search, filters, and active tab
-  const filteredRequests = requests.filter((request) => {
+  const filteredRequests = scopedRequests.filter((request) => {
     const matchesSearch =
       (request.propertyName ?? "")
         .toLowerCase()
@@ -818,12 +843,14 @@ const LandlordMaintenancePage = () => {
   });
 
   // Count requests by status
-  const allCount = requests.length;
-  const newCount = requests.filter((r) => r.status === "new").length;
-  const inProgressCount = requests.filter(
+  const allCount = scopedRequests.length;
+  const newCount = scopedRequests.filter((r) => r.status === "new").length;
+  const inProgressCount = scopedRequests.filter(
     (r) => r.status === "in_progress",
   ).length;
-  const resolvedCount = requests.filter((r) => r.status === "resolved").length;
+  const resolvedCount = scopedRequests.filter(
+    (r) => r.status === "resolved",
+  ).length;
 
   const getPriorityBadge = (
     priority: MaintenanceRequestWithDetails["priority"],
