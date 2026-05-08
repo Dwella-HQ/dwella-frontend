@@ -545,19 +545,57 @@ const SettingsPage: NextPageWithLayout = () => {
                     </div>
 
                     {!isEditingProfile ? (
-                      <motion.button
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
-                        type="button"
-                        onClick={() => {
-                          setProfileSnapshot(profileForm);
-                          setIsEditingProfile(true);
-                        }}
-                        className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                      >
-                        <Pencil className="h-4 w-4" />
-                        Edit Profile
-                      </motion.button>
+                      <div className="space-y-4">
+                        {!businessDisplayPhone ? (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                            <p className="text-sm font-medium text-amber-900">
+                              Business phone number is required.
+                            </p>
+                            <p className="mt-1 text-xs text-amber-800">
+                              Add it here so your landlord profile is complete.
+                            </p>
+                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                              <input
+                                type="tel"
+                                value={profileForm.businessPhoneNumber}
+                                onChange={(e) =>
+                                  setProfileForm((prev) => ({
+                                    ...prev,
+                                    businessPhoneNumber: e.target.value,
+                                  }))
+                                }
+                                placeholder="Enter business phone number"
+                                className="h-11 w-full rounded-lg border border-amber-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleSaveProfile}
+                                disabled={
+                                  isSaving ||
+                                  !profileForm.businessPhoneNumber.trim()
+                                }
+                                className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {isSaving ? "Saving..." : "Save Phone"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          type="button"
+                          onClick={() => {
+                            setProfileSnapshot(profileForm);
+                            setIsEditingProfile(true);
+                          }}
+                          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit Profile
+                        </motion.button>
+                      </div>
                     ) : (
                       <>
                         <div className="grid gap-4 sm:grid-cols-2 rounded-lg border border-gray-200 bg-white p-4">

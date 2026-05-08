@@ -2,13 +2,20 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import { Home, ArrowRight } from "lucide-react";
+import { Home, ArrowRight, User, FileText, Landmark } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
 import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../../_app";
+
+const landlordFlowSteps = [
+  { number: 1, label: "Your Details", icon: User },
+  { number: 2, label: "Documents", icon: FileText },
+  { number: 3, label: "Finance", icon: Landmark },
+  { number: 4, label: "First Property", icon: Home },
+];
 
 const LandlordOnboardingCompletePage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -43,7 +50,7 @@ const LandlordOnboardingCompletePage: NextPageWithLayout = () => {
           </div>
 
           <div className="w-full sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
-            <SignUpProgress currentStep={3} />
+            <SignUpProgress currentStep={4} steps={landlordFlowSteps} />
           </div>
 
           <div className="hidden w-[200px] sm:block"></div>

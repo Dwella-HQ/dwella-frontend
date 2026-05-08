@@ -2,7 +2,7 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, User, FileText, Landmark, Home } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
@@ -35,6 +35,13 @@ const emptyDetails: LandlordDetails = {
   postalCode: "",
 };
 
+const landlordFlowSteps = [
+  { number: 1, label: "Your Details", icon: User },
+  { number: 2, label: "Documents", icon: FileText },
+  { number: 3, label: "Finance", icon: Landmark },
+  { number: 4, label: "First Property", icon: Home },
+];
+
 const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { showToast } = useToast();
@@ -49,6 +56,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   const [profilePreview, setProfilePreview] = React.useState<string | null>(
     null,
   );
+  const [formError, setFormError] = React.useState<string | null>(null);
 
   const initials = React.useMemo(() => {
     if (!user?.name) {
@@ -95,6 +103,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
         sessionStorage.removeItem("landlordOnboardingDetails");
         sessionStorage.removeItem("landlordOnboardingDocumentIds");
         sessionStorage.removeItem("landlordOnboardingProfilePictureId");
+        sessionStorage.removeItem("landlordOnboardingFinance");
         sessionStorage.setItem("landlordOnboardingStarted", "true");
       }
 
@@ -166,6 +175,21 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   );
 
   const handleContinue = React.useCallback(async () => {
+    const hasRequiredFields =
+      details.businessName.trim().length > 0 &&
+      details.address.trim().length > 0 &&
+      details.phoneNumber.trim().length > 0 &&
+      details.postalCode.trim().length > 0 &&
+      details.country.trim().length > 0 &&
+      details.state.trim().length > 0 &&
+      details.city.trim().length > 0;
+    if (!hasRequiredFields) {
+      setFormError(
+        "Please complete all required fields, including phone number.",
+      );
+      return;
+    }
+    setFormError(null);
     setIsSubmitting(true);
     if (typeof window !== "undefined") {
       sessionStorage.setItem(
@@ -236,7 +260,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
           </div>
 
           <div className="w-full sm:w-auto sm:absolute sm:left-1/2 sm:-translate-x-1/2">
-            <SignUpProgress currentStep={1} />
+            <SignUpProgress currentStep={1} steps={landlordFlowSteps} />
           </div>
 
           <div className="hidden sm:block w-[200px]"></div>
@@ -322,7 +346,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Phone Number
+                  Phone Number <span className="text-red-500">*</span>
                 </label>
                 <PhoneInputWithCountry
                   id="phoneNumber"
@@ -413,6 +437,12 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
               </div>
             </div>
           </div>
+
+          {formError ? (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {formError}
+            </div>
+          ) : null}
 
           <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-6">
             <button

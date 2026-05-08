@@ -2,7 +2,9 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/router";
 import loginImage from "@/assets/auth/login_image.png";
+import { useUser } from "@/contexts/UserContext";
 
 export type AuthLayoutProps = {
   children: React.ReactNode;
@@ -10,6 +12,14 @@ export type AuthLayoutProps = {
 };
 
 export const AuthLayout = ({ children, showImage = true }: AuthLayoutProps) => {
+  const router = useRouter();
+  const { user, logout } = useUser();
+
+  const handleLogout = React.useCallback(async () => {
+    logout();
+    await router.push("/");
+  }, [logout, router]);
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       {showImage && (
@@ -27,13 +37,24 @@ export const AuthLayout = ({ children, showImage = true }: AuthLayoutProps) => {
         className={`flex-1 flex flex-col ${showImage ? "lg:w-1/2" : "w-full"}`}
       >
         <div className="px-4 pt-4 sm:px-6 lg:px-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-brand-main"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back Home
-          </Link>
+          {user ? (
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-brand-main"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Logout
+            </button>
+          ) : (
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-brand-main"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back Home
+            </Link>
+          )}
         </div>
         <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
           <div className="w-full">{children}</div>
