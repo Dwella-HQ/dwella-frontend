@@ -30,9 +30,13 @@ import { logout } from "@/utils/auth";
 import { ChevronDown } from "lucide-react";
 import logo from "@/assets/logo.png";
 
-export type DashboardHeaderProps = {};
+export type DashboardHeaderProps = {
+  restrictForUnverifiedLandlord?: boolean;
+};
 
-export const DashboardHeader = ({}: DashboardHeaderProps) => {
+export const DashboardHeader = ({
+  restrictForUnverifiedLandlord = false,
+}: DashboardHeaderProps) => {
   const router = useRouter();
   const { profile, refetchProfile } = useProfile();
   const { user, logout: logoutUser } = useUser();
@@ -219,7 +223,9 @@ export const DashboardHeader = ({}: DashboardHeaderProps) => {
 
             {/* Navigation Bar - Hidden on mobile/tablet, shown on desktop (xl and above) */}
             <div className="hidden xl:flex xl:flex-1 xl:justify-center">
-              <DashboardNavbar />
+              <DashboardNavbar
+                restrictForUnverifiedLandlord={restrictForUnverifiedLandlord}
+              />
             </div>
 
             {/* Right Side: Notifications and User Profile */}

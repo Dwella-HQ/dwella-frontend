@@ -3,6 +3,8 @@ import * as React from "react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/Toast";
+import { uploadFile } from "@/api/files";
+import { useUser } from "@/contexts/UserContext";
 import {
   deriveVerificationKind,
   entityLandlordId,
@@ -25,6 +27,7 @@ import {
   FileText,
   Loader2,
   MapPin,
+  Paperclip,
   RefreshCw,
   XCircle,
 } from "lucide-react";
@@ -82,6 +85,7 @@ function DocLink({
 }
 
 const AdminVerificationsPage: NextPageWithLayout = () => {
+  const { user } = useUser();
   const { showToast } = useToast();
   const [rows, setRows] = React.useState<VerificationDTO[]>([]);
   const [listLoading, setListLoading] = React.useState(true);
@@ -101,6 +105,12 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
   const [actionBusy, setActionBusy] = React.useState<
     "verify" | "reject" | null
   >(null);
+  const [pendingAction, setPendingAction] = React.useState<
+    "VERIFIED" | "REJECTED" | null
+  >(null);
+  const [actionReason, setActionReason] = React.useState("");
+  const [supportingFiles, setSupportingFiles] = React.useState<File[]>([]);
+  const [modalError, setModalError] = React.useState<string | null>(null);
 
   const loadList = React.useCallback(async () => {
     setListLoading(true);
@@ -154,63 +164,99 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
 
   const selectedKind = detail ? deriveVerificationKind(detail) : null;
 
-  const handleVerify = async () => {
-    if (!detail || !selectedKind || actionBusy) return;
-    const st = String(detail.status).toUpperCase();
-    if (st === "VERIFIED") {
-      showToast("Already verified", "info");
+  const openActionModal = React.useCallback(
+    (status: "VERIFIED" | "REJECTED") => {
+      if (!detail) return;
+      const st = String(detail.status).toUpperCase();
+      if (st === status) {
+        showToast(
+          status === "VERIFIED" ? "Already verified" : "Already rejected",
+          "info",
+        );
+        return;
+      }
+      setPendingAction(status);
+      setActionReason("");
+      setSupportingFiles([]);
+      setModalError(null);
+    },
+    [detail, showToast],
+  );
+
+  const closeActionModal = React.useCallback(() => {
+    if (actionBusy) return;
+    setPendingAction(null);
+    setActionReason("");
+    setSupportingFiles([]);
+    setModalError(null);
+  }, [actionBusy]);
+
+  const handleConfirmAction = React.useCallback(async () => {
+    if (!detail || !selectedKind || !pendingAction || actionBusy) return;
+    const reason = actionReason.trim();
+    if (!reason) {
+      setModalError("Reason is required.");
       return;
     }
-    setActionBusy("verify");
+
+    const busyState = pendingAction === "VERIFIED" ? "verify" : "reject";
+    setActionBusy(busyState);
+    setModalError(null);
+
+    const supportingDocumentIds: string[] = [];
+    for (const file of supportingFiles) {
+      const uploadResult = await uploadFile({
+        file,
+        folder: "verification",
+        label: "verification_supporting_document",
+        token: user?.token,
+      });
+      if (!uploadResult.success) {
+        setActionBusy(null);
+        setModalError(uploadResult.error || "Failed to upload supporting file.");
+        return;
+      }
+      supportingDocumentIds.push(uploadResult.data.id);
+    }
+
     const patch =
       selectedKind === "property"
         ? patchPropertyVerificationStatus
         : patchLandlordVerificationStatus;
-    const result = await patch(detail.id, { status: "VERIFIED" });
+    const result = await patch(detail.id, {
+      status: pendingAction,
+      reason,
+      supportingDocumentIds:
+        supportingDocumentIds.length > 0 ? supportingDocumentIds : undefined,
+    });
     setActionBusy(null);
     if (!result.success) {
-      showToast(result.error || "Verification failed", "error");
+      setModalError(result.error || "Verification update failed");
       return;
     }
-    showToast("Marked as verified", "success");
+
+    showToast(
+      pendingAction === "VERIFIED" ? "Marked as verified" : "Marked as rejected",
+      "success",
+    );
+    closeActionModal();
     await loadList();
     const refreshed = await getVerificationById(detail.id);
     if (refreshed.success) {
       setDetail(refreshed.data);
     }
-  };
-
-  const handleReject = async () => {
-    if (!detail || !selectedKind || actionBusy) return;
-    const st = String(detail.status).toUpperCase();
-    if (st === "REJECTED") {
-      showToast("Already rejected", "info");
-      return;
-    }
-    const ok =
-      typeof window !== "undefined"
-        ? window.confirm("Reject this verification record?")
-        : false;
-    if (!ok) return;
-
-    setActionBusy("reject");
-    const patch =
-      selectedKind === "property"
-        ? patchPropertyVerificationStatus
-        : patchLandlordVerificationStatus;
-    const result = await patch(detail.id, { status: "REJECTED" });
-    setActionBusy(null);
-    if (!result.success) {
-      showToast(result.error || "Reject failed", "error");
-      return;
-    }
-    showToast("Marked as rejected", "success");
-    await loadList();
-    const refreshed = await getVerificationById(detail.id);
-    if (refreshed.success) {
-      setDetail(refreshed.data);
-    }
-  };
+  }, [
+    actionBusy,
+    actionReason,
+    closeActionModal,
+    detail,
+    loadList,
+    pendingAction,
+    selectedKind,
+    showToast,
+    supportingFiles,
+    user?.token,
+  ]);
 
   return (
     <>
@@ -633,7 +679,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                             actionBusy !== null ||
                             String(d.status).toUpperCase() === "VERIFIED"
                           }
-                          onClick={() => void handleVerify()}
+                          onClick={() => openActionModal("VERIFIED")}
                           className="inline-flex items-center justify-center gap-2 rounded-md bg-[#111827] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-[#1E293B] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {actionBusy === "verify" ? (
@@ -646,7 +692,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                         <button
                           type="button"
                           disabled={actionBusy !== null}
-                          onClick={() => void handleReject()}
+                          onClick={() => openActionModal("REJECTED")}
                           className="inline-flex items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2.5 text-[13px] font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {actionBusy === "reject" ? (
@@ -654,7 +700,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                           ) : (
                             <XCircle className="h-4 w-4" />
                           )}
-                          Reject
+                          Reject record
                         </button>
                       </div>
                     </div>
@@ -663,6 +709,88 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
             </div>
           </div>
         </section>
+        {pendingAction ? (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
+              <h3 className="text-base font-semibold text-[#0F172A]">
+                {pendingAction === "VERIFIED"
+                  ? "Accept verification"
+                  : "Reject verification"}
+              </h3>
+              <p className="mt-1 text-sm text-[#64748B]">
+                Provide a reason and optional supporting document(s) before
+                updating verification status.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-[#334155]">
+                    Reason <span className="text-red-600">*</span>
+                  </label>
+                  <textarea
+                    value={actionReason}
+                    onChange={(e) => setActionReason(e.target.value)}
+                    rows={4}
+                    placeholder="Write reason..."
+                    className="w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-[#334155]">
+                    Supporting documents (optional)
+                  </label>
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] hover:bg-[#F8FAFC]">
+                    <Paperclip className="h-4 w-4" />
+                    Attach file(s)
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) =>
+                        setSupportingFiles(Array.from(e.target.files ?? []))
+                      }
+                    />
+                  </label>
+                  {supportingFiles.length > 0 ? (
+                    <p className="mt-2 text-xs text-[#64748B]">
+                      {supportingFiles.length} file
+                      {supportingFiles.length > 1 ? "s" : ""} selected
+                    </p>
+                  ) : null}
+                </div>
+
+                {modalError ? (
+                  <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {modalError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeActionModal}
+                  disabled={actionBusy !== null}
+                  className="rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmAction()}
+                  disabled={actionBusy !== null}
+                  className="inline-flex items-center gap-2 rounded-md bg-[#111827] px-3 py-2 text-sm font-medium text-white hover:bg-[#1E293B] disabled:opacity-60"
+                >
+                  {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {pendingAction === "VERIFIED"
+                    ? "Accept verification"
+                    : "Reject verification"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </AdminLayout>
     </>
   );

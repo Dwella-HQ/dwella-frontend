@@ -9,9 +9,13 @@ import { getNavigationItems, getMoreMenuItems } from "@/utils/navigation";
 
 export type DashboardNavbarProps = {
   className?: string;
+  restrictForUnverifiedLandlord?: boolean;
 };
 
-export const DashboardNavbar = ({ className = "" }: DashboardNavbarProps) => {
+export const DashboardNavbar = ({
+  className = "",
+  restrictForUnverifiedLandlord = false,
+}: DashboardNavbarProps) => {
   const router = useRouter();
   const { user } = useUser();
   const currentPath = router.pathname;
@@ -26,6 +30,13 @@ export const DashboardNavbar = ({ className = "" }: DashboardNavbarProps) => {
   const moreMenuItems = React.useMemo(
     () => getMoreMenuItems(user?.role || "landlord"),
     [user?.role]
+  );
+  const isItemRestricted = React.useCallback(
+    (href: string) => {
+      if (!restrictForUnverifiedLandlord || user?.role !== "landlord") return false;
+      return href !== "/dashboard" && href !== "/dashboard/settings";
+    },
+    [restrictForUnverifiedLandlord, user?.role],
   );
 
   // Check if any "More" menu item is active
@@ -42,6 +53,7 @@ export const DashboardNavbar = ({ className = "" }: DashboardNavbarProps) => {
           isActive = currentPath === item.href;
         }
         const Icon = item.icon;
+        const restricted = isItemRestricted(item.href);
 
         return (
           <motion.div
@@ -51,11 +63,14 @@ export const DashboardNavbar = ({ className = "" }: DashboardNavbarProps) => {
           >
             <Link
               href={item.href}
+              onClick={(e) => {
+                if (restricted) e.preventDefault();
+              }}
               className={`relative flex items-center gap-1.5 sm:gap-2 rounded-md px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium transition whitespace-nowrap flex-shrink-0 ${
                 isActive
                   ? "text-white bg-brand-main"
                   : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
+              } ${restricted ? "opacity-45 cursor-not-allowed pointer-events-none" : ""}`}
             >
               {isActive && (
                 <motion.div
@@ -106,6 +121,7 @@ export const DashboardNavbar = ({ className = "" }: DashboardNavbarProps) => {
                 {moreMenuItems.map((item, index) => {
                   const isItemActive = currentPath.startsWith(item.href);
                   const Icon = item.icon;
+                  const restricted = isItemRestricted(item.href);
 
                   return (
                     <DropdownMenu.Item
@@ -119,12 +135,18 @@ export const DashboardNavbar = ({ className = "" }: DashboardNavbarProps) => {
                       >
                         <Link
                           href={item.href}
-                          onClick={() => setIsMoreOpen(false)}
+                          onClick={(e) => {
+                            if (restricted) {
+                              e.preventDefault();
+                              return;
+                            }
+                            setIsMoreOpen(false);
+                          }}
                           className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm outline-none transition ${
                             isItemActive
                               ? "bg-brand-main text-white"
                               : "text-gray-700 hover:bg-gray-100"
-                          }`}
+                          } ${restricted ? "opacity-45 cursor-not-allowed pointer-events-none" : ""}`}
                         >
                           <Icon className={`h-4 w-4 ${isItemActive ? "text-white" : "text-gray-500"}`} />
                           <span>{item.name}</span>

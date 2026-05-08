@@ -7,7 +7,13 @@ import { Menu, ChevronUp } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { getNavigationItems, getMoreMenuItems } from "@/utils/navigation";
 
-export const DashboardMobileNav = () => {
+export type DashboardMobileNavProps = {
+  restrictForUnverifiedLandlord?: boolean;
+};
+
+export const DashboardMobileNav = ({
+  restrictForUnverifiedLandlord = false,
+}: DashboardMobileNavProps) => {
   const router = useRouter();
   const { user } = useUser();
   const currentPath = router.pathname;
@@ -27,6 +33,13 @@ export const DashboardMobileNav = () => {
     () => getMoreMenuItems(user?.role || "landlord"),
     [user?.role]
   );
+  const isItemRestricted = React.useCallback(
+    (href: string) => {
+      if (!restrictForUnverifiedLandlord || user?.role !== "landlord") return false;
+      return href !== "/dashboard" && href !== "/dashboard/settings";
+    },
+    [restrictForUnverifiedLandlord, user?.role],
+  );
 
   // Check if any "More" menu item is active
   const isMoreActive = moreMenuItems.some((item) => currentPath.startsWith(item.href));
@@ -44,14 +57,18 @@ export const DashboardMobileNav = () => {
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
+          const restricted = isItemRestricted(item.href);
 
           return (
             <Link
               key={item.name}
               href={item.href}
+              onClick={(e) => {
+                if (restricted) e.preventDefault();
+              }}
               className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 px-2 rounded-lg transition ${
                 active ? "text-brand-main" : "text-gray-500"
-              }`}
+              } ${restricted ? "opacity-45 cursor-not-allowed pointer-events-none" : ""}`}
             >
               <Icon className={`h-5 w-5 ${active ? "text-brand-main" : "text-gray-500"}`} />
               <span className={`text-xs font-medium ${active ? "text-brand-main" : "text-gray-500"}`}>
@@ -112,6 +129,7 @@ export const DashboardMobileNav = () => {
                   {moreMenuItems.map((item, index) => {
                     const isItemActive = currentPath.startsWith(item.href);
                     const Icon = item.icon;
+                    const restricted = isItemRestricted(item.href);
 
                     return (
                       <motion.div
@@ -122,12 +140,18 @@ export const DashboardMobileNav = () => {
                       >
                         <Link
                           href={item.href}
-                          onClick={() => setIsMoreOpen(false)}
+                          onClick={(e) => {
+                            if (restricted) {
+                              e.preventDefault();
+                              return;
+                            }
+                            setIsMoreOpen(false);
+                          }}
                           className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition ${
                             isItemActive
                               ? "bg-brand-main text-white"
                               : "text-gray-700 hover:bg-gray-100"
-                          }`}
+                          } ${restricted ? "opacity-45 cursor-not-allowed pointer-events-none" : ""}`}
                         >
                           <Icon className={`h-5 w-5 ${isItemActive ? "text-white" : "text-gray-500"}`} />
                           <span>{item.name}</span>

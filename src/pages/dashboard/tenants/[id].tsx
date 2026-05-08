@@ -213,7 +213,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
         const [paymentsResult, maintenanceResult, rentsResult] =
           await Promise.all([
             getRentPayments({ limit: 200 }),
-            getMaintenanceRequests({ limit: 200 }),
+            getMaintenanceRequests({ limit: 200, tenantId }),
             activeLeaseId
               ? getRentsByLease(activeLeaseId)
               : Promise.resolve({ success: false as const, error: "No lease" }),

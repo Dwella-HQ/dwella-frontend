@@ -84,6 +84,7 @@ const SettingsPage: NextPageWithLayout = () => {
   const [profileSnapshot, setProfileSnapshot] = React.useState(profileForm);
 
   const landlordId = landlord?.id as string | undefined;
+  const isLandlordVerified = landlord?.isApproved === true;
 
   // Fetch landlord profile for landlords
   React.useEffect(() => {
@@ -119,6 +120,28 @@ const SettingsPage: NextPageWithLayout = () => {
 
       const result = await getLandlordByUser(user.id as string);
       if (result.success) {
+        console.log("[Settings] landlord payload for document preview:", {
+          govermentIdDocumentId: result.data.govermentIdDocumentId,
+          landSurveyDocumentId: result.data.landSurveyDocumentId,
+          proofOfOwnershipDocumentId: result.data.proofOfOwnershipDocumentId,
+          taxIdentificationNumberDocumentId:
+            result.data.taxIdentificationNumberDocumentId,
+          govermentIdDocument: (
+            result.data as unknown as Record<string, unknown>
+          ).govermentIdDocument,
+          governmentIdDocument: (
+            result.data as unknown as Record<string, unknown>
+          ).governmentIdDocument,
+          landSurveyDocument: (
+            result.data as unknown as Record<string, unknown>
+          ).landSurveyDocument,
+          proofOfOwnershipDocument: (
+            result.data as unknown as Record<string, unknown>
+          ).proofOfOwnershipDocument,
+          taxIdentificationNumberDocument: (
+            result.data as unknown as Record<string, unknown>
+          ).taxIdentificationNumberDocument,
+        });
         setLandlord(result.data);
         setProfileForm({
           businessName:
@@ -394,6 +417,60 @@ const SettingsPage: NextPageWithLayout = () => {
     [showToast, user?.token],
   );
 
+  const documentPreview = React.useMemo(() => {
+    const asFileRef = (value: unknown) => {
+      if (!value || typeof value !== "object") return null;
+      const v = value as { url?: unknown; fileName?: unknown; id?: unknown };
+      const url = typeof v.url === "string" ? v.url : "";
+      const fileName = typeof v.fileName === "string" ? v.fileName : "";
+      const id = typeof v.id === "string" ? v.id : "";
+      if (!url && !fileName && !id) return null;
+      return { url, fileName, id };
+    };
+
+    const source = landlord as Record<string, unknown> | null;
+    return {
+      governmentId:
+        asFileRef(source?.govermentIdDocument) ??
+        asFileRef(source?.governmentIdDocument),
+      landSurvey: asFileRef(source?.landSurveyDocument),
+      proofOfOwnership: asFileRef(source?.proofOfOwnershipDocument),
+      tin: asFileRef(source?.taxIdentificationNumberDocument),
+    };
+  }, [landlord]);
+
+  const renderUploadedDocumentInfo = React.useCallback(
+    (
+      preview: { url?: string; fileName?: string; id?: string } | null,
+      uploadedId?: string,
+    ) => {
+      if (preview?.url) {
+        return (
+          <a
+            href={preview.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center rounded-lg border border-brand-main bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-brand-main/5"
+          >
+            View uploaded document
+          </a>
+        );
+      }
+      if (preview?.fileName || preview?.id || uploadedId) {
+        return (
+          <p className="mt-2 text-xs text-gray-500">
+            Uploaded{" "}
+            {preview?.fileName
+              ? `(${preview.fileName})`
+              : `(${preview?.id || uploadedId})`}
+          </p>
+        );
+      }
+      return null;
+    },
+    [],
+  );
+
   return (
     <>
       <Head>
@@ -576,7 +653,7 @@ const SettingsPage: NextPageWithLayout = () => {
                                 }
                                 className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-70"
                               >
-                                {isSaving ? "Saving..." : "Save Phone"}
+                                {isSaving ? "Saving..." : "Save"}
                               </button>
                             </div>
                           </div>
@@ -765,6 +842,11 @@ const SettingsPage: NextPageWithLayout = () => {
                 <h2 className="text-lg font-semibold text-gray-900">
                   Verification Documents
                 </h2>
+                {isLandlordVerified ? (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    This account is verified. Document uploads are locked.
+                  </div>
+                ) : null}
 
                 <div className="space-y-6">
                   {/* Government Issued ID */}
@@ -775,25 +857,41 @@ const SettingsPage: NextPageWithLayout = () => {
                     <p className="mb-3 text-sm text-gray-600">
                       Driver's License, National ID, or International Passport
                     </p>
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
-                      <Upload className="h-4 w-4" />
-                      {isUploadingDoc === "govermentIdDocumentId"
-                        ? "Uploading..."
-                        : "Choose File"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            void handleUploadDocument(
-                              "govermentIdDocumentId",
-                              file,
-                            );
-                          }
-                        }}
-                      />
-                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                          isLandlordVerified
+                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
+                        }`}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {isUploadingDoc === "govermentIdDocumentId"
+                          ? "Uploading..."
+                          : "Choose File"}
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={isLandlordVerified}
+                          onChange={(e) => {
+                            if (isLandlordVerified) return;
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              void handleUploadDocument(
+                                "govermentIdDocumentId",
+                                file,
+                              );
+                            }
+                          }}
+                        />
+                      </label>
+                      {isLandlordVerified
+                        ? renderUploadedDocumentInfo(
+                            documentPreview.governmentId,
+                            documentsForm.govermentIdDocumentId,
+                          )
+                        : null}
+                    </div>
                     {documentsForm.govermentIdDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
                         File ID: {documentsForm.govermentIdDocumentId}
@@ -809,25 +907,41 @@ const SettingsPage: NextPageWithLayout = () => {
                     <p className="mb-3 text-sm text-gray-600">
                       Property map, site plans, or official record
                     </p>
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
-                      <Upload className="h-4 w-4" />
-                      {isUploadingDoc === "landSurveyDocumentId"
-                        ? "Uploading..."
-                        : "Choose File"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            void handleUploadDocument(
-                              "landSurveyDocumentId",
-                              file,
-                            );
-                          }
-                        }}
-                      />
-                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                          isLandlordVerified
+                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
+                        }`}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {isUploadingDoc === "landSurveyDocumentId"
+                          ? "Uploading..."
+                          : "Choose File"}
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={isLandlordVerified}
+                          onChange={(e) => {
+                            if (isLandlordVerified) return;
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              void handleUploadDocument(
+                                "landSurveyDocumentId",
+                                file,
+                              );
+                            }
+                          }}
+                        />
+                      </label>
+                      {isLandlordVerified
+                        ? renderUploadedDocumentInfo(
+                            documentPreview.landSurvey,
+                            documentsForm.landSurveyDocumentId,
+                          )
+                        : null}
+                    </div>
                     {documentsForm.landSurveyDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
                         File ID: {documentsForm.landSurveyDocumentId}
@@ -843,25 +957,41 @@ const SettingsPage: NextPageWithLayout = () => {
                     <p className="mb-3 text-sm text-gray-600">
                       Document, receipt of purchase, or transfer agreement
                     </p>
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
-                      <Upload className="h-4 w-4" />
-                      {isUploadingDoc === "proofOfOwnershipDocumentId"
-                        ? "Uploading..."
-                        : "Choose File (Optional)"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            void handleUploadDocument(
-                              "proofOfOwnershipDocumentId",
-                              file,
-                            );
-                          }
-                        }}
-                      />
-                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                          isLandlordVerified
+                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
+                        }`}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {isUploadingDoc === "proofOfOwnershipDocumentId"
+                          ? "Uploading..."
+                          : "Choose File (Optional)"}
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={isLandlordVerified}
+                          onChange={(e) => {
+                            if (isLandlordVerified) return;
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              void handleUploadDocument(
+                                "proofOfOwnershipDocumentId",
+                                file,
+                              );
+                            }
+                          }}
+                        />
+                      </label>
+                      {isLandlordVerified
+                        ? renderUploadedDocumentInfo(
+                            documentPreview.proofOfOwnership,
+                            documentsForm.proofOfOwnershipDocumentId,
+                          )
+                        : null}
+                    </div>
                     {documentsForm.proofOfOwnershipDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
                         File ID: {documentsForm.proofOfOwnershipDocumentId}
@@ -877,25 +1007,41 @@ const SettingsPage: NextPageWithLayout = () => {
                     <p className="mb-3 text-sm text-gray-600">
                       Tax certificate or TIN document
                     </p>
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-brand-main transition hover:bg-gray-50">
-                      <Upload className="h-4 w-4" />
-                      {isUploadingDoc === "taxIdentificationNumberDocumentId"
-                        ? "Uploading..."
-                        : "Choose File (Optional)"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            void handleUploadDocument(
-                              "taxIdentificationNumberDocumentId",
-                              file,
-                            );
-                          }
-                        }}
-                      />
-                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                          isLandlordVerified
+                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
+                        }`}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {isUploadingDoc === "taxIdentificationNumberDocumentId"
+                          ? "Uploading..."
+                          : "Choose File (Optional)"}
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={isLandlordVerified}
+                          onChange={(e) => {
+                            if (isLandlordVerified) return;
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              void handleUploadDocument(
+                                "taxIdentificationNumberDocumentId",
+                                file,
+                              );
+                            }
+                          }}
+                        />
+                      </label>
+                      {isLandlordVerified
+                        ? renderUploadedDocumentInfo(
+                            documentPreview.tin,
+                            documentsForm.taxIdentificationNumberDocumentId,
+                          )
+                        : null}
+                    </div>
                     {documentsForm.taxIdentificationNumberDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
                         File ID:{" "}
@@ -904,16 +1050,18 @@ const SettingsPage: NextPageWithLayout = () => {
                     )}
                   </div>
                 </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  onClick={handleSaveDocuments}
-                  disabled={isSaving}
-                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                >
-                  {isSaving ? "Saving..." : "Save Documents"}
-                </motion.button>
+                {!isLandlordVerified ? (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    type="button"
+                    onClick={handleSaveDocuments}
+                    disabled={isSaving}
+                    className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                  >
+                    {isSaving ? "Saving..." : "Save Documents"}
+                  </motion.button>
+                ) : null}
               </div>
             )}
 
