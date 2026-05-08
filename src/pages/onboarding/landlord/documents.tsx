@@ -2,14 +2,19 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import { Upload, ArrowRight } from "lucide-react";
+import {
+  Upload,
+  ArrowRight,
+  User,
+  FileText,
+  Landmark,
+  Home,
+} from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
-import { createLandlord, getLandlordByUser } from "@/api/landlord";
-import { ensureLandlordWallet } from "@/api/wallet";
 import { useUser } from "@/contexts/UserContext";
 import logo from "@/assets/logo.png";
 
@@ -21,6 +26,13 @@ type DocumentFile = {
   file: File | null;
   preview: string | null;
 };
+
+const landlordFlowSteps = [
+  { number: 1, label: "Your Details", icon: User },
+  { number: 2, label: "Documents", icon: FileText },
+  { number: 3, label: "Finance", icon: Landmark },
+  { number: 4, label: "First Property", icon: Home },
+];
 
 const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -43,14 +55,6 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     Partial<Record<DocumentType, string>>
   >({});
   const [submitError, setSubmitError] = React.useState<string | null>(null);
-
-  const persistLandlordId = React.useCallback((landlordId: string) => {
-    if (typeof window === "undefined" || !landlordId) return;
-    localStorage.setItem("landlordId", landlordId);
-    const maxAge = 60 * 60 * 24 * 7;
-    const secure = window.location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = `landlordId=${encodeURIComponent(landlordId)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-  }, []);
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -102,7 +106,7 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
           if (typeof window !== "undefined") {
             sessionStorage.setItem(
               "landlordOnboardingDocumentIds",
-              JSON.stringify(updated)
+              JSON.stringify(updated),
             );
           }
           return updated;
@@ -113,7 +117,7 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
 
       setIsUploading((prev) => ({ ...prev, [type]: false }));
     },
-    [showToast, user?.token]
+    [showToast, user?.token],
   );
 
   const handleContinue = React.useCallback(async () => {
@@ -132,11 +136,9 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     }
 
     const detailsRaw = sessionStorage.getItem("landlordOnboardingDetails");
-    const documentIdsRaw = sessionStorage.getItem("landlordOnboardingDocumentIds");
-    const profilePictureId = sessionStorage.getItem(
-      "landlordOnboardingProfilePictureId"
+    const documentIdsRaw = sessionStorage.getItem(
+      "landlordOnboardingDocumentIds",
     );
-
     if (!detailsRaw) {
       setSubmitError("Please complete your account details first.");
       await router.push("/onboarding/landlord/details");
@@ -157,6 +159,7 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     if (
       !details.businessName ||
       !details.address ||
+      !details.phoneNumber ||
       !details.city ||
       !details.state ||
       !details.postalCode ||
@@ -171,67 +174,15 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     const docIds = documentIdsRaw
       ? (JSON.parse(documentIdsRaw) as Partial<Record<string, string>>)
       : {};
-
-    const payload = {
-      userId: String(user.id),
-      businessName: details.businessName,
-      businessEmail: user.email,
-      businessPhoneNumber: details.phoneNumber || undefined,
-      profilePictureId: profilePictureId || undefined,
-      govermentIdDocumentId: docIds.governmentId,
-      taxIdentificationNumberDocumentId: docIds.tin,
-      address: {
-        address: details.address,
-        city: details.city,
-        state: details.state,
-        postalCode: details.postalCode,
-        country: details.country,
-      },
-    };
-
-    console.log("Create landlord payload:", payload);
-
-    const result = await createLandlord(payload);
-
-    console.log("Create landlord response:", result);
-
-    if (!result.success) {
-      setSubmitError(result.error || "Failed to complete onboarding.");
-      showToast(result.error || "Failed to complete onboarding", "error");
-      setIsSubmitting(false);
-      return;
+    if (!docIds.governmentId && !docIds.tin) {
+      showToast(
+        "You can continue without documents, but upload is recommended.",
+        "success",
+      );
     }
-
-    let landlordId = result.data?.id ? String(result.data.id) : "";
-    if (!landlordId && user?.id) {
-      const landlordResult = await getLandlordByUser(String(user.id));
-      if (landlordResult.success && landlordResult.data?.id) {
-        landlordId = String(landlordResult.data.id);
-      }
-    }
-
-    if (typeof window !== "undefined") {
-      if (landlordId) {
-        persistLandlordId(landlordId);
-      }
-      sessionStorage.removeItem("landlordOnboardingDetails");
-      sessionStorage.removeItem("landlordOnboardingDocumentIds");
-      sessionStorage.removeItem("landlordOnboardingProfilePictureId");
-    }
-
-    // Ensure the landlord wallet exists immediately after registration.
-    // This prevents needing to create the wallet at login time.
-    if (typeof window !== "undefined" && landlordId) {
-      try {
-        await ensureLandlordWallet(landlordId, "NGN");
-      } catch (err) {
-        console.warn("Ensure landlord wallet failed:", err);
-      }
-    }
-
-    await router.push("/onboarding/landlord/complete");
+    await router.push("/onboarding/landlord/finance");
     setIsSubmitting(false);
-  }, [persistLandlordId, router, showToast, user?.id]);
+  }, [router, showToast, user?.id]);
 
   const documentSections = [
     {
@@ -271,7 +222,7 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
           </div>
 
           <div className="w-full sm:w-auto sm:absolute sm:left-1/2 sm:-translate-x-1/2">
-            <SignUpProgress currentStep={2} />
+            <SignUpProgress currentStep={2} steps={landlordFlowSteps} />
           </div>
 
           <div className="hidden sm:block w-[200px]"></div>
@@ -324,7 +275,9 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
                       <div className="h-1.5 w-28 rounded-full bg-gray-200">
                         <div
                           className="h-1.5 rounded-full bg-brand-main"
-                          style={{ width: `${uploadProgress[section.type] || 0}%` }}
+                          style={{
+                            width: `${uploadProgress[section.type] || 0}%`,
+                          }}
                         />
                       </div>
                       <span>{uploadProgress[section.type] || 0}%</span>
@@ -394,4 +347,3 @@ LandlordOnboardingDocumentsPage.getLayout = (page) => (
 );
 
 export default LandlordOnboardingDocumentsPage;
-

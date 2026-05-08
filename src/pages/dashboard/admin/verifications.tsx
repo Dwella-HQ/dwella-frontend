@@ -4,7 +4,6 @@ import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/Toast";
 import {
-  deleteVerification,
   deriveVerificationKind,
   entityLandlordId,
   entityPropertyId,
@@ -27,7 +26,7 @@ import {
   Loader2,
   MapPin,
   RefreshCw,
-  Trash2,
+  XCircle,
 } from "lucide-react";
 
 function formatShortId(id: string): string {
@@ -100,7 +99,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
   >("all");
 
   const [actionBusy, setActionBusy] = React.useState<
-    "verify" | "delete" | null
+    "verify" | "reject" | null
   >(null);
 
   const loadList = React.useCallback(async () => {
@@ -181,27 +180,36 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
     }
   };
 
-  const handleDelete = async () => {
-    if (!detail || actionBusy) return;
+  const handleReject = async () => {
+    if (!detail || !selectedKind || actionBusy) return;
+    const st = String(detail.status).toUpperCase();
+    if (st === "REJECTED") {
+      showToast("Already rejected", "info");
+      return;
+    }
     const ok =
       typeof window !== "undefined"
-        ? window.confirm(
-            "Delete this verification record? This cannot be undone.",
-          )
+        ? window.confirm("Reject this verification record?")
         : false;
     if (!ok) return;
 
-    setActionBusy("delete");
-    const result = await deleteVerification(detail.id);
+    setActionBusy("reject");
+    const patch =
+      selectedKind === "property"
+        ? patchPropertyVerificationStatus
+        : patchLandlordVerificationStatus;
+    const result = await patch(detail.id, { status: "REJECTED" });
     setActionBusy(null);
     if (!result.success) {
-      showToast(result.error || "Delete failed", "error");
+      showToast(result.error || "Reject failed", "error");
       return;
     }
-    showToast("Verification deleted", "success");
-    setSelectedId(null);
-    setDetail(null);
+    showToast("Marked as rejected", "success");
     await loadList();
+    const refreshed = await getVerificationById(detail.id);
+    if (refreshed.success) {
+      setDetail(refreshed.data);
+    }
   };
 
   return (
@@ -638,15 +646,15 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                         <button
                           type="button"
                           disabled={actionBusy !== null}
-                          onClick={() => void handleDelete()}
+                          onClick={() => void handleReject()}
                           className="inline-flex items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2.5 text-[13px] font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {actionBusy === "delete" ? (
+                          {actionBusy === "reject" ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <Trash2 className="h-4 w-4" />
+                            <XCircle className="h-4 w-4" />
                           )}
-                          Delete record
+                          Reject
                         </button>
                       </div>
                     </div>

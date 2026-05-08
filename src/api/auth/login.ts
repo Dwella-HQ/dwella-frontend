@@ -18,7 +18,15 @@ export const login = async (
   });
 
   if (!result.success) {
-    return result;
+    const normalizedError = (() => {
+      const message = String(result.error || "").toLowerCase();
+      // Some backend responses incorrectly return password-strength copy on login.
+      if (message.includes("password is not strong enough")) {
+        return "Incorrect password";
+      }
+      return result.error;
+    })();
+    return { ...result, error: normalizedError };
   }
 
   // Validate response with Zod
