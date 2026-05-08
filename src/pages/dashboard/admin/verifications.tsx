@@ -732,7 +732,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                     onChange={(e) => setActionReason(e.target.value)}
                     rows={4}
                     placeholder="Write reason..."
-                    className="w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                    className="w-full rounded-md border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                   />
                 </div>
 
