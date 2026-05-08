@@ -1,5 +1,4 @@
 import * as React from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
@@ -27,14 +26,7 @@ export const MyProperties = ({ properties, onViewAll }: MyPropertiesProps) => {
           >
             View All
           </button>
-        ) : (
-          <Link
-            href="/dashboard/properties"
-            className="text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
-          >
-            View All
-          </Link>
-        )}
+        ) : null}
       </div>
       <div className="grid gap-6 sm:grid-cols-2 lg:gap-10 lg:grid-cols-3">
         {properties.map((property, index) => (
@@ -111,7 +103,7 @@ export const MyProperties = ({ properties, onViewAll }: MyPropertiesProps) => {
                 <div className="flex flex-col gap-2">
                   <p className="text-xs text-gray-500">UNITS</p>
                   <p className="text-sm font-semibold text-gray-900">
-                    {property.units} {property.units === 1 ? 'Unit' : 'Units'}
+                    {property.units} {property.units === 1 ? "Unit" : "Units"}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 text-right">

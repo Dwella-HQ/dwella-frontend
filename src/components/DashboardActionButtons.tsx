@@ -7,6 +7,7 @@ export type DashboardActionButtonsProps = {
   onAssignTenant?: () => void;
   onSendAnnouncement?: () => void;
   showAddProperty?: boolean;
+  disableRestrictedActions?: boolean;
 };
 
 export const DashboardActionButtons = ({
@@ -14,6 +15,7 @@ export const DashboardActionButtons = ({
   onAssignTenant,
   onSendAnnouncement,
   showAddProperty = true,
+  disableRestrictedActions = false,
 }: DashboardActionButtonsProps) => {
   return (
     <div className="flex flex-wrap gap-3">
@@ -32,9 +34,14 @@ export const DashboardActionButtons = ({
       <motion.button
         type="button"
         onClick={onAssignTenant}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2"
+        disabled={disableRestrictedActions}
+        whileHover={disableRestrictedActions ? undefined : { scale: 1.05 }}
+        whileTap={disableRestrictedActions ? undefined : { scale: 0.95 }}
+        className={`inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 ${
+          disableRestrictedActions
+            ? "cursor-not-allowed text-gray-400 opacity-60"
+            : "text-gray-700 hover:bg-gray-50"
+        }`}
       >
         <UserPlus className="h-4 w-4" />
         Assign Tenant
@@ -42,9 +49,14 @@ export const DashboardActionButtons = ({
       <motion.button
         type="button"
         onClick={onSendAnnouncement}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2"
+        disabled={disableRestrictedActions}
+        whileHover={disableRestrictedActions ? undefined : { scale: 1.05 }}
+        whileTap={disableRestrictedActions ? undefined : { scale: 0.95 }}
+        className={`inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 ${
+          disableRestrictedActions
+            ? "cursor-not-allowed text-gray-400 opacity-60"
+            : "text-gray-700 hover:bg-gray-50"
+        }`}
       >
         <Megaphone className="h-4 w-4" />
         Send Announcement
@@ -52,4 +64,3 @@ export const DashboardActionButtons = ({
     </div>
   );
 };
-

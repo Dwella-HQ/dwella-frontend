@@ -20,7 +20,11 @@ import logo from "@/assets/logo.png";
 
 import type { NextPageWithLayout } from "../../_app";
 
-type DocumentType = "governmentId" | "tin";
+type DocumentType =
+  | "governmentId"
+  | "landSurvey"
+  | "proofOfOwnership"
+  | "tin";
 
 type DocumentFile = {
   file: File | null;
@@ -42,6 +46,8 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     Record<DocumentType, DocumentFile>
   >({
     governmentId: { file: null, preview: null },
+    landSurvey: { file: null, preview: null },
+    proofOfOwnership: { file: null, preview: null },
     tin: { file: null, preview: null },
   });
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -189,6 +195,18 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
       type: "governmentId" as DocumentType,
       title: "Government Issued ID",
       description: "Driver's License, National ID, or International Passport",
+      required: false,
+    },
+    {
+      type: "landSurvey" as DocumentType,
+      title: "Land Survey Document",
+      description: "Property map, site plans, or official record",
+      required: false,
+    },
+    {
+      type: "proofOfOwnership" as DocumentType,
+      title: "Proof of Ownership",
+      description: "Document, receipt of purchase, or transfer agreement",
       required: false,
     },
     {

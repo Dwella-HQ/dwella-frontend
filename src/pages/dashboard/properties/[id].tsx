@@ -466,7 +466,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     const propertyNameBase = propertyDTO.name.split(" — ")[0].split(" —")[0];
     let cancelled = false;
     setMaintenanceLoading(true);
-    getMaintenanceRequests({ limit: 100 })
+    getMaintenanceRequests({ limit: 100, propertyId: id })
       .then((result) => {
         if (cancelled) return;
         if (result.success) {

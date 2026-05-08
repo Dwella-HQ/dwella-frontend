@@ -1,5 +1,4 @@
 import * as React from "react";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import { DollarSign } from "lucide-react";
 import type { Payment } from "@/data/mockLandlordData";
@@ -25,14 +24,7 @@ export const RecentPayments = ({
           >
             View All
           </button>
-        ) : (
-          <Link
-            href="/dashboard/rent"
-            className="text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
-          >
-            View All
-          </Link>
-        )}
+        ) : null}
       </div>
       {payments.length > 0 ? (
         <div className="divide-y divide-gray-200">
@@ -58,7 +50,9 @@ export const RecentPayments = ({
                   <p className="text-base font-semibold text-gray-900">
                     ₦{payment.amount.toLocaleString()}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500">{payment.dueDate}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {payment.dueDate}
+                  </p>
                 </div>
               </div>
             </motion.div>

@@ -85,7 +85,7 @@ const AdminUnitDetailPage: NextPageWithLayout = () => {
           : Promise.resolve({ success: false as const, error: "" }),
         getTenantList({ limit: 200 }),
         getRentPayments({ limit: 200 }),
-        getMaintenanceRequests({ limit: 200 }),
+        getMaintenanceRequests({ limit: 200, useLegacyEndpoint: true }),
       ]);
 
       if (cancelled) return;

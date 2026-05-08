@@ -152,6 +152,8 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
       businessPhoneNumber: details.phoneNumber.trim(),
       profilePictureId: profilePictureId || undefined,
       govermentIdDocumentId: docIds.governmentId,
+      landSurveyDocumentId: docIds.landSurvey,
+      proofOfOwnershipDocumentId: docIds.proofOfOwnership,
       taxIdentificationNumberDocumentId: docIds.tin,
       address: {
         address: details.address,

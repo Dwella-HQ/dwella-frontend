@@ -294,10 +294,12 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     if (!propertyId) return;
     let cancelled = false;
-    void getMaintenanceRequests({ limit: 100 }).then((result) => {
+    void getMaintenanceRequests({ limit: 100, useLegacyEndpoint: true }).then(
+      (result) => {
       if (cancelled) return;
       setPropertyMaintenanceFromApi(result.success ? result.data : []);
-    });
+      },
+    );
     return () => {
       cancelled = true;
     };

@@ -39,6 +39,18 @@ const profilePictureSchema = z
   .optional()
   .nullable();
 
+const documentFileSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    url: z.string().url().optional(),
+    fileName: z.string().optional(),
+    label: z.string().optional(),
+    mimeType: z.string().optional(),
+  })
+  .passthrough()
+  .optional()
+  .nullable();
+
 // Landlord Response
 export const landlordSchema = z.object({
   id: z.string().uuid(),
@@ -60,6 +72,11 @@ export const landlordSchema = z.object({
   landSurveyDocumentId: z.string().uuid().optional(),
   proofOfOwnershipDocumentId: z.string().uuid().optional(),
   taxIdentificationNumberDocumentId: z.string().uuid().optional(),
+  govermentIdDocument: documentFileSchema,
+  governmentIdDocument: documentFileSchema,
+  landSurveyDocument: documentFileSchema,
+  proofOfOwnershipDocument: documentFileSchema,
+  taxIdentificationNumberDocument: documentFileSchema,
   user: z
     .object({
       id: z.string().uuid(),

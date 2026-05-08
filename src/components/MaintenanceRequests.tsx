@@ -53,14 +53,7 @@ export const MaintenanceRequests = ({
           >
             View All
           </button>
-        ) : (
-          <Link
-            href="/dashboard/maintenance"
-            className="text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
-          >
-            View All
-          </Link>
-        )}
+        ) : null}
       </div>
       {requests.length > 0 ? (
         <div className="divide-y divide-gray-200">

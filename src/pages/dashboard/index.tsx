@@ -262,9 +262,15 @@ const ManagerDashboard = () => {
 
   // Fetch recent maintenance requests (global for now)
   React.useEffect(() => {
+    const landlordId = selectedLandlord?.id;
+    if (!landlordId) {
+      setRecentMaintenance([]);
+      setMaintenanceLoading(false);
+      return;
+    }
     let cancelled = false;
     setMaintenanceLoading(true);
-    getMaintenanceRequests({ limit: 10 }).then((result) => {
+    getMaintenanceRequests({ limit: 10, landlordId }).then((result) => {
       if (cancelled) return;
       if (result.success) {
         const mapped: MaintenanceRequest[] = result.data.map((r) => ({
@@ -290,7 +296,7 @@ const ManagerDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [landlordProperties]);
+  }, [landlordProperties, selectedLandlord?.id]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1353,7 +1359,14 @@ const LandlordDashboard = () => {
   React.useEffect(() => {
     let cancelled = false;
     setMaintenanceLoading(true);
-    getMaintenanceRequests({ limit: 100 }).then((result) => {
+    const landlordId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("landlordId") || ""
+        : "";
+    getMaintenanceRequests({
+      limit: 100,
+      landlordId: landlordId || undefined,
+    }).then((result) => {
       if (cancelled) return;
       if (result.success) {
         const mapped: MaintenanceRequest[] = result.data.map((r) => ({
@@ -1425,12 +1438,14 @@ const LandlordDashboard = () => {
   }, [router]);
 
   const handleAssignTenant = React.useCallback(() => {
+    if (!isLandlordVerified) return;
     setIsAddTenantOpen(true);
-  }, []);
+  }, [isLandlordVerified]);
 
   const handleSendAnnouncement = React.useCallback(() => {
+    if (!isLandlordVerified) return;
     setIsSendAnnouncementOpen(true);
-  }, []);
+  }, [isLandlordVerified]);
 
   const handleAnnouncementSend = React.useCallback(
     async (data: { title: string; message: string; fileIds?: string[] }) => {
@@ -1526,6 +1541,7 @@ const LandlordDashboard = () => {
     isLoadingProperties ||
     maintenanceLoading ||
     (properties.length > 0 && overdueMetricsLoading);
+  const canUseViewAllShortcuts = isLandlordVerified;
 
   return (
     <>
@@ -1545,6 +1561,7 @@ const LandlordDashboard = () => {
             onAssignTenant={handleAssignTenant}
             onSendAnnouncement={handleSendAnnouncement}
             showAddProperty={isLandlordVerified}
+            disableRestrictedActions={!isLandlordVerified}
           />
         </div>
         {!isLandlordVerified ? (
@@ -1562,7 +1579,11 @@ const LandlordDashboard = () => {
 
         <LiveAnnouncementsCard
           announcements={liveAnnouncements}
-          onViewAll={() => router.push("/dashboard/announcements")}
+          onViewAll={
+            canUseViewAllShortcuts
+              ? () => router.push("/dashboard/announcements")
+              : undefined
+          }
           onAnnouncementClick={(item) => setSelectedAnnouncement(item)}
         />
 
@@ -1581,7 +1602,11 @@ const LandlordDashboard = () => {
           ) : (
             <RecentPayments
               payments={landlordRecentPayments.slice(0, 3)}
-              onViewAll={() => router.push("/dashboard/rent")}
+              onViewAll={
+                canUseViewAllShortcuts
+                  ? () => router.push("/dashboard/rent")
+                  : undefined
+              }
             />
           )}
 
@@ -1598,7 +1623,11 @@ const LandlordDashboard = () => {
           ) : (
             <MaintenanceRequests
               requests={recentMaintenance}
-              onViewAll={() => router.push("/dashboard/maintenance")}
+              onViewAll={
+                canUseViewAllShortcuts
+                  ? () => router.push("/dashboard/maintenance")
+                  : undefined
+              }
             />
           )}
         </div>
@@ -1621,7 +1650,11 @@ const LandlordDashboard = () => {
         ) : (
           <MyProperties
             properties={properties.slice(0, 3)}
-            onViewAll={() => router.push("/dashboard/properties")}
+            onViewAll={
+              canUseViewAllShortcuts
+                ? () => router.push("/dashboard/properties")
+                : undefined
+            }
           />
         )}
       </section>

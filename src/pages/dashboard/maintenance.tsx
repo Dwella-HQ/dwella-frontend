@@ -316,7 +316,11 @@ const TenantNewRequestForm = ({
       setUploadedFileIds([]);
       onSuccess?.();
       if (onHistoryCountChange) {
-        const list = await getMaintenanceRequests({ limit: 100 });
+        const list = await getMaintenanceRequests({
+          limit: 100,
+          tenantId: tenantId || undefined,
+          unitId: unitId || undefined,
+        });
         onHistoryCountChange(list.success ? list.data.length : 0);
       }
     } catch (err) {
@@ -776,9 +780,16 @@ const LandlordMaintenancePage = () => {
   React.useEffect(() => {
     const fetchRequests = async () => {
       setIsLoadingRequests(true);
+      const landlordId =
+        typeof window !== "undefined"
+          ? localStorage.getItem("landlordId") ||
+            localStorage.getItem("selectedLandlordId") ||
+            ""
+          : "";
       const result = await getMaintenanceRequests({
         page: 1,
         limit: PAGE_SIZE,
+        landlordId: landlordId || undefined,
       });
       if (result.success) {
         setRequests(result.data);
@@ -793,10 +804,17 @@ const LandlordMaintenancePage = () => {
   const loadMoreRequests = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
+    const landlordId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("landlordId") ||
+          localStorage.getItem("selectedLandlordId") ||
+          ""
+        : "";
     const nextPage = page + 1;
     const result = await getMaintenanceRequests({
       page: nextPage,
       limit: PAGE_SIZE,
+      landlordId: landlordId || undefined,
     });
     setLoadingMore(false);
     if (result.success) {
@@ -990,9 +1008,16 @@ const LandlordMaintenancePage = () => {
 
       if (result.success) {
         // Refresh first page of requests so dashboard reflects the new one
+        const landlordId =
+          typeof window !== "undefined"
+            ? localStorage.getItem("landlordId") ||
+              localStorage.getItem("selectedLandlordId") ||
+              ""
+            : "";
         const refreshed = await getMaintenanceRequests({
           page: 1,
           limit: PAGE_SIZE,
+          landlordId: landlordId || undefined,
         });
         if (refreshed.success) {
           setRequests(refreshed.data);

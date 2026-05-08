@@ -11,8 +11,21 @@ export type GetMaintenanceRequestsParams = {
   page?: number;
   cursor?: string;
   limit?: number;
+  landlordId?: string;
+  propertyId?: string;
   /** If the API supports it, scopes results server-side */
   tenantId?: string;
+  unitId?: string;
+  status?: "PENDING" | "IN_PROGRESS" | "COMPLETED";
+  priority?: "LOW" | "MEDIUM" | "HIGH";
+  type?: string;
+  subType?: string;
+  /**
+   * Admin view must keep using legacy endpoint.
+   * - true  => GET /maintenance-request
+   * - false => GET /maintenance-request/query
+   */
+  useLegacyEndpoint?: boolean;
 };
 
 type GetMaintenanceRequestsResult =
@@ -85,9 +98,14 @@ function mapItemToWithDetails(
 export const getMaintenanceRequests = async (
   params?: GetMaintenanceRequestsParams,
 ): Promise<GetMaintenanceRequestsResult> => {
+  const endpoint = params?.useLegacyEndpoint
+    ? "/maintenance-request"
+    : "/maintenance-request/query";
+  const queryParams = { ...(params ?? {}) } as Record<string, string | number>;
+  delete (queryParams as { useLegacyEndpoint?: boolean }).useLegacyEndpoint;
   const url = createUrl(
-    "/maintenance-request",
-    params as Record<string, string | number>,
+    endpoint,
+    queryParams,
   );
   const result = await apiGet<MaintenanceRequestsResponseDTO>(url);
 
