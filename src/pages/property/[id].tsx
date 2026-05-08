@@ -3,7 +3,15 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Image from "next/image";
-import { MapPin, DollarSign, FileText, User } from "lucide-react";
+import {
+  MapPin,
+  DollarSign,
+  FileText,
+  User,
+  Calendar,
+  Car,
+  XCircle,
+} from "lucide-react";
 import {
   LandingHeader,
   LandingFooter,
@@ -26,6 +34,7 @@ export default function PropertyDetailPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [guestPreview, setGuestPreview] = React.useState(false);
+  const [showGuestModal, setShowGuestModal] = React.useState(false);
 
   React.useEffect(() => {
     if (!id) return;
@@ -33,6 +42,7 @@ export default function PropertyDetailPage() {
     setLoading(true);
     setError(null);
     setGuestPreview(false);
+    setShowGuestModal(false);
 
     void (async () => {
       const authed = await getProperty(id);
@@ -178,7 +188,9 @@ export default function PropertyDetailPage() {
       </Head>
       <div className="min-h-screen flex flex-col bg-gray-50">
         <LandingHeader />
-        <main className="flex-1">
+        <main
+          className={`relative flex-1 ${guestPreview ? "overflow-hidden" : ""}`}
+        >
           <div className="border-b border-gray-200 bg-white px-4 py-2 text-sm text-gray-600">
             <div className="mx-auto max-w-7xl">
               <Link href="/" className="hover:text-[var(--brand-main)]">
@@ -188,44 +200,38 @@ export default function PropertyDetailPage() {
               <span className="text-gray-900">{property.name}</span>
             </div>
           </div>
-          <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-            {guestPreview && id ? (
-              <div className="mb-8 rounded-xl border border-blue-200 bg-blue-50 px-4 py-4 sm:px-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <p className="text-sm text-blue-950">
-                    <span className="font-semibold">
-                      You&apos;re viewing a public preview.
-                    </span>{" "}
-                    Sign in to see full property details, availability, and to
-                    contact the landlord.
-                  </p>
-                  <div className="flex flex-shrink-0 flex-wrap gap-2">
-                    <Link
-                      href={`/auth/login?redirect=${encodeURIComponent(`/property/${id}`)}`}
-                      className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
-                    >
-                      Log in
-                    </Link>
-                    <Link
-                      href="/auth/signup?role=tenant"
-                      className="inline-flex items-center justify-center rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-900 transition hover:bg-blue-100/70"
-                    >
-                      Sign up
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ) : null}
+          <div
+            className={`mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 ${
+              guestPreview && showGuestModal ? "select-none blur-[1.2px]" : ""
+            }`}
+          >
             <div className="grid gap-8 lg:grid-cols-3">
               <div className="lg:col-span-2">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-gray-100">
-                  <Image
-                    src={property.image}
-                    alt={property.name}
-                    fill
-                    className="object-cover"
-                    priority
-                  />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_150px]">
+                  <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-gray-100">
+                    <Image
+                      src={property.image}
+                      alt={property.name}
+                      fill
+                      className="object-cover"
+                      priority
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-1">
+                    {[0, 1, 2].map((idx) => (
+                      <div
+                        key={idx}
+                        className="relative aspect-[16/10] overflow-hidden rounded-lg bg-gray-100"
+                      >
+                        <Image
+                          src={property.image}
+                          alt={`${property.name} preview ${idx + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <h1 className="mt-6 text-2xl font-bold text-gray-900">
                   {property.name}
@@ -234,6 +240,14 @@ export default function PropertyDetailPage() {
                   <MapPin className="h-5 w-5 flex-shrink-0" />
                   {property.address}
                 </p>
+                <div className="mt-5 flex flex-wrap gap-5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <p className="inline-flex items-center gap-2">
+                    <Calendar className="h-4 w-4" /> Built: 2018
+                  </p>
+                  <p className="inline-flex items-center gap-2">
+                    <Car className="h-4 w-4" /> Parking Space: 300sqm
+                  </p>
+                </div>
                 <div className="mt-6">
                   <h3 className="text-sm font-semibold uppercase text-gray-700">
                     Amenities
@@ -279,12 +293,21 @@ export default function PropertyDetailPage() {
                       </div>
                     </div>
                   </div>
-                  <Link
-                    href={"/auth/login?redirect=/property/" + property.id}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (guestPreview) {
+                        setShowGuestModal(true);
+                        return;
+                      }
+                      void router.push(
+                        "/auth/login?redirect=/property/" + property.id,
+                      );
+                    }}
                     className="mt-6 flex w-full items-center justify-center rounded-lg bg-gray-900 py-3 text-sm font-medium text-white hover:bg-gray-800"
                   >
                     Contact Landlord
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
@@ -301,6 +324,48 @@ export default function PropertyDetailPage() {
               </section>
             )}
           </div>
+          {guestPreview && showGuestModal && id ? (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+              onClick={() => setShowGuestModal(false)}
+            >
+              <div
+                className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <h3 className="text-xl font-bold text-gray-900">
+                    Contact the Landlord
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowGuestModal(false)}
+                    className="text-red-500 hover:text-red-600"
+                  >
+                    <XCircle className="h-6 w-6" />
+                  </button>
+                </div>
+                <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                  To contact the landlord and get more details about this
+                  property, please log in or create a free account.
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <Link
+                    href={`/auth/login?redirect=${encodeURIComponent(`/property/${id}`)}`}
+                    className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-100"
+                  >
+                    Log In
+                  </Link>
+                  <Link
+                    href="/auth/signup?role=tenant"
+                    className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
+                  >
+                    Create An Account
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <StatsBar />
         </main>
         <LandingFooter />
