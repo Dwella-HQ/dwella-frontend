@@ -39,6 +39,7 @@ import {
   type AnnouncementItemDTO,
   createAnnouncementLandlord,
   createAnnouncementProperty,
+  getAnnouncements,
   subscribeAnnouncements,
 } from "@/api/announcement";
 
@@ -142,7 +143,7 @@ type LiveAnnouncementsCardProps = {
 const LiveAnnouncementsCard = ({
   announcements,
   title = "Live Announcements",
-  emptyText = "Waiting for announcements from socket...",
+  emptyText = "No announcements yet. New updates will appear here.",
   onViewAll,
   onAnnouncementClick,
 }: LiveAnnouncementsCardProps) => {
@@ -1406,6 +1407,24 @@ const LandlordDashboard = () => {
     };
   }, []);
 
+  React.useEffect(() => {
+    if (!user?.token) return;
+    let cancelled = false;
+
+    getAnnouncements().then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setLiveAnnouncements(result.data);
+      } else {
+        console.warn("Landlord announcements REST load failed:", result.error);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.token]);
+
   // Subscribe to announcements feed over websocket.
   React.useEffect(() => {
     if (!user?.token) return;
@@ -1453,8 +1472,8 @@ const LandlordDashboard = () => {
         typeof window !== "undefined" ? localStorage.getItem("landlordId") : "";
 
       if (!landlordId) {
-        showToast("Missing landlord id. Please sign in again.", "error");
-        throw new Error("Missing landlord id");
+        showToast("Your landlord account could not be found. Please sign in again.", "error");
+        throw new Error("Missing landlord account");
       }
 
       console.log("Sending landlord announcement", {

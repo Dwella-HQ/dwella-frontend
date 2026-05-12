@@ -6,6 +6,7 @@ export { createAnnouncementLandlord } from "./createAnnouncementLandlord";
 export { createAnnouncementProperty } from "./createAnnouncementProperty";
 export { updateAnnouncementLandlord } from "./updateAnnouncementLandlord";
 export { updateAnnouncementProperty } from "./updateAnnouncementProperty";
+export { getAnnouncements } from "./getAnnouncements";
 export { getAnnouncementById } from "./getAnnouncementById";
 export { subscribeAnnouncements } from "./subscribeAnnouncements";
 export type {
@@ -15,6 +16,7 @@ export type {
 export type { CreateAnnouncementPropertyResult } from "./createAnnouncementProperty";
 export type { UpdateAnnouncementLandlordResult } from "./updateAnnouncementLandlord";
 export type { UpdateAnnouncementPropertyResult } from "./updateAnnouncementProperty";
+export type { GetAnnouncementsResult } from "./getAnnouncements";
 export type { GetAnnouncementByIdResult } from "./getAnnouncementById";
 export type { AnnouncementSubscription } from "./subscribeAnnouncements";
 export type {

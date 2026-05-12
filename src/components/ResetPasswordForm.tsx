@@ -162,7 +162,7 @@ export const ResetPasswordForm = ({
               />
               {defaultToken && (
                 <p className="text-xs text-gray-500">
-                  Token loaded from email link
+                  Reset code loaded from email link
                 </p>
               )}
               {errors.token && (

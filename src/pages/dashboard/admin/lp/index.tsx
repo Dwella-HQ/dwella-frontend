@@ -193,8 +193,8 @@ const LPPage: NextPageWithLayout = () => {
             </div>
             <p className="mb-3 text-[11px] text-[#64748B]">
               {tab === "managers"
-                ? "GET /property-manager"
-                : "GET /landlord · Complete verification under Verifications"}
+                ? "Review property manager accounts."
+                : "Review landlord accounts and complete verification under Verifications."}
             </p>
             <div className="overflow-auto">
               {tab === "managers" ? (

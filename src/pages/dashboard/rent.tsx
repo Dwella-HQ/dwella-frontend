@@ -627,10 +627,9 @@ const TenantPaymentHistory = () => {
               ) : tenantPropertyRulesStatus === "error" ||
                 !tenantPropertyRules ? (
                 <p className="mt-1 text-sm text-gray-600">
-                  We couldn&apos;t load property settings. Amounts in the list
-                  still come from each rent row (
-                  <span className="font-medium">total = base + late fee</span>{" "}
-                  when the API provides them).
+                  We couldn&apos;t load the property rent rules. Amounts in the
+                  list still show each rent amount, including any late fees when
+                  available.
                 </p>
               ) : (
                 <>
@@ -661,9 +660,7 @@ const TenantPaymentHistory = () => {
                     </div>
                   </dl>
                   <p className="mt-2 text-xs text-gray-500">
-                    Hover a row amount: totals use{" "}
-                    <code className="text-[0.65rem]">totalAmount</code> from the
-                    API when present.
+                    Hover a row amount to see how the total was calculated.
                   </p>
                 </>
               )}

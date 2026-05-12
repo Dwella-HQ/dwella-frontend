@@ -62,7 +62,7 @@ const PropertiesPage: NextPageWithLayout = () => {
             setError(result.error);
           }
         } else {
-          setError("Landlord ID not found");
+          setError("No landlord account found. Please sign in again.");
         }
       } 
       // For property managers, fetch properties for the selected landlord

@@ -241,7 +241,7 @@ const AdminTenantsPage: NextPageWithLayout = () => {
 
   const handleBan = async (tenantId: string) => {
     const confirmed = window.confirm(
-      "Remove this tenant record? This calls DELETE /tenant/{id}.",
+      "Remove this tenant record? This action cannot be undone.",
     );
     if (!confirmed) return;
     const result = await deleteTenantEntity(tenantId);
@@ -363,12 +363,8 @@ const AdminTenantsPage: NextPageWithLayout = () => {
               ) : null}
             </div>
             <p className="mb-4 mt-1 text-[12px] text-[#64748B]">
-              List and stats come from the tenant service (see{" "}
-              <span className="font-mono text-[11px]">GET /tenant</span> in
-              ENDPOINTS.md). Row actions call{" "}
-              <span className="font-mono text-[11px]">PATCH</span> and{" "}
-              <span className="font-mono text-[11px]">DELETE</span> on the same
-              resource.
+              Review tenant accounts, update account status, or remove tenant
+              records when needed.
             </p>
             <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full min-w-[1040px] table-fixed text-[11px]">

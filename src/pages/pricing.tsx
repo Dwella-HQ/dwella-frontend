@@ -52,7 +52,7 @@ const plans = [
       "Advanced analytics and reporting",
       "Team access and roles",
       "Dedicated property manager",
-      "Custom API integration",
+      "Custom integrations",
     ],
     unavailable: [],
   },

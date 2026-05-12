@@ -109,7 +109,7 @@ export const InviteManagerModal = ({
       const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
       
       if (!landlordId) {
-        showToast("Landlord ID not found. Please log in again.", "error");
+        showToast("No landlord account found. Please log in again.", "error");
         setIsSubmitting(false);
         return;
       }

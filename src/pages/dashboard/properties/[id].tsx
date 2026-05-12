@@ -1361,8 +1361,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                             </label>
                             {propertyVerificationDocs.govermentIdDocumentId ? (
                               <p className="mt-2 text-xs text-gray-500">
-                                File ID:{" "}
-                                {propertyVerificationDocs.govermentIdDocumentId}
+                                Document uploaded
                               </p>
                             ) : null}
                           </div>
@@ -1394,8 +1393,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                             </label>
                             {propertyVerificationDocs.landSurveyDocumentId ? (
                               <p className="mt-2 text-xs text-gray-500">
-                                File ID:{" "}
-                                {propertyVerificationDocs.landSurveyDocumentId}
+                                Document uploaded
                               </p>
                             ) : null}
                           </div>
@@ -1432,10 +1430,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                             </label>
                             {propertyVerificationDocs.proofOfOwnershipDocumentId ? (
                               <p className="mt-2 text-xs text-gray-500">
-                                File ID:{" "}
-                                {
-                                  propertyVerificationDocs.proofOfOwnershipDocumentId
-                                }
+                                Document uploaded
                               </p>
                             ) : null}
                           </div>
@@ -1471,10 +1466,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                             </label>
                             {propertyVerificationDocs.taxIdentificationNumberDocumentId ? (
                               <p className="mt-2 text-xs text-gray-500">
-                                File ID:{" "}
-                                {
-                                  propertyVerificationDocs.taxIdentificationNumberDocumentId
-                                }
+                                Document uploaded
                               </p>
                             ) : null}
                           </div>
@@ -1832,8 +1824,8 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         onClose={() => setIsSendAnnouncementOpen(false)}
         onSend={async (data) => {
           if (!id || typeof id !== "string") {
-            showToast("Missing property id", "error");
-            throw new Error("Missing property id");
+            showToast("Property details are not ready yet. Please refresh and try again.", "error");
+            throw new Error("Missing property details");
           }
 
           console.log("Sending property announcement", {

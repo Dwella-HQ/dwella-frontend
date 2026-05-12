@@ -53,9 +53,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     getLandlordByUser(String(user.id)).then((result) => {
       if (cancelled) return;
       if (result.success) {
-        setIsLandlordVerified(result.data.isApproved === true);
+        setIsLandlordVerified(result.data.isApproved !== false);
       } else {
-        setIsLandlordVerified(false);
+        setIsLandlordVerified(true);
       }
     });
     return () => {
@@ -66,7 +66,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const shouldRestrictLandlordNav =
     user?.role === "landlord" && isLandlordVerified === false;
   const isAllowedUnverifiedLandlordPath =
-    router.pathname === "/dashboard" || router.pathname === "/dashboard/settings";
+    router.pathname === "/dashboard" ||
+    router.pathname === "/dashboard/settings";
   const showUnverifiedFailSafeBanner =
     shouldRestrictLandlordNav && !isAllowedUnverifiedLandlordPath;
 
@@ -96,7 +97,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 {showUnverifiedFailSafeBanner ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     Your landlord account is pending verification. You can only
-                    access Dashboard and Settings until verification is complete.
+                    access Dashboard and Settings until verification is
+                    complete.
                   </div>
                 ) : null}
                 {children}
