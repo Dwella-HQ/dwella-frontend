@@ -2,6 +2,7 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
+import Link from "next/link";
 import { ArrowRight, Landmark, Home, User, FileText } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
@@ -41,6 +42,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   const { user } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = React.useState(false);
   const [financeDetails, setFinanceDetails] =
     React.useState<LandlordFinanceDetails>(emptyFinanceDetails);
 
@@ -95,6 +97,13 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
       financeDetails.accountName.trim().length > 0;
     if (!hasRequiredFields) {
       setSubmitError("Please complete all financial details.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setSubmitError(
+        "Please confirm that you have read and accepted the terms and conditions.",
+      );
       return;
     }
 
@@ -197,6 +206,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
     await router.push("/onboarding/landlord/complete");
     setIsSubmitting(false);
   }, [
+    acceptedTerms,
     financeDetails,
     persistLandlordId,
     router,
@@ -298,6 +308,29 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
             ensure they are correct.
           </div>
 
+          <label className="mt-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={(e) => {
+                setAcceptedTerms(e.target.checked);
+                if (e.target.checked) setSubmitError(null);
+              }}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+            />
+            <span>
+              I confirm that I have read and accepted the{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                className="font-semibold text-brand-main underline-offset-4 hover:underline"
+              >
+                terms and conditions
+              </Link>
+              .
+            </span>
+          </label>
+
           {submitError ? (
             <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {submitError}
@@ -315,7 +348,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
             <button
               type="button"
               onClick={handleContinue}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !acceptedTerms}
               className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 flex items-center gap-2"
             >
               {isSubmitting ? (

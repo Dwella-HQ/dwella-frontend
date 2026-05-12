@@ -107,37 +107,37 @@ const AdminDashboardPage: NextPageWithLayout = () => {
         {
           label: "Tenants",
           value: fmtInt(tenantsCount),
-          delta: "GET /tenant",
+          delta: "Tenant records",
         },
         {
           label: "Landlords",
           value: fmtInt(landlordsCount),
-          delta: "GET /landlord",
+          delta: "Landlord records",
         },
         {
           label: "Property Managers",
           value: fmtInt(pmCount),
-          delta: "GET /property-manager",
+          delta: "Manager records",
         },
         {
           label: "Total Transactions Volume",
           value: volLabel,
-          delta: "GET /transaction",
+          delta: "Payment records",
         },
         {
           label: "Total Properties",
           value: fmtInt(propsCount),
-          delta: "GET /property",
+          delta: "Property records",
         },
         {
           label: "Recorded transactions",
           value: fmtInt(txCount),
-          delta: "GET /transaction",
+          delta: "Payment records",
         },
         {
           label: "Pending Verification",
           value: fmtInt(pendingVer),
-          delta: "GET /verification",
+          delta: "Verification records",
         },
       ]);
       setLoading(false);
@@ -161,8 +161,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
               <Loader2 className="h-4 w-4 animate-spin text-[#64748B]" />
             ) : null}
             <p className="text-[11px] text-[#64748B]">
-              Metric cards load from documented list endpoints (users,
-              landlords, properties, transactions, verifications).
+              Overview of users, properties, payments, and verifications.
             </p>
           </div>
           <div className="grid grid-cols-4 gap-3">
@@ -202,7 +201,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
                     Total Properties
                   </p>
                   <p className="mt-1 text-[12px] text-[#64748B]">
-                    Pulled from GET /property with other admin metrics
+                    Current property count across the platform
                   </p>
                 </div>
               </div>
@@ -231,7 +230,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
                     Total Transaction Volume
                   </p>
                   <p className="mt-1 text-[12px] text-[#64748B]">
-                    Parsed from GET /transaction when amounts are present
+                    Total value of recorded payments
                   </p>
                 </div>
               </div>
@@ -242,7 +241,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
                 Top Property Category
               </p>
               <p className="mt-2 text-[12px] text-[#64748B]">
-                Use property analytics when the API exposes category breakdowns.
+                Category insights will appear as more property data becomes available.
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 {["3 Bedroom", "2 Bedroom", "Self Contain", "Duplex"].map(

@@ -3,7 +3,11 @@ import Head from "next/head";
 import { format, parseISO } from "date-fns";
 import type { NextPageWithLayout } from "../_app";
 import { useUser } from "@/contexts/UserContext";
+import { useToast } from "@/components/Toast";
 import {
+  deleteAnnouncementLandlord,
+  deleteAnnouncementProperty,
+  getAnnouncements,
   subscribeAnnouncements,
   type AnnouncementItemDTO,
 } from "@/api/announcement";
@@ -30,21 +34,48 @@ const isBroadcastAnnouncement = (item: AnnouncementItemDTO) => {
 
 const AnnouncementsPage: NextPageWithLayout = () => {
   const { user } = useUser();
+  const { showToast } = useToast();
   const [announcements, setAnnouncements] = React.useState<
     AnnouncementItemDTO[]
   >([]);
   const [selectedAnnouncement, setSelectedAnnouncement] =
     React.useState<AnnouncementItemDTO | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+
+  const filterForRole = React.useCallback(
+    (items: AnnouncementItemDTO[]) => {
+      return user?.role === "tenant" || user?.role === "property_manager"
+        ? items.filter(isBroadcastAnnouncement)
+        : items;
+    },
+    [user?.role],
+  );
+
+  React.useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+
+    getAnnouncements().then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setAnnouncements(filterForRole(result.data));
+      } else {
+        console.warn("Announcements page REST load failed:", result.error);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterForRole, user?.id]);
 
   React.useEffect(() => {
     if (!user?.id) return;
 
     const subscription = subscribeAnnouncements({
+      token: user.token,
       onLoad: (items) => {
-        const roleFiltered =
-          user.role === "tenant" || user.role === "property_manager"
-            ? items.filter(isBroadcastAnnouncement)
-            : items;
+        const roleFiltered = filterForRole(items);
 
         setAnnouncements((prev) => {
           if (roleFiltered.length === 0 && prev.length > 0) return prev;
@@ -70,7 +101,45 @@ const AnnouncementsPage: NextPageWithLayout = () => {
       subscription.disconnect();
       console.log("Announcements page socket disconnected");
     };
-  }, [user?.id, user?.role]);
+  }, [filterForRole, user?.id, user?.token]);
+
+  const canDeleteAnnouncements =
+    user?.role === "landlord" || user?.role === "property_manager";
+
+  const handleDeleteAnnouncement = React.useCallback(
+    async (item: AnnouncementItemDTO) => {
+      if (!item.id) {
+        showToast("This announcement cannot be deleted yet.", "error");
+        return;
+      }
+
+      const confirmed = window.confirm(
+        "Delete this announcement? This action cannot be undone.",
+      );
+      if (!confirmed) return;
+
+      setDeletingId(item.id);
+      const level = (item.level || "").toUpperCase();
+      const result =
+        level === "PROPERTY"
+          ? await deleteAnnouncementProperty(item.id)
+          : await deleteAnnouncementLandlord(item.id);
+
+      if (result.success) {
+        setAnnouncements((prev) =>
+          prev.filter((announcement) => announcement.id !== item.id),
+        );
+        setSelectedAnnouncement((current) =>
+          current?.id === item.id ? null : current,
+        );
+        showToast("Announcement deleted", "success");
+      } else {
+        showToast(result.error || "Failed to delete announcement", "error");
+      }
+      setDeletingId(null);
+    },
+    [showToast],
+  );
 
   const pageTitle =
     user?.role === "tenant" || user?.role === "property_manager"
@@ -106,26 +175,44 @@ const AnnouncementsPage: NextPageWithLayout = () => {
           ) : (
             <div className="space-y-3">
               {announcements.map((item, index) => (
-                <button
+                <div
                   key={item.id || `${item.title}-${index}`}
-                  type="button"
-                  onClick={() => setSelectedAnnouncement(item)}
-                  className="w-full rounded-md border border-gray-100 bg-gray-50 p-4 text-left transition hover:border-gray-200 hover:bg-gray-100"
+                  className="rounded-md border border-gray-100 bg-gray-50 p-4 transition hover:border-gray-200 hover:bg-gray-100"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {item.title}
-                    </p>
-                    <span className="text-xs text-gray-500">
-                      {formatDateValue(item.createdAt)}
-                    </span>
+                  <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAnnouncement(item)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {item.title}
+                        </p>
+                        <span className="text-xs text-gray-500">
+                          {formatDateValue(item.createdAt)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-gray-700">
+                        {item.content}
+                      </p>
+                      <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
+                        <span>Level: {item.level || "N/A"}</span>
+                        <span>Attachments: {item.fileIds?.length || 0}</span>
+                      </div>
+                    </button>
+                    {canDeleteAnnouncements && item.id ? (
+                      <button
+                        type="button"
+                        disabled={deletingId === item.id}
+                        onClick={() => void handleDeleteAnnouncement(item)}
+                        className="shrink-0 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deletingId === item.id ? "Deleting..." : "Delete"}
+                      </button>
+                    ) : null}
                   </div>
-                  <p className="mt-2 text-sm text-gray-700">{item.content}</p>
-                  <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
-                    <span>Level: {item.level || "N/A"}</span>
-                    <span>Attachments: {item.fileIds?.length || 0}</span>
-                  </div>
-                </button>
+                </div>
               ))}
             </div>
           )}

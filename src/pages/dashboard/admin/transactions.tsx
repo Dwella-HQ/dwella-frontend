@@ -174,8 +174,8 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                 "Other status",
                 String(stats.total - stats.success - stats.pending),
               ],
-              ["Rows loaded", String(rows.length)],
-              ["Volume (parsed)", formatMoney(stats.volume)],
+              ["Records shown", String(rows.length)],
+              ["Total volume", formatMoney(stats.volume)],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -227,8 +227,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
               ) : null}
             </div>
             <p className="mb-3 text-xs text-[#64748B]">
-              GET /transaction · Parsed amount/status fields may vary by backend
-              shape.
+              Transaction records update as new payments are received.
             </p>
             <div className="overflow-auto">
               <table className="w-full min-w-[1050px] text-xs">
@@ -274,13 +273,13 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
               </table>
               {!loading && filtered.length === 0 ? (
                 <p className="py-8 text-center text-[12px] text-[#64748B]">
-                  No transactions loaded.
+                  No transactions available.
                 </p>
               ) : null}
             </div>
             <div className="mt-3 flex items-center justify-between text-[11px] text-[#64748B]">
               <p>
-                Page {safePage} · {filtered.length} row(s) after filter
+                Page {safePage} · {filtered.length} record(s) shown
               </p>
               <div className="inline-flex items-center gap-3">
                 <button

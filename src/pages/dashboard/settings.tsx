@@ -459,10 +459,7 @@ const SettingsPage: NextPageWithLayout = () => {
       if (preview?.fileName || preview?.id || uploadedId) {
         return (
           <p className="mt-2 text-xs text-gray-500">
-            Uploaded{" "}
-            {preview?.fileName
-              ? `(${preview.fileName})`
-              : `(${preview?.id || uploadedId})`}
+            {preview?.fileName ? `Uploaded (${preview.fileName})` : "Uploaded"}
           </p>
         );
       }
@@ -894,7 +891,7 @@ const SettingsPage: NextPageWithLayout = () => {
                     </div>
                     {documentsForm.govermentIdDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
-                        File ID: {documentsForm.govermentIdDocumentId}
+                        Document uploaded
                       </p>
                     )}
                   </div>
@@ -944,7 +941,7 @@ const SettingsPage: NextPageWithLayout = () => {
                     </div>
                     {documentsForm.landSurveyDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
-                        File ID: {documentsForm.landSurveyDocumentId}
+                        Document uploaded
                       </p>
                     )}
                   </div>
@@ -994,7 +991,7 @@ const SettingsPage: NextPageWithLayout = () => {
                     </div>
                     {documentsForm.proofOfOwnershipDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
-                        File ID: {documentsForm.proofOfOwnershipDocumentId}
+                        Document uploaded
                       </p>
                     )}
                   </div>
@@ -1044,8 +1041,7 @@ const SettingsPage: NextPageWithLayout = () => {
                     </div>
                     {documentsForm.taxIdentificationNumberDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
-                        File ID:{" "}
-                        {documentsForm.taxIdentificationNumberDocumentId}
+                        Document uploaded
                       </p>
                     )}
                   </div>

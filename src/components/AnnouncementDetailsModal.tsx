@@ -162,7 +162,7 @@ export const AnnouncementDetailsModal = ({
                           </a>
                         ) : (
                           <span className="text-xs text-gray-500">
-                            No file URL
+                            Preview unavailable
                           </span>
                         )}
                       </div>
@@ -171,7 +171,7 @@ export const AnnouncementDetailsModal = ({
                 ) : announcement.fileIds && announcement.fileIds.length > 0 ? (
                   <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 p-3">
                     <p className="text-xs text-gray-600">
-                      File IDs: {announcement.fileIds.join(", ")}
+                      Attachments are available but cannot be previewed here.
                     </p>
                   </div>
                 ) : (

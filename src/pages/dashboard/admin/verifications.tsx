@@ -389,8 +389,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
               {!selectedId && (
                 <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center text-[13px] text-[#64748B]">
                   <BadgeCheck className="mb-3 h-10 w-10 text-[#CBD5E1]" />
-                  Select a verification to load details{" "}
-                  {"(GET /verification/{id})."}
+                  Select a verification to view its details.
                 </div>
               )}
               {selectedId && detailLoading && (
@@ -418,7 +417,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                           {verificationSubjectLabel(d)}
                         </p>
                         <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-[#64748B]">
-                          Verification ID
+                          Verification reference
                         </p>
                         <p className="font-mono text-[12px] text-[#334155]">
                           {d.id}
@@ -445,7 +444,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                       <dl className="grid gap-3 text-[13px] sm:grid-cols-2 lg:grid-cols-3">
                         <div className="rounded-md bg-[#F8FAFC] px-3 py-2">
                           <dt className="text-[11px] text-[#64748B]">
-                            Landlord ID
+                            Landlord reference
                           </dt>
                           <dd className="mt-1 font-mono text-[12px] break-all">
                             {landlordIdDisp ?? "—"}
@@ -453,7 +452,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                         </div>
                         <div className="rounded-md bg-[#F8FAFC] px-3 py-2">
                           <dt className="text-[11px] text-[#64748B]">
-                            Property ID
+                            Property reference
                           </dt>
                           <dd className="mt-1 font-mono text-[12px] break-all">
                             {propertyIdDisp ?? "—"}

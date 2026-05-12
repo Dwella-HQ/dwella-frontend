@@ -297,7 +297,7 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
               ) : null}
             </div>
             <p className="mb-4 mt-1 text-[12px] text-[#64748B]">
-              From GET /property · Approve pending listings when ready
+              Review property listings and approve pending records when ready.
             </p>
             <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full min-w-[1080px] table-fixed text-[11px]">
@@ -472,7 +472,7 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             </div>
             <div className="mt-4 flex items-center justify-between text-[12px] text-[#64748B]">
               <div className="inline-flex items-center gap-2">
-                <span>Rows loaded</span>
+                <span>Records shown</span>
                 <span className="font-medium text-[#0F172A]">
                   {visibleRows.length}
                 </span>
