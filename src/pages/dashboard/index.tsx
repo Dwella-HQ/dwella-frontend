@@ -451,7 +451,7 @@ const ManagerDashboard = () => {
   );
 
   const requestDeleteManagerAnnouncement = React.useCallback(
-    (item: AnnouncementItemDTO) => {
+    async (item: AnnouncementItemDTO): Promise<boolean> => {
       setPendingDelete(item);
       return false;
     },
@@ -1634,7 +1634,7 @@ const LandlordDashboard = () => {
   );
 
   const requestDeleteLandlordAnnouncement = React.useCallback(
-    (item: AnnouncementItemDTO) => {
+    async (item: AnnouncementItemDTO): Promise<boolean> => {
       setPendingDelete(item);
       return false;
     },
