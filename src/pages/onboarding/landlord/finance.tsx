@@ -10,6 +10,11 @@ import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
 import { createLandlord, getLandlordByUser } from "@/api/landlord";
 import { ensureLandlordWallet } from "@/api/wallet";
+import {
+  getWithdrawalBanksByCurrency,
+  resolveWithdrawalAccount,
+} from "@/api/withdrawal";
+import type { WithdrawalBankDTO } from "@/api/withdrawal";
 import { useUser } from "@/contexts/UserContext";
 import logo from "@/assets/logo.png";
 
@@ -23,10 +28,11 @@ const landlordFlowSteps = [
 ];
 
 const BVN_LENGTH = 11;
-const ACCOUNT_NAME_LENGTH = 10;
+const ACCOUNT_NUMBER_LENGTH = 10;
 
 type LandlordFinanceDetails = {
   bvn: string;
+  bankCode: string;
   bankName: string;
   accountCode: string;
   accountName: string;
@@ -34,6 +40,7 @@ type LandlordFinanceDetails = {
 
 const emptyFinanceDetails: LandlordFinanceDetails = {
   bvn: "",
+  bankCode: "",
   bankName: "",
   accountCode: "",
   accountName: "",
@@ -50,6 +57,14 @@ const FieldCounter = ({ current, max }: { current: number; max: number }) => (
   </p>
 );
 
+const bankOptionCode = (bank: WithdrawalBankDTO) =>
+  (bank.bankCode || bank.code || "").trim();
+
+const bankOptionName = (bank: WithdrawalBankDTO, index: number) => {
+  const code = bankOptionCode(bank);
+  return bank.bankName || bank.name || code || `Bank ${index + 1}`;
+};
+
 const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   const router = useRouter();
   const { showToast } = useToast();
@@ -61,6 +76,17 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
   const [financeDetails, setFinanceDetails] =
     React.useState<LandlordFinanceDetails>(emptyFinanceDetails);
+  const [banks, setBanks] = React.useState<WithdrawalBankDTO[]>([]);
+  const [banksLoading, setBanksLoading] = React.useState(false);
+  const [resolveLoading, setResolveLoading] = React.useState(false);
+  const [isAccountResolved, setIsAccountResolved] = React.useState(false);
+
+  const autoResolveTimerRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const lastResolvedSignatureRef = React.useRef("");
+  const autoResolveFailedSignatureRef = React.useRef("");
+  const resolveRequestIdRef = React.useRef(0);
 
   const persistLandlordId = React.useCallback((landlordId: string) => {
     if (typeof window === "undefined" || !landlordId) return;
@@ -71,29 +97,184 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   }, []);
 
   React.useEffect(() => {
+    let cancelled = false;
+    const loadBanks = async () => {
+      setBanksLoading(true);
+      const result = await getWithdrawalBanksByCurrency("NGN");
+      if (cancelled) return;
+      if (result.success) {
+        setBanks(result.data);
+      } else {
+        setBanks([]);
+        showToast(result.error || "Failed to load banks", "error");
+      }
+      setBanksLoading(false);
+    };
+    void loadBanks();
+    return () => {
+      cancelled = true;
+    };
+  }, [showToast]);
+
+  React.useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = sessionStorage.getItem("landlordOnboardingFinance");
     if (!stored) return;
     try {
-      const parsed = JSON.parse(stored) as Partial<LandlordFinanceDetails>;
+      const parsed = JSON.parse(stored) as Partial<
+        LandlordFinanceDetails & { accountNumber?: string }
+      >;
       const bvn = (parsed.bvn ?? "").replace(/\D/g, "").slice(0, BVN_LENGTH);
-      const accountName = (parsed.accountName ?? "").slice(
-        0,
-        ACCOUNT_NAME_LENGTH,
-      );
+      const accountCode = (parsed.accountCode ?? parsed.accountNumber ?? "")
+        .replace(/\D/g, "")
+        .slice(0, ACCOUNT_NUMBER_LENGTH);
+      const accountName = (parsed.accountName ?? "").trim();
       setFinanceDetails({
         bvn,
+        bankCode: parsed.bankCode ?? "",
         bankName: parsed.bankName ?? "",
-        accountCode:
-          parsed.accountCode ??
-          (parsed as Partial<{ accountNumber: string }>).accountNumber ??
-          "",
+        accountCode,
         accountName,
       });
+      if (parsed.bankCode && accountCode.length === ACCOUNT_NUMBER_LENGTH) {
+        lastResolvedSignatureRef.current = `${parsed.bankCode}:${accountCode}`;
+        setIsAccountResolved(Boolean(accountName));
+      }
     } catch {
       setFinanceDetails(emptyFinanceDetails);
     }
   }, []);
+
+  React.useEffect(() => {
+    if (!financeDetails.bankCode || banks.length === 0) return;
+    const match = banks.find(
+      (bank) => bankOptionCode(bank) === financeDetails.bankCode,
+    );
+    if (!match) return;
+    const name = bankOptionName(match, banks.indexOf(match));
+    if (name && name !== financeDetails.bankName) {
+      setFinanceDetails((prev) => ({ ...prev, bankName: name }));
+    }
+  }, [banks, financeDetails.bankCode, financeDetails.bankName]);
+
+  const applyResolvedAccountName = React.useCallback(
+    (rawName: string | undefined) => {
+      const trimmed = (rawName ?? "").trim();
+      if (!trimmed) return false;
+      setFinanceDetails((prev) => ({ ...prev, accountName: trimmed }));
+      setIsAccountResolved(true);
+      return true;
+    },
+    [],
+  );
+
+  const resolveAccount = React.useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      const bankCode = financeDetails.bankCode.trim();
+      const digits = financeDetails.accountCode.replace(/\D/g, "");
+
+      if (!bankCode || digits.length !== ACCOUNT_NUMBER_LENGTH) {
+        if (!silent) {
+          showToast(
+            !bankCode
+              ? "Select a bank"
+              : "Enter a valid 10-digit account number",
+            "error",
+          );
+        }
+        return false;
+      }
+
+      const signature = `${bankCode}:${digits}`;
+      const reqId = ++resolveRequestIdRef.current;
+      setResolveLoading(true);
+      const result = await resolveWithdrawalAccount({
+        bankCode,
+        accountNumber: digits,
+      });
+
+      if (reqId !== resolveRequestIdRef.current) {
+        setResolveLoading(false);
+        return false;
+      }
+      setResolveLoading(false);
+
+      if (result.success) {
+        lastResolvedSignatureRef.current = signature;
+        autoResolveFailedSignatureRef.current = "";
+        const filled = applyResolvedAccountName(result.data.accountName);
+        if (!silent) {
+          if (filled) {
+            showToast("Account verified", "success");
+          } else {
+            showToast(
+              "Resolved, but the bank did not return an account holder name.",
+              "warning",
+            );
+          }
+        }
+        return filled;
+      }
+
+      lastResolvedSignatureRef.current = "";
+      setIsAccountResolved(false);
+      if (silent) {
+        autoResolveFailedSignatureRef.current = signature;
+      }
+      if (!silent) {
+        showToast(result.error || "Failed to resolve account", "error");
+      }
+      return false;
+    },
+    [
+      applyResolvedAccountName,
+      financeDetails.accountCode,
+      financeDetails.bankCode,
+      showToast,
+    ],
+  );
+
+  const handleResolveAccount = React.useCallback(async () => {
+    autoResolveFailedSignatureRef.current = "";
+    await resolveAccount({ silent: false });
+  }, [resolveAccount]);
+
+  React.useEffect(() => {
+    const digits = financeDetails.accountCode.replace(/\D/g, "");
+    const bankCode = financeDetails.bankCode.trim();
+
+    if (digits.length !== ACCOUNT_NUMBER_LENGTH || !bankCode) {
+      lastResolvedSignatureRef.current = "";
+      autoResolveFailedSignatureRef.current = "";
+      setIsAccountResolved(false);
+      return;
+    }
+
+    const signature = `${bankCode}:${digits}`;
+    if (signature === lastResolvedSignatureRef.current) {
+      return;
+    }
+    if (signature === autoResolveFailedSignatureRef.current) {
+      return;
+    }
+
+    if (autoResolveTimerRef.current) {
+      clearTimeout(autoResolveTimerRef.current);
+    }
+
+    autoResolveTimerRef.current = setTimeout(() => {
+      autoResolveTimerRef.current = null;
+      void resolveAccount({ silent: true });
+    }, 450);
+
+    return () => {
+      if (autoResolveTimerRef.current) {
+        clearTimeout(autoResolveTimerRef.current);
+        autoResolveTimerRef.current = null;
+      }
+    };
+  }, [financeDetails.accountCode, financeDetails.bankCode, resolveAccount]);
 
   const handleChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -102,14 +283,42 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
 
       if (name === "bvn") {
         next = value.replace(/\D/g, "").slice(0, BVN_LENGTH);
-      } else if (name === "accountName") {
-        next = value.slice(0, ACCOUNT_NAME_LENGTH);
+      } else if (name === "accountCode") {
+        next = value.replace(/\D/g, "").slice(0, ACCOUNT_NUMBER_LENGTH);
+        setIsAccountResolved(false);
+        lastResolvedSignatureRef.current = "";
+        setFinanceDetails((prev) => ({
+          ...prev,
+          accountCode: next,
+          accountName: "",
+        }));
+        if (submitError) setSubmitError(null);
+        return;
       }
 
       setFinanceDetails((prev) => ({ ...prev, [name]: next }));
       if (submitError) setSubmitError(null);
     },
     [submitError],
+  );
+
+  const handleBankChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const code = event.target.value;
+      const bank = banks.find((item) => bankOptionCode(item) === code);
+      const bankName = bank ? bankOptionName(bank, banks.indexOf(bank)) : "";
+      setFinanceDetails((prev) => ({
+        ...prev,
+        bankCode: code,
+        bankName,
+        accountName: "",
+      }));
+      setIsAccountResolved(false);
+      lastResolvedSignatureRef.current = "";
+      autoResolveFailedSignatureRef.current = "";
+      if (submitError) setSubmitError(null);
+    },
+    [banks, submitError],
   );
 
   const handleContinue = React.useCallback(async () => {
@@ -125,24 +334,36 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
 
     const bvn = financeDetails.bvn.trim();
     const accountName = financeDetails.accountName.trim();
+    const accountCode = financeDetails.accountCode.replace(/\D/g, "");
+    const bankCode = financeDetails.bankCode.trim();
+    const bankName = financeDetails.bankName.trim();
 
     if (bvn.length !== BVN_LENGTH) {
       setSubmitError(`BVN must be exactly ${BVN_LENGTH} digits.`);
       return;
     }
 
-    if (accountName.length !== ACCOUNT_NAME_LENGTH) {
+    if (!bankCode || !bankName) {
+      setSubmitError("Please select your bank.");
+      return;
+    }
+
+    if (accountCode.length !== ACCOUNT_NUMBER_LENGTH) {
       setSubmitError(
-        `Account name must be exactly ${ACCOUNT_NAME_LENGTH} characters.`,
+        `Account number must be exactly ${ACCOUNT_NUMBER_LENGTH} digits.`,
       );
       return;
     }
 
-    const hasRequiredFields =
-      financeDetails.bankName.trim().length > 0 &&
-      financeDetails.accountCode.trim().length > 0;
-    if (!hasRequiredFields) {
-      setSubmitError("Please complete all financial details.");
+    const resolveSignature = `${bankCode}:${accountCode}`;
+    if (
+      !isAccountResolved ||
+      !accountName ||
+      lastResolvedSignatureRef.current !== resolveSignature
+    ) {
+      setSubmitError(
+        "Please resolve your account number to verify the account holder name.",
+      );
       return;
     }
 
@@ -155,7 +376,14 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
 
     sessionStorage.setItem(
       "landlordOnboardingFinance",
-      JSON.stringify({ ...financeDetails, bvn, accountName }),
+      JSON.stringify({
+        ...financeDetails,
+        bvn,
+        accountCode,
+        accountName,
+        bankCode,
+        bankName,
+      }),
     );
 
     const detailsRaw = sessionStorage.getItem("landlordOnboardingDetails");
@@ -239,8 +467,8 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
       },
       bankAccount: {
         accountName,
-        accountCode: financeDetails.accountCode.trim(),
-        bankName: financeDetails.bankName.trim(),
+        accountCode,
+        bankName,
         bvn,
       },
     };
@@ -280,6 +508,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   }, [
     acceptedTerms,
     financeDetails,
+    isAccountResolved,
     persistLandlordId,
     router,
     showToast,
@@ -298,11 +527,15 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
           <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
             <Image
               src={logo}
-              alt="DWELLA NG"
-              width={120}
-              height={40}
-              className="h-8 w-auto"
+              alt="DWELLA NG logo"
+              width={32}
+              height={32}
+              className="object-contain"
             />
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold text-brand-main">DWELLA</span>
+              <span className="text-lg font-bold text-blue-400">NG</span>
+            </div>
           </div>
 
           <div className="w-full sm:w-auto sm:absolute sm:left-1/2 sm:-translate-x-1/2">
@@ -313,14 +546,14 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
         </nav>
 
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
-          <h1 className="mb-1 text-2xl font-bold text-gray-900 text-center">
+          <h1 className="mb-2 text-3xl font-bold text-gray-900">
             Financial Information
           </h1>
-          <p className="mb-6 text-sm text-gray-600 text-center">
+          <p className="mb-6 text-sm text-gray-600">
             Provide bank details for receiving payments.
           </p>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 BVN
@@ -341,53 +574,96 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
                 max={BVN_LENGTH}
               />
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Bank Name
-              </label>
-              <input
-                name="bankName"
-                value={financeDetails.bankName}
-                onChange={handleChange}
-                placeholder="Enter bank name"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-              />
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Bank
+                </label>
+                <select
+                  value={financeDetails.bankCode}
+                  disabled={banksLoading}
+                  onChange={handleBankChange}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:bg-gray-100"
+                >
+                  <option value="">Select bank</option>
+                  {banks.map((bank, index) => {
+                    const code = bankOptionCode(bank);
+                    const name = bankOptionName(bank, index);
+                    return (
+                      <option key={`${code}-${index}`} value={code}>
+                        {name}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Account Number
+                </label>
+                <input
+                  name="accountCode"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={ACCOUNT_NUMBER_LENGTH}
+                  value={financeDetails.accountCode}
+                  onChange={handleChange}
+                  placeholder="Enter account number"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                />
+                <FieldCounter
+                  current={financeDetails.accountCode.replace(/\D/g, "").length}
+                  max={ACCOUNT_NUMBER_LENGTH}
+                />
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Account Code
-              </label>
-              <input
-                name="accountCode"
-                value={financeDetails.accountCode}
-                onChange={handleChange}
-                placeholder="Enter account code"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-              />
+
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                onClick={handleResolveAccount}
+                disabled={resolveLoading || banksLoading}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {resolveLoading ? "Resolving..." : "Resolve Account"}
+              </button>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Account Name
-              </label>
-              <input
-                name="accountName"
-                type="text"
-                maxLength={ACCOUNT_NAME_LENGTH}
-                value={financeDetails.accountName}
-                onChange={handleChange}
-                placeholder="10 characters max"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-              />
-              <FieldCounter
-                current={financeDetails.accountName.length}
-                max={ACCOUNT_NAME_LENGTH}
-              />
-            </div>
+
+            {isAccountResolved && financeDetails.accountName ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                  Account holder
+                </p>
+                <p className="mt-1 text-lg font-semibold text-emerald-950">
+                  {financeDetails.accountName}
+                </p>
+                <p className="mt-2 text-xs text-emerald-800">
+                  Account{" "}
+                  <span className="font-mono">
+                    {financeDetails.accountCode}
+                  </span>
+                  {financeDetails.bankName ? (
+                    <> · {financeDetails.bankName}</>
+                  ) : null}
+                </p>
+              </div>
+            ) : resolveLoading ? (
+              <p className="text-sm text-gray-500">Verifying account…</p>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Account holder name will appear here after you resolve your
+                account number.
+              </p>
+            )}
           </div>
 
-          <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            <span className="font-semibold">Note:</span> Double check details to
-            ensure they are correct.
+          <div className="mt-6 rounded-lg bg-blue-50 border border-blue-200 p-4">
+            <p className="text-xs text-gray-700">
+              <strong>Note:</strong> Double check details to ensure they are
+              correct.
+            </p>
           </div>
 
           <label className="mt-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
@@ -450,7 +726,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
 };
 
 LandlordOnboardingFinancePage.getLayout = (page) => (
-  <AuthLayout>{page}</AuthLayout>
+  <AuthLayout showImage={false}>{page}</AuthLayout>
 );
 
 export default LandlordOnboardingFinancePage;
