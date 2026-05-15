@@ -313,7 +313,7 @@ const AnnouncementsPage: NextPageWithLayout = () => {
   );
 
   const requestDeleteAnnouncement = React.useCallback(
-    (item: AnnouncementItemDTO) => {
+    async (item: AnnouncementItemDTO): Promise<boolean> => {
       setPendingDelete(item);
       return false;
     },
