@@ -22,6 +22,9 @@ const landlordFlowSteps = [
   { number: 4, label: "First Property", icon: Home },
 ];
 
+const BVN_LENGTH = 11;
+const ACCOUNT_NAME_LENGTH = 10;
+
 type LandlordFinanceDetails = {
   bvn: string;
   bankName: string;
@@ -35,6 +38,17 @@ const emptyFinanceDetails: LandlordFinanceDetails = {
   accountCode: "",
   accountName: "",
 };
+
+const FieldCounter = ({ current, max }: { current: number; max: number }) => (
+  <p
+    className={`mt-1 text-right text-xs ${
+      current === max ? "text-green-600" : "text-gray-500"
+    }`}
+    aria-live="polite"
+  >
+    {current}/{max}
+  </p>
+);
 
 const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -62,14 +76,19 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
     if (!stored) return;
     try {
       const parsed = JSON.parse(stored) as Partial<LandlordFinanceDetails>;
+      const bvn = (parsed.bvn ?? "").replace(/\D/g, "").slice(0, BVN_LENGTH);
+      const accountName = (parsed.accountName ?? "").slice(
+        0,
+        ACCOUNT_NAME_LENGTH,
+      );
       setFinanceDetails({
-        bvn: parsed.bvn ?? "",
+        bvn,
         bankName: parsed.bankName ?? "",
         accountCode:
           parsed.accountCode ??
           (parsed as Partial<{ accountNumber: string }>).accountNumber ??
           "",
-        accountName: parsed.accountName ?? "",
+        accountName,
       });
     } catch {
       setFinanceDetails(emptyFinanceDetails);
@@ -79,9 +98,18 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   const handleChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const { name, value } = event.target;
-      setFinanceDetails((prev) => ({ ...prev, [name]: value }));
+      let next = value;
+
+      if (name === "bvn") {
+        next = value.replace(/\D/g, "").slice(0, BVN_LENGTH);
+      } else if (name === "accountName") {
+        next = value.slice(0, ACCOUNT_NAME_LENGTH);
+      }
+
+      setFinanceDetails((prev) => ({ ...prev, [name]: next }));
+      if (submitError) setSubmitError(null);
     },
-    [],
+    [submitError],
   );
 
   const handleContinue = React.useCallback(async () => {
@@ -95,11 +123,24 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
       return;
     }
 
+    const bvn = financeDetails.bvn.trim();
+    const accountName = financeDetails.accountName.trim();
+
+    if (bvn.length !== BVN_LENGTH) {
+      setSubmitError(`BVN must be exactly ${BVN_LENGTH} digits.`);
+      return;
+    }
+
+    if (accountName.length !== ACCOUNT_NAME_LENGTH) {
+      setSubmitError(
+        `Account name must be exactly ${ACCOUNT_NAME_LENGTH} characters.`,
+      );
+      return;
+    }
+
     const hasRequiredFields =
-      financeDetails.bvn.trim().length > 0 &&
       financeDetails.bankName.trim().length > 0 &&
-      financeDetails.accountCode.trim().length > 0 &&
-      financeDetails.accountName.trim().length > 0;
+      financeDetails.accountCode.trim().length > 0;
     if (!hasRequiredFields) {
       setSubmitError("Please complete all financial details.");
       return;
@@ -114,7 +155,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
 
     sessionStorage.setItem(
       "landlordOnboardingFinance",
-      JSON.stringify(financeDetails),
+      JSON.stringify({ ...financeDetails, bvn, accountName }),
     );
 
     const detailsRaw = sessionStorage.getItem("landlordOnboardingDetails");
@@ -197,10 +238,10 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
         country: details.country,
       },
       bankAccount: {
-        accountName: financeDetails.accountName.trim(),
+        accountName,
         accountCode: financeDetails.accountCode.trim(),
         bankName: financeDetails.bankName.trim(),
-        bvn: financeDetails.bvn.trim(),
+        bvn,
       },
     };
 
@@ -257,15 +298,11 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
           <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
             <Image
               src={logo}
-              alt="DWELLA NG logo"
-              width={32}
-              height={32}
-              className="object-contain"
+              alt="DWELLA NG"
+              width={120}
+              height={40}
+              className="h-8 w-auto"
             />
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold text-brand-main">DWELLA</span>
-              <span className="text-lg font-bold text-blue-400">NG</span>
-            </div>
           </div>
 
           <div className="w-full sm:w-auto sm:absolute sm:left-1/2 sm:-translate-x-1/2">
@@ -290,10 +327,18 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
               </label>
               <input
                 name="bvn"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={BVN_LENGTH}
                 value={financeDetails.bvn}
                 onChange={handleChange}
-                placeholder="Enter BVN"
+                placeholder="Enter 11-digit BVN"
                 className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+              />
+              <FieldCounter
+                current={financeDetails.bvn.length}
+                max={BVN_LENGTH}
               />
             </div>
             <div>
@@ -326,10 +371,16 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
               </label>
               <input
                 name="accountName"
+                type="text"
+                maxLength={ACCOUNT_NAME_LENGTH}
                 value={financeDetails.accountName}
                 onChange={handleChange}
-                placeholder="Enter account name"
+                placeholder="10 characters max"
                 className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+              />
+              <FieldCounter
+                current={financeDetails.accountName.length}
+                max={ACCOUNT_NAME_LENGTH}
               />
             </div>
           </div>
@@ -399,7 +450,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
 };
 
 LandlordOnboardingFinancePage.getLayout = (page) => (
-  <AuthLayout showImage={false}>{page}</AuthLayout>
+  <AuthLayout>{page}</AuthLayout>
 );
 
 export default LandlordOnboardingFinancePage;
