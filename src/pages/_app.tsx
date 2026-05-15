@@ -11,6 +11,8 @@ import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { ToastProvider } from "@/components/Toast";
 import { UserProvider } from "@/contexts/UserContext";
 import { SelectedLandlordProvider } from "@/contexts/SelectedLandlordContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
+import { ChatProvider } from "@/contexts/ChatContext";
 
 export type NextPageWithLayout<P = object, IP = P> = NextPage<P, IP> & {
   getLayout?: (page: React.ReactElement) => React.ReactNode;
@@ -28,10 +30,14 @@ const DwellaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
     <GoogleOAuthProvider clientId={googleClientId}>
       <ToastProvider>
         <UserProvider>
-          <SelectedLandlordProvider>
-            {getLayout(<Component {...pageProps} />)}
-            <PWAInstallPrompt />
-          </SelectedLandlordProvider>
+          <NotificationsProvider>
+            <ChatProvider>
+              <SelectedLandlordProvider>
+                {getLayout(<Component {...pageProps} />)}
+                <PWAInstallPrompt />
+              </SelectedLandlordProvider>
+            </ChatProvider>
+          </NotificationsProvider>
         </UserProvider>
       </ToastProvider>
     </GoogleOAuthProvider>

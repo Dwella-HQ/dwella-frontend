@@ -20,41 +20,144 @@ export type AnnouncementSubscription = {
   disconnect: () => void;
 };
 
+const extractAnnouncementList = (
+  payload: unknown,
+): AnnouncementItemDTO[] | null => {
+  const wrapped = announcementListEventSchema.safeParse(payload);
+  if (wrapped.success) return wrapped.data.data ?? [];
+
+  const listOnly = announcementArrayPayloadSchema.safeParse(payload);
+  if (listOnly.success) return listOnly.data;
+
+  if (!payload || typeof payload !== "object") return null;
+
+  const data = payload as Record<string, unknown>;
+  const nestedCandidates = [
+    data.announcements,
+    data.items,
+    data.results,
+    data.data,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    const nestedWrapped = announcementListEventSchema.safeParse(candidate);
+    if (nestedWrapped.success) return nestedWrapped.data.data ?? [];
+
+    const nestedList = announcementArrayPayloadSchema.safeParse(candidate);
+    if (nestedList.success) return nestedList.data;
+  }
+
+  return null;
+};
+
+/**
+ * Always read the freshest token available so reconnection attempts (e.g.
+ * after the access token rotates or after Next.js Fast Refresh tears down the
+ * page) authenticate with the current credentials.
+ */
+const readFreshToken = (fallback?: string): string => {
+  if (typeof window !== "undefined") {
+    const authToken = window.localStorage.getItem("authToken");
+    const accessToken = window.localStorage.getItem("accessToken");
+    const stored = authToken || accessToken;
+    console.log(
+      "[socket token] authToken exists:",
+      !!authToken,
+      "accessToken exists:",
+      !!accessToken,
+      "using:",
+      stored ? "FOUND" : "NONE",
+      "fallback:",
+      fallback ? "PROVIDED" : "NONE",
+    );
+    if (stored) return stored;
+  }
+  return fallback || "";
+};
+
 /**
  * Subscribe to announcement updates over socket.io.
  * Backend contract:
  * - namespace: /announcement
- * - auth payload includes token
- * - event: load:announcements
+ * - websocket transport only
+ * - auth/query payload includes token
  */
 export const subscribeAnnouncements = (
   options: SubscribeAnnouncementsOptions,
 ): AnnouncementSubscription => {
   const socketUrl = createUrl("/announcement");
-  const token =
-    options.token ||
-    (typeof window !== "undefined"
-      ? localStorage.getItem("authToken") || localStorage.getItem("accessToken")
-      : null) ||
-    "";
+  const initialToken = readFreshToken(options.token);
+  console.log(
+    "[socket] creating announcement socket, token length:",
+    initialToken.length,
+    "first 20 chars:",
+    initialToken.slice(0, 20),
+  );
 
   const socket: Socket = io(socketUrl, {
-    transports: ["websocket", "polling"],
-    auth: { token },
+    transports: ["websocket"],
+    autoConnect: false,
+    forceNew: true,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 800,
+    reconnectionDelayMax: 5000,
+    query: { token: initialToken },
+    // `auth` accepts a callback so every (re)connect picks up the latest token
+    // from storage. Avoids `Authentication failed: Invalid token` after the
+    // access token rotates while the socket was alive.
+    auth: (cb) => {
+      const freshToken = readFreshToken(options.token);
+      console.log("[socket auth callback] token length:", freshToken.length);
+      cb({ token: freshToken });
+    },
+  });
+
+  const loadEvents = [
+    "load:announcements",
+    "announcements:load",
+    "announcement:load",
+    "announcement",
+    "announcements",
+  ];
+
+  const requestEvents = [
+    "get:announcements",
+    "announcements:get",
+    "load:announcements",
+    "findAllAnnouncements",
+    "findAllAnnouncement",
+  ];
+
+  // Refresh the query string token on reconnect attempts too, since the
+  // backend reads `client.handshake.query.token` before `auth.token`.
+  socket.io.on("reconnect_attempt", () => {
+    const fresh = readFreshToken(options.token);
+    socket.io.opts.query = { token: fresh };
   });
 
   socket.on("connect", () => {
-    console.log("Announcement socket connected", {
+    console.log("[announcements] socket connected", {
       namespace: "/announcement",
       socketId: socket.id,
     });
+
+    requestEvents.forEach((event) => {
+      socket.emit(event);
+    });
+  });
+
+  socket.on("disconnect", (reason: string) => {
+    console.log("[announcements] socket disconnected", { reason });
   });
 
   socket.on("connect_error", (error: Error) => {
+    console.warn("[announcements] socket connect_error", error.message);
     options.onError?.(error.message || "Failed to connect to announcements");
   });
 
   socket.on("error", (payload: unknown) => {
+    console.warn("[announcements] socket 'error' event", payload);
     const message =
       typeof payload === "string"
         ? payload
@@ -62,28 +165,41 @@ export const subscribeAnnouncements = (
     options.onError?.(message);
   });
 
-  socket.on("load:announcements", (payload: unknown) => {
-    options.onRaw?.(payload);
-    const wrapped = announcementListEventSchema.safeParse(payload);
-    if (wrapped.success) {
-      options.onLoad(wrapped.data.data ?? []);
-      return;
-    }
-
-    // Some backends emit the list directly as an array on this event.
-    const listOnly = announcementArrayPayloadSchema.safeParse(payload);
-    if (listOnly.success) {
-      options.onLoad(listOnly.data);
-      return;
-    }
-
-    options.onError?.("Invalid announcements payload");
+  // Catch-all: log every event the server emits so we can see event names
+  // that are outside our expected list (useful for debugging role-based rooms).
+  socket.onAny((event: string, ...args: unknown[]) => {
+    console.log("[announcements] socket ANY event:", event, args);
   });
+
+  const handleAnnouncementLoad = (payload: unknown) => {
+    options.onRaw?.(payload);
+    const items = extractAnnouncementList(payload);
+    if (items) {
+      options.onLoad(items);
+      return;
+    }
+
+    console.warn(
+      "[announcements] payload received but could not be parsed as announcement list",
+      payload,
+    );
+    options.onError?.("Unable to read announcements");
+  };
+
+  loadEvents.forEach((event) => {
+    socket.on(event, handleAnnouncementLoad);
+  });
+
+  socket.connect();
 
   return {
     disconnect: () => {
-      socket.removeAllListeners("load:announcements");
+      socket.offAny();
+      loadEvents.forEach((event) => {
+        socket.removeAllListeners(event);
+      });
       socket.removeAllListeners("connect");
+      socket.removeAllListeners("disconnect");
       socket.removeAllListeners("connect_error");
       socket.removeAllListeners("error");
       socket.disconnect();

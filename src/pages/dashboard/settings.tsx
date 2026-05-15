@@ -28,6 +28,7 @@ import {
   updateLandlordPlatformPreferencesSettings,
   updateLandlordProfileSettings,
 } from "@/api/landlord";
+import type { LandlordDTO } from "@/api/landlord";
 import type { NextPageWithLayout } from "../_app";
 
 type SettingsTab =
@@ -40,12 +41,15 @@ type SettingsTab =
 
 const SettingsPage: NextPageWithLayout = () => {
   const { user } = useUser();
+  const userId = user?.id ? String(user.id) : null;
+  const userRole = user?.role ?? null;
+  const userToken = user?.token ?? null;
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = React.useState<SettingsTab>("profile");
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
   const [showNewPassword, setShowNewPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
-  const [landlord, setLandlord] = React.useState<any>(null);
+  const [landlord, setLandlord] = React.useState<LandlordDTO | null>(null);
   const [isLoadingLandlord, setIsLoadingLandlord] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isUploadingDoc, setIsUploadingDoc] = React.useState<string | null>(
@@ -219,7 +223,9 @@ const SettingsPage: NextPageWithLayout = () => {
           return {
             email: list.includes("EMAIL_NOTIFICATION"),
             push: list.includes("PUSH_NOTIFICATION"),
-            sms: list.includes("SMS_NOTIFICATION"),
+            sms:
+              list.includes("APP_NOTIFICATION") ||
+              list.includes("SMS_NOTIFICATION"),
           };
         };
         return {
@@ -300,7 +306,7 @@ const SettingsPage: NextPageWithLayout = () => {
       const channels: string[] = [];
       if (v.email) channels.push("EMAIL_NOTIFICATION");
       if (v.push) channels.push("PUSH_NOTIFICATION");
-      if (v.sms) channels.push("SMS_NOTIFICATION");
+      if (v.sms) channels.push("APP_NOTIFICATION");
       return channels;
     },
     [],
@@ -308,25 +314,39 @@ const SettingsPage: NextPageWithLayout = () => {
 
   const handleSaveProfile = React.useCallback(async () => {
     if (!landlordId) return;
+    const trimmedName = profileForm.businessName.trim();
+    const trimmedEmail = profileForm.businessEmail.trim();
+    const addr = {
+      address: profileForm.address.trim(),
+      city: profileForm.city.trim(),
+      state: profileForm.state.trim(),
+      country: profileForm.country.trim(),
+    };
+    if (!trimmedName || !trimmedEmail) {
+      showToast("Business name and business email are required.", "error");
+      return;
+    }
+    if (!addr.address || !addr.city || !addr.state || !addr.country) {
+      showToast(
+        "Address, city, state, and country are required for your business profile.",
+        "error",
+      );
+      return;
+    }
     setIsSaving(true);
     const result = await updateLandlordProfileSettings(landlordId, {
-      businessName: profileForm.businessName,
-      // Backward compatibility for backends still persisting this legacy key.
-      landLordName: profileForm.businessName,
-      businessEmail: profileForm.businessEmail,
-      businessPhoneNumber: profileForm.businessPhoneNumber,
+      businessName: trimmedName,
+      businessEmail: trimmedEmail,
+      businessPhoneNumber: profileForm.businessPhoneNumber.trim() || undefined,
       address: {
-        address: profileForm.address,
-        city: profileForm.city,
-        state: profileForm.state,
-        postalCode: profileForm.postalCode,
-        country: profileForm.country,
+        ...addr,
+        postalCode: profileForm.postalCode.trim() || undefined,
       },
     });
     if (result.success) {
       const refreshedLandlord =
-        user?.id && user.role === "landlord"
-          ? await getLandlordByUser(String(user.id))
+        userId && userRole === "landlord"
+          ? await getLandlordByUser(userId)
           : null;
       if (refreshedLandlord?.success) {
         setLandlord(refreshedLandlord.data);
@@ -336,23 +356,37 @@ const SettingsPage: NextPageWithLayout = () => {
       showToast("Profile updated successfully", "success");
     } else showToast(result.error || "Failed to update profile", "error");
     setIsSaving(false);
-  }, [landlordId, profileForm, showToast, user?.id, user?.role]);
+  }, [landlordId, profileForm, showToast, userId, userRole]);
+
+  const toDocumentsPayload = React.useCallback(
+    (documents: typeof documentsForm) => ({
+      govermentIdDocumentId: documents.govermentIdDocumentId,
+      landSurveyDocumentId: documents.landSurveyDocumentId,
+      proofOfOwnershipDocumentId: documents.proofOfOwnershipDocumentId,
+      taxIdentificationNumberDocumentId:
+        documents.taxIdentificationNumberDocumentId,
+    }),
+    [],
+  );
 
   const handleSaveDocuments = React.useCallback(async () => {
     if (!landlordId) return;
+    const missingDocuments = Object.values(documentsForm).some(
+      (documentId) => !documentId,
+    );
+    if (missingDocuments) {
+      showToast("Please upload all verification documents.", "error");
+      return;
+    }
     setIsSaving(true);
-    const result = await updateLandlordDocumentsSettings(landlordId, {
-      govermentIdDocumentId: documentsForm.govermentIdDocumentId || undefined,
-      landSurveyDocumentId: documentsForm.landSurveyDocumentId || undefined,
-      proofOfOwnershipDocumentId:
-        documentsForm.proofOfOwnershipDocumentId || undefined,
-      taxIdentificationNumberDocumentId:
-        documentsForm.taxIdentificationNumberDocumentId || undefined,
-    });
+    const result = await updateLandlordDocumentsSettings(
+      landlordId,
+      toDocumentsPayload(documentsForm),
+    );
     setIsSaving(false);
     if (result.success) showToast("Documents updated successfully", "success");
     else showToast(result.error || "Failed to update documents", "error");
-  }, [documentsForm, landlordId, showToast]);
+  }, [documentsForm, landlordId, showToast, toDocumentsPayload]);
 
   const handleSavePreferences = React.useCallback(async () => {
     if (!landlordId) return;
@@ -395,7 +429,7 @@ const SettingsPage: NextPageWithLayout = () => {
         | "taxIdentificationNumberDocumentId",
       file: File,
     ) => {
-      if (!user?.token) {
+      if (!userToken) {
         showToast("You must be signed in to upload files", "error");
         return;
       }
@@ -404,17 +438,70 @@ const SettingsPage: NextPageWithLayout = () => {
         file,
         folder: "landlord",
         label: key,
-        token: user.token,
+        token: userToken,
       });
-      setIsUploadingDoc(null);
-      if (result.success) {
-        setDocumentsForm((prev) => ({ ...prev, [key]: result.data.id }));
-        showToast("Document uploaded", "success");
-      } else {
+      if (!result.success) {
+        setIsUploadingDoc(null);
         showToast(result.error || "Failed to upload document", "error");
+        return;
       }
+
+      const nextDocuments = {
+        ...documentsForm,
+        [key]: result.data.id,
+      };
+
+      if (isLandlordVerified) {
+        if (!landlordId) {
+          setIsUploadingDoc(null);
+          showToast(
+            "Your landlord account could not be found. Please sign in again.",
+            "error",
+          );
+          return;
+        }
+
+        const updateResult = await updateLandlordDocumentsSettings(
+          landlordId,
+          toDocumentsPayload(nextDocuments),
+        );
+        setIsUploadingDoc(null);
+
+        if (updateResult.success) {
+          setDocumentsForm(nextDocuments);
+          showToast(
+            "Document reuploaded. A new verification has been submitted.",
+            "success",
+          );
+          if (userId) {
+            const refreshedLandlord = await getLandlordByUser(userId);
+            if (refreshedLandlord.success) {
+              setLandlord(refreshedLandlord.data);
+            }
+          }
+          return;
+        }
+
+        showToast(
+          updateResult.error || "Failed to submit reuploaded document",
+          "error",
+        );
+        return;
+      }
+
+      setIsUploadingDoc(null);
+      setDocumentsForm(nextDocuments);
+      showToast("Document uploaded", "success");
     },
-    [showToast, user?.token],
+    [
+      documentsForm,
+      isLandlordVerified,
+      landlordId,
+      showToast,
+      toDocumentsPayload,
+      userId,
+      userToken,
+    ],
   );
 
   const documentPreview = React.useMemo(() => {
@@ -841,7 +928,8 @@ const SettingsPage: NextPageWithLayout = () => {
                 </h2>
                 {isLandlordVerified ? (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    This account is verified. Document uploads are locked.
+                    This account is verified. You can reupload a document to
+                    submit a new verification for admin approval.
                   </div>
                 ) : null}
 
@@ -852,26 +940,29 @@ const SettingsPage: NextPageWithLayout = () => {
                       Government Issued ID
                     </h3>
                     <p className="mb-3 text-sm text-gray-600">
-                      Driver's License, National ID, or International Passport
+                      Driver&apos;s License, National ID, or International
+                      Passport
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <label
                         className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
                           isLandlordVerified
-                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
                             : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
                         }`}
                       >
                         <Upload className="h-4 w-4" />
                         {isUploadingDoc === "govermentIdDocumentId"
-                          ? "Uploading..."
-                          : "Choose File"}
+                          ? isLandlordVerified
+                            ? "Reuploading..."
+                            : "Uploading..."
+                          : isLandlordVerified
+                            ? "Reupload"
+                            : "Choose File"}
                         <input
                           type="file"
                           className="hidden"
-                          disabled={isLandlordVerified}
                           onChange={(e) => {
-                            if (isLandlordVerified) return;
                             const file = e.target.files?.[0];
                             if (file) {
                               void handleUploadDocument(
@@ -908,20 +999,22 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label
                         className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
                           isLandlordVerified
-                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
                             : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
                         }`}
                       >
                         <Upload className="h-4 w-4" />
                         {isUploadingDoc === "landSurveyDocumentId"
-                          ? "Uploading..."
-                          : "Choose File"}
+                          ? isLandlordVerified
+                            ? "Reuploading..."
+                            : "Uploading..."
+                          : isLandlordVerified
+                            ? "Reupload"
+                            : "Choose File"}
                         <input
                           type="file"
                           className="hidden"
-                          disabled={isLandlordVerified}
                           onChange={(e) => {
-                            if (isLandlordVerified) return;
                             const file = e.target.files?.[0];
                             if (file) {
                               void handleUploadDocument(
@@ -958,20 +1051,22 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label
                         className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
                           isLandlordVerified
-                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
                             : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
                         }`}
                       >
                         <Upload className="h-4 w-4" />
                         {isUploadingDoc === "proofOfOwnershipDocumentId"
-                          ? "Uploading..."
-                          : "Choose File (Optional)"}
+                          ? isLandlordVerified
+                            ? "Reuploading..."
+                            : "Uploading..."
+                          : isLandlordVerified
+                            ? "Reupload"
+                            : "Choose File (Optional)"}
                         <input
                           type="file"
                           className="hidden"
-                          disabled={isLandlordVerified}
                           onChange={(e) => {
-                            if (isLandlordVerified) return;
                             const file = e.target.files?.[0];
                             if (file) {
                               void handleUploadDocument(
@@ -1008,20 +1103,22 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label
                         className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
                           isLandlordVerified
-                            ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                            ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
                             : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
                         }`}
                       >
                         <Upload className="h-4 w-4" />
                         {isUploadingDoc === "taxIdentificationNumberDocumentId"
-                          ? "Uploading..."
-                          : "Choose File (Optional)"}
+                          ? isLandlordVerified
+                            ? "Reuploading..."
+                            : "Uploading..."
+                          : isLandlordVerified
+                            ? "Reupload"
+                            : "Choose File (Optional)"}
                         <input
                           type="file"
                           className="hidden"
-                          disabled={isLandlordVerified}
                           onChange={(e) => {
-                            if (isLandlordVerified) return;
                             const file = e.target.files?.[0];
                             if (file) {
                               void handleUploadDocument(
@@ -1112,7 +1209,7 @@ const SettingsPage: NextPageWithLayout = () => {
                           }
                           className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-2 focus:ring-brand-main"
                         />
-                        <span className="text-sm text-gray-700">SMS</span>
+                        <span className="text-sm text-gray-700">App</span>
                       </label>
                     </div>
                   </div>
@@ -1157,7 +1254,7 @@ const SettingsPage: NextPageWithLayout = () => {
                           }
                           className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-2 focus:ring-brand-main"
                         />
-                        <span className="text-sm text-gray-700">SMS</span>
+                        <span className="text-sm text-gray-700">App</span>
                       </label>
                     </div>
                   </div>
@@ -1202,7 +1299,7 @@ const SettingsPage: NextPageWithLayout = () => {
                           }
                           className="h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-2 focus:ring-brand-main"
                         />
-                        <span className="text-sm text-gray-700">SMS</span>
+                        <span className="text-sm text-gray-700">App</span>
                       </label>
                     </div>
                   </div>

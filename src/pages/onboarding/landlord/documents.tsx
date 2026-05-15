@@ -180,40 +180,48 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
     const docIds = documentIdsRaw
       ? (JSON.parse(documentIdsRaw) as Partial<Record<string, string>>)
       : {};
-    if (!docIds.governmentId && !docIds.tin) {
-      showToast(
-        "You can continue without documents, but upload is recommended.",
-        "success",
+    const missingDocuments = [
+      ["governmentId", "Government Issued ID"],
+      ["landSurvey", "Land Survey Document"],
+      ["proofOfOwnership", "Proof of Ownership"],
+      ["tin", "Tax Identification Number"],
+    ].filter(([key]) => !docIds[key]);
+
+    if (missingDocuments.length > 0) {
+      setSubmitError(
+        `Please upload: ${missingDocuments.map(([, label]) => label).join(", ")}.`,
       );
+      setIsSubmitting(false);
+      return;
     }
     await router.push("/onboarding/landlord/finance");
     setIsSubmitting(false);
-  }, [router, showToast, user?.id]);
+  }, [router, user?.id]);
 
   const documentSections = [
     {
       type: "governmentId" as DocumentType,
       title: "Government Issued ID",
       description: "Driver's License, National ID, or International Passport",
-      required: false,
+      required: true,
     },
     {
       type: "landSurvey" as DocumentType,
       title: "Land Survey Document",
       description: "Property map, site plans, or official record",
-      required: false,
+      required: true,
     },
     {
       type: "proofOfOwnership" as DocumentType,
       title: "Proof of Ownership",
       description: "Document, receipt of purchase, or transfer agreement",
-      required: false,
+      required: true,
     },
     {
       type: "tin" as DocumentType,
       title: "Tax Identification Number (TIN)",
       description: "Tax certificate or TIN document",
-      required: false,
+      required: true,
     },
   ];
 
@@ -318,9 +326,9 @@ const LandlordOnboardingDocumentsPage: NextPageWithLayout = () => {
 
           <div className="mt-6 rounded-lg bg-blue-50 border border-blue-200 p-4">
             <p className="text-xs text-gray-700">
-              <strong>Note:</strong> All documents are optional. If uploaded,
-              documents should be clear, legible, and in PDF, JPG, or PNG
-              format. Maximum file size: 10MB per document.
+              <strong>Note:</strong> All verification documents are required.
+              Documents should be clear, legible, and in PDF, JPG, or PNG format.
+              Maximum file size: 10MB per document.
             </p>
           </div>
 

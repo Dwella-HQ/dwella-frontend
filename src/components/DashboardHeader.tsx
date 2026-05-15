@@ -11,16 +11,12 @@ import {
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
-import {
-  getNotifications,
-  markNotificationsRead,
-  mapNotification,
-} from "@/api/notifications";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import type { Notification } from "@/api/notifications";
 import { DashboardNavbar } from "@/components/DashboardNavbar";
 import { LandlordSwitchModal } from "@/components/LandlordSwitchModal";
@@ -41,9 +37,14 @@ export const DashboardHeader = ({
   const { profile, refetchProfile } = useProfile();
   const { user, logout: logoutUser } = useUser();
   const { selectedLandlord } = useSelectedLandlord();
-  const [notifications, setNotifications] = React.useState<Notification[]>([]);
-  const [isLoadingNotifications, setIsLoadingNotifications] =
-    React.useState(false);
+  const {
+    notifications,
+    unreadCount,
+    isLoading: isLoadingNotifications,
+    refresh: refreshNotifications,
+    markAsRead,
+    markAllAsRead,
+  } = useNotifications();
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [isLandlordSwitchOpen, setIsLandlordSwitchOpen] = React.useState(false);
   const [landlord, setLandlord] = React.useState<LandlordDTO | null>(null);
@@ -89,71 +90,35 @@ export const DashboardHeader = ({
   const profileName = profile?.fullName || profile?.name || "";
   const initials = profile ? getInitials(profileName) : user ? getInitials(user.name) : "FL";
   const displayName = profileName || user?.name || "User";
-  const displayEmail = profile?.email || user?.email || "user@dwella.ng";
   const roleDisplay = user?.role ? getRoleDisplayName(user.role) : "User";
-  const hasNotifications = profile && (profile.notification_count || 0) > 0;
+  const hasNotifications =
+    unreadCount > 0 || Boolean(profile && (profile.notification_count || 0) > 0);
   // Prefer landlord profile picture (landlord role), then profile picture from /user/me
   const avatarUrl = landlord?.profilePicture?.url ?? (profile as { profilePicture?: { url: string } } | null)?.profilePicture?.url;
 
-  // Fetch recent notifications when dropdown opens
-  const fetchNotifications = React.useCallback(async () => {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-    if (!token) return;
-
-    setIsLoadingNotifications(true);
-    const result = await getNotifications(token, 1);
-    if (result.success) {
-      const mapped = result.data.data.notifications
-        .map(mapNotification)
-        .slice(0, 5); // Show latest 5
-      setNotifications(mapped);
-    }
-    setIsLoadingNotifications(false);
-  }, []);
-
-  // Fetch notifications when dropdown opens
   React.useEffect(() => {
     if (isDropdownOpen) {
-      fetchNotifications();
+      refreshNotifications();
     }
-  }, [isDropdownOpen, fetchNotifications]);
+  }, [isDropdownOpen, refreshNotifications]);
 
   const handleNotificationClick = React.useCallback(
     async (notification: Notification) => {
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("authToken")
-          : null;
-
-      // Mark as read if unread
-      if (!notification.isRead && token) {
-        await markNotificationsRead(token, [notification.apiId]);
-        refetchProfile(); // Update notification count in header
+      if (!notification.isRead) {
+        markAsRead([notification.apiId]);
+        void refetchProfile();
       }
 
-      // Navigate to notifications page with the notification ID
-      router.push(`/dashboard/notifications?id=${notification.apiId}`);
+      void router.push(`/dashboard/notifications?id=${notification.apiId}`);
       setIsDropdownOpen(false);
     },
-    [router, refetchProfile]
+    [markAsRead, refetchProfile, router]
   );
 
-  const handleMarkAllAsRead = React.useCallback(async () => {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-    if (!token) return;
-
-    const unreadIds = notifications
-      .filter((n) => !n.isRead)
-      .map((n) => n.apiId);
-
-    if (unreadIds.length > 0) {
-      await markNotificationsRead(token, unreadIds);
-      refetchProfile();
-      fetchNotifications(); // Refresh the list
-    }
-  }, [notifications, refetchProfile, fetchNotifications]);
+  const handleMarkAllAsRead = React.useCallback(() => {
+    markAllAsRead();
+    void refetchProfile();
+  }, [markAllAsRead, refetchProfile]);
 
   const getNotificationIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -283,7 +248,7 @@ export const DashboardHeader = ({
                         </div>
                       ) : (
                         <div className="divide-y divide-gray-100">
-                          {notifications.map((notification) => {
+                          {notifications.slice(0, 5).map((notification) => {
                             const { Icon, bgColor, iconColor } =
                               getNotificationIcon(notification.type);
                             return (

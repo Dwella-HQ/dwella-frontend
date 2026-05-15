@@ -1,38 +1,70 @@
 import Head from "next/head";
 import * as React from "react";
+import { Loader2, Search, Trash2 } from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { useNotifications } from "@/contexts/NotificationsContext";
+import type { Notification } from "@/api/notifications";
 
 const AdminNotificationsPage: NextPageWithLayout = () => {
-  const [showCompose, setShowCompose] = React.useState(false);
+  const {
+    notifications,
+    isLoading,
+    error,
+    refresh,
+    markAsRead,
+    deleteNotification,
+  } = useNotifications();
   const [selectedNotification, setSelectedNotification] =
-    React.useState("System Maintenance");
-  const [subject, setSubject] = React.useState("");
-  const [content, setContent] = React.useState("");
-  const [items, setItems] = React.useState([
-    {
-      title: "System Maintenance",
-      time: "2 days ago",
-      body: "System would be offline for routine maintenance for 3 hours, we would send a follow-up email when this is fixed. Please bear with us.",
-    },
-    {
-      title: "Routine Maintenance",
-      time: "1 week ago",
-      body: "Routine maintenance has been scheduled to improve platform reliability and performance.",
-    },
-  ]);
+    React.useState<Notification | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState("");
 
-  const handleCreate = () => {
-    const title = subject.trim();
-    if (!title) return;
-    setItems((prev) => [{ title, time: "Just now", body: content }, ...prev]);
-    setSelectedNotification(title);
-    setSubject("");
-    setContent("");
-    setShowCompose(false);
-  };
-  const selectedItem =
-    items.find((item) => item.title === selectedNotification) ?? items[0];
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  React.useEffect(() => {
+    setSelectedNotification((prev) => {
+      if (!notifications.length) return null;
+      if (!prev) return notifications[0];
+      return (
+        notifications.find((notification) => notification.id === prev.id) ??
+        notifications[0]
+      );
+    });
+  }, [notifications]);
+
+  const filteredNotifications = React.useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return notifications;
+    return notifications.filter(
+      (notification) =>
+        notification.title.toLowerCase().includes(query) ||
+        notification.description.toLowerCase().includes(query) ||
+        notification.fullDescription.toLowerCase().includes(query),
+    );
+  }, [notifications, searchQuery]);
+
+  const handleSelectNotification = React.useCallback(
+    (notification: Notification) => {
+      setSelectedNotification(notification);
+      if (!notification.isRead) {
+        markAsRead([notification.apiId]);
+      }
+    },
+    [markAsRead],
+  );
+
+  const handleDeleteNotification = React.useCallback(() => {
+    if (!selectedNotification) return;
+    const confirmed = window.confirm(
+      "Delete this notification? This action cannot be undone.",
+    );
+    if (!confirmed) return;
+    deleteNotification(selectedNotification.apiId);
+    setSelectedNotification(null);
+  }, [deleteNotification, selectedNotification]);
+
   return (
     <>
       <Head>
@@ -41,92 +73,89 @@ const AdminNotificationsPage: NextPageWithLayout = () => {
       <AdminLayout title="Notifications">
         <section className="space-y-4">
           <div className="flex items-center justify-between rounded-lg border border-[#E2E8F0] bg-white p-3">
-            <input
-              className="h-9 w-[420px] rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-xs"
-              placeholder="Search by user, action type, log ID, or keywords."
-            />
+            <div className="flex h-9 w-[420px] items-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3">
+              <Search className="h-3.5 w-3.5 text-[#64748B]" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="w-full bg-transparent text-xs outline-none placeholder:text-[#94A3B8]"
+                placeholder="Search notifications"
+              />
+            </div>
             <button
-              onClick={() => setShowCompose((v) => !v)}
+              type="button"
+              onClick={refresh}
               className="rounded-md bg-[#111827] px-6 py-2 text-xs font-medium text-white"
             >
-              New
+              Refresh
             </button>
           </div>
           <div className="grid h-[620px] grid-cols-[320px_1fr] gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3">
             <div className="space-y-2 border-r border-[#E2E8F0] pr-3">
-              <input
-                className="h-9 w-full rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-xs"
-                placeholder="Search message..."
-              />
-              {items.map((item, i) => (
-                <div
-                  key={`${item.title}-${i}`}
-                  onClick={() => setSelectedNotification(item.title)}
-                  className={`cursor-pointer rounded-md border p-2 text-xs ${selectedNotification === item.title ? "border-[#BFDBFE] bg-[#EFF6FF]" : "border-[#E2E8F0]"}`}
-                >
-                  <p className="font-medium">{item.title}</p>
-                  <p className="text-[#64748B]">{item.time}</p>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#1E66FF]" />
                 </div>
-              ))}
-            </div>
-            {showCompose ? (
-              <div className="rounded-md border border-[#E2E8F0] p-4">
-                <p className="mb-4 text-sm font-semibold">
-                  Create New Notification
+              ) : error ? (
+                <p className="rounded-md bg-red-50 p-3 text-xs text-red-700">
+                  {error}
                 </p>
-                <div className="space-y-3 text-xs">
-                  <input
-                    value={subject}
-                    onChange={(event) => setSubject(event.target.value)}
-                    className="h-10 w-full rounded-md border border-[#E2E8F0] px-3"
-                    placeholder="Subject"
-                  />
-                  <input
-                    className="h-10 w-full rounded-md border border-[#E2E8F0] px-3"
-                    placeholder="Recipients      All Users"
-                  />
-                  <textarea
-                    value={content}
-                    onChange={(event) => setContent(event.target.value)}
-                    className="h-56 w-full rounded-md border border-[#E2E8F0] p-3"
-                    placeholder="Write your announcement here..."
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setShowCompose(false)}
-                      className="rounded-md px-4 py-2"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleCreate}
-                      className="rounded-md bg-[#111827] px-4 py-2 text-white"
-                    >
-                      Send Notification
-                    </button>
+              ) : filteredNotifications.length === 0 ? (
+                <p className="rounded-md bg-[#F8FAFC] p-3 text-xs text-[#64748B]">
+                  No notifications found.
+                </p>
+              ) : (
+                filteredNotifications.map((notification) => (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    onClick={() => handleSelectNotification(notification)}
+                    className={`w-full cursor-pointer rounded-md border p-2 text-left text-xs ${
+                      selectedNotification?.id === notification.id
+                        ? "border-[#BFDBFE] bg-[#EFF6FF]"
+                        : "border-[#E2E8F0]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{notification.title}</p>
+                      {!notification.isRead ? (
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#1E66FF]" />
+                      ) : null}
+                    </div>
+                    <p className="text-[#64748B]">{notification.time}</p>
+                  </button>
+                ))
+              )}
+            </div>
+            {selectedNotification ? (
+              <div className="rounded-md border border-[#E2E8F0] p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      {selectedNotification.title}
+                    </p>
+                    <p className="mt-1 text-xs text-[#64748B]">
+                      {selectedNotification.dateTime}
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleDeleteNotification}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
                 </div>
+                <p className="mt-3 text-sm leading-6 text-[#475569]">
+                  {selectedNotification.fullDescription}
+                </p>
               </div>
             ) : (
-              <div className="rounded-md border border-[#E2E8F0] p-4">
-                <p className="text-sm font-semibold">{selectedNotification}</p>
-                <p className="mt-3 text-sm text-[#475569]">
-                  {selectedItem?.body || "No notification body available."}
+              <div className="flex items-center justify-center rounded-md border border-[#E2E8F0] p-4">
+                <p className="text-sm text-[#64748B]">
+                  Select a notification to view details.
                 </p>
-                <div className="mt-8 grid grid-cols-3 gap-3 text-center">
-                  <div className="rounded bg-[#F8FAFC] p-2">
-                    <p className="text-lg font-semibold">24</p>
-                    <p className="text-[11px] text-[#64748B]">Engagement</p>
-                  </div>
-                  <div className="rounded bg-[#F8FAFC] p-2">
-                    <p className="text-lg font-semibold">32</p>
-                    <p className="text-[11px] text-[#64748B]">Read Responses</p>
-                  </div>
-                  <div className="rounded bg-[#F8FAFC] p-2">
-                    <p className="text-lg font-semibold">75%</p>
-                    <p className="text-[11px] text-[#64748B]">Open Rate</p>
-                  </div>
-                </div>
               </div>
             )}
           </div>

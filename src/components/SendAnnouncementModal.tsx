@@ -11,7 +11,8 @@ import { useUser } from "@/contexts/UserContext";
 const sendAnnouncementSchema = z.object({
   title: z.string().min(1, "Title is required"),
   message: z.string().min(1, "Message is required"),
-  fileIds: z.array(z.string().uuid()).optional(),
+  // API requires `fileIds` (can be empty); keep as plain strings so upload IDs always validate.
+  fileIds: z.array(z.string()),
 });
 
 type SendAnnouncementFormValues = z.infer<typeof sendAnnouncementSchema>;
@@ -47,6 +48,11 @@ export const SendAnnouncementModal = ({
     setValue,
   } = useForm<SendAnnouncementFormValues>({
     resolver: zodResolver(sendAnnouncementSchema),
+    defaultValues: {
+      title: "",
+      message: "",
+      fileIds: [],
+    },
   });
 
   const uploadedFileIds = React.useMemo(() => {

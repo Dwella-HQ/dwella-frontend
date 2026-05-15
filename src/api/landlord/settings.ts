@@ -1,24 +1,24 @@
 import { apiGet, apiPatch } from "@/lib/apiClient";
 
+/** Matches OpenAPI `UpdateLadlordProfileDto` + nested `CreateAddressDto`. */
 export type LandlordSettingsProfileUpdateDTO = {
   businessName: string;
-  landLordName?: string;
   businessEmail: string;
-  businessPhoneNumber: string;
+  businessPhoneNumber?: string;
   address: {
     address: string;
     city: string;
     state: string;
-    postalCode: string;
+    postalCode?: string;
     country: string;
   };
 };
 
 export type LandlordSettingsDocumentsUpdateDTO = {
-  govermentIdDocumentId?: string;
-  landSurveyDocumentId?: string;
-  proofOfOwnershipDocumentId?: string;
-  taxIdentificationNumberDocumentId?: string;
+  govermentIdDocumentId: string;
+  landSurveyDocumentId: string;
+  proofOfOwnershipDocumentId: string;
+  taxIdentificationNumberDocumentId: string;
 };
 
 export type LandlordPlatformPreferencesUpdateDTO = {

@@ -4,7 +4,10 @@ export type { CreateWithdrawalResult } from "./createWithdrawal";
 export { getWithdrawals } from "./getWithdrawals";
 export type { GetWithdrawalsResult } from "./getWithdrawals";
 
-export { getWithdrawalBanks } from "./getWithdrawalBanks";
+export {
+  getWithdrawalBanks,
+  getWithdrawalBanksByCurrency,
+} from "./getWithdrawalBanks";
 export type { GetWithdrawalBanksResult } from "./getWithdrawalBanks";
 
 export { resolveWithdrawalAccount } from "./resolveWithdrawalAccount";

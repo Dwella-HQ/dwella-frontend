@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   ClipboardList,
   MessageSquare,
+  Megaphone,
   Bell,
   LogOut,
   ShieldAlert,
@@ -17,6 +18,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
+import { useNotifications } from "@/contexts/NotificationsContext";
 import { logout as logoutRequest } from "@/api/auth";
 
 type AdminLayoutProps = {
@@ -45,6 +47,11 @@ const adminNav = [
     icon: CircleDollarSign,
   },
   { name: "Messages", href: "/dashboard/admin/messages", icon: MessageSquare },
+  {
+    name: "Announcements",
+    href: "/dashboard/admin/announcements",
+    icon: Megaphone,
+  },
   { name: "Notifications", href: "/dashboard/admin/notifications", icon: Bell },
   { name: "Disputes", href: "/dashboard/admin/disputes", icon: ShieldAlert },
   { name: "Settings", href: "/dashboard/admin/settings", icon: Settings },
@@ -53,6 +60,7 @@ const adminNav = [
 export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
   const router = useRouter();
   const { user, isLoading, logout } = useUser();
+  const { unreadCount } = useNotifications();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   const handleLogout = React.useCallback(async () => {
@@ -139,7 +147,11 @@ export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
                 className="relative rounded-md p-1.5 text-[#0F172A] transition hover:bg-[#F1F5F9]"
               >
                 <Bell className="h-4 w-4" />
-                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#EF4444]" />
+                {unreadCount > 0 ? (
+                  <span className="absolute right-0.5 top-0.5 min-w-3 rounded-full bg-[#EF4444] px-1 text-[8px] font-semibold leading-3 text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                ) : null}
               </button>
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E2E8F0] text-[11px] font-semibold text-[#0F172A]">

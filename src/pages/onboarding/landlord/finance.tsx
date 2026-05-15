@@ -25,14 +25,14 @@ const landlordFlowSteps = [
 type LandlordFinanceDetails = {
   bvn: string;
   bankName: string;
-  accountNumber: string;
+  accountCode: string;
   accountName: string;
 };
 
 const emptyFinanceDetails: LandlordFinanceDetails = {
   bvn: "",
   bankName: "",
-  accountNumber: "",
+  accountCode: "",
   accountName: "",
 };
 
@@ -40,6 +40,8 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   const router = useRouter();
   const { showToast } = useToast();
   const { user } = useUser();
+  const userId = user?.id ? String(user.id) : null;
+  const userEmail = user?.email ?? "";
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
@@ -63,7 +65,10 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
       setFinanceDetails({
         bvn: parsed.bvn ?? "",
         bankName: parsed.bankName ?? "",
-        accountNumber: parsed.accountNumber ?? "",
+        accountCode:
+          parsed.accountCode ??
+          (parsed as Partial<{ accountNumber: string }>).accountNumber ??
+          "",
         accountName: parsed.accountName ?? "",
       });
     } catch {
@@ -81,7 +86,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
 
   const handleContinue = React.useCallback(async () => {
     setSubmitError(null);
-    if (!user?.id) {
+    if (!userId) {
       setSubmitError("User not found. Please sign in again.");
       return;
     }
@@ -93,7 +98,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
     const hasRequiredFields =
       financeDetails.bvn.trim().length > 0 &&
       financeDetails.bankName.trim().length > 0 &&
-      financeDetails.accountNumber.trim().length > 0 &&
+      financeDetails.accountCode.trim().length > 0 &&
       financeDetails.accountName.trim().length > 0;
     if (!hasRequiredFields) {
       setSubmitError("Please complete all financial details.");
@@ -154,22 +159,48 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
     const docIds = documentIdsRaw
       ? (JSON.parse(documentIdsRaw) as Partial<Record<string, string>>)
       : {};
+    const requiredDocumentFields = [
+      docIds.governmentId,
+      docIds.landSurvey,
+      docIds.proofOfOwnership,
+      docIds.tin,
+    ];
+    if (requiredDocumentFields.some((id) => !id)) {
+      setSubmitError("Please upload all required verification documents.");
+      await router.push("/onboarding/landlord/documents");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const requiredDocIds = {
+      governmentId: docIds.governmentId as string,
+      landSurvey: docIds.landSurvey as string,
+      proofOfOwnership: docIds.proofOfOwnership as string,
+      tin: docIds.tin as string,
+    };
+
     const payload = {
-      userId: String(user.id),
+      userId,
       businessName: details.businessName,
-      businessEmail: user.email,
+      businessEmail: userEmail,
       businessPhoneNumber: details.phoneNumber.trim(),
       profilePictureId: profilePictureId || undefined,
-      govermentIdDocumentId: docIds.governmentId,
-      landSurveyDocumentId: docIds.landSurvey,
-      proofOfOwnershipDocumentId: docIds.proofOfOwnership,
-      taxIdentificationNumberDocumentId: docIds.tin,
+      govermentIdDocumentId: requiredDocIds.governmentId,
+      landSurveyDocumentId: requiredDocIds.landSurvey,
+      proofOfOwnershipDocumentId: requiredDocIds.proofOfOwnership,
+      taxIdentificationNumberDocumentId: requiredDocIds.tin,
       address: {
         address: details.address,
         city: details.city,
         state: details.state,
         postalCode: details.postalCode,
         country: details.country,
+      },
+      bankAccount: {
+        accountName: financeDetails.accountName.trim(),
+        accountCode: financeDetails.accountCode.trim(),
+        bankName: financeDetails.bankName.trim(),
+        bvn: financeDetails.bvn.trim(),
       },
     };
 
@@ -182,8 +213,8 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
     }
 
     let landlordId = result.data?.id ? String(result.data.id) : "";
-    if (!landlordId && user?.id) {
-      const landlordResult = await getLandlordByUser(String(user.id));
+    if (!landlordId && userId) {
+      const landlordResult = await getLandlordByUser(userId);
       if (landlordResult.success && landlordResult.data?.id) {
         landlordId = String(landlordResult.data.id);
       }
@@ -211,8 +242,8 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
     persistLandlordId,
     router,
     showToast,
-    user?.email,
-    user?.id,
+    userEmail,
+    userId,
   ]);
 
   return (
@@ -279,13 +310,13 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
-                Account Number
+                Account Code
               </label>
               <input
-                name="accountNumber"
-                value={financeDetails.accountNumber}
+                name="accountCode"
+                value={financeDetails.accountCode}
                 onChange={handleChange}
-                placeholder="Enter account number"
+                placeholder="Enter account code"
                 className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
               />
             </div>

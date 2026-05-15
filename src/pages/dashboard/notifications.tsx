@@ -1,12 +1,12 @@
 import Head from "next/head";
 import * as React from "react";
 import { useRouter } from "next/router";
-import { Search, X, Loader2 } from "lucide-react";
+import { Search, X, Loader2, Trash2 } from "lucide-react";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { getNotifications, markNotificationsRead, mapNotification } from "@/api/notifications";
 import type { Notification } from "@/api/notifications";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useNotifications } from "@/contexts/NotificationsContext";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -24,28 +24,17 @@ const getInitials = (name: string) => {
 const NotificationsPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { refetchProfile } = useProfile();
+  const {
+    notifications,
+    isLoading,
+    error,
+    refresh,
+    markAsRead,
+    deleteNotification,
+  } = useNotifications();
   const [filter, setFilter] = React.useState<NotificationFilter>("all");
   const [selectedNotification, setSelectedNotification] = React.useState<Notification | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [notifications, setNotifications] = React.useState<Notification[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const [pagination, setPagination] = React.useState<{
-    total: number;
-    currentPage: number;
-    pageTotal: number;
-    pageSize: number;
-    prevPage: number | null;
-    nextPage: number | null;
-  } | null>(null);
-
-  const token = React.useMemo(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("authToken");
-    }
-    return null;
-  }, []);
 
   // Get notification ID from query params
   const notificationIdFromQuery = React.useMemo(() => {
@@ -53,57 +42,34 @@ const NotificationsPage: NextPageWithLayout = () => {
     return id ? String(id) : null;
   }, [router.query.id]);
 
-  // Fetch notifications
-  const fetchNotifications = React.useCallback(async () => {
-    if (!token) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    const result = await getNotifications(token, currentPage);
-
-    if (result.success) {
-      const mapped = result.data.data.notifications.map(mapNotification);
-      setNotifications(mapped);
-      setPagination({
-        total: result.data.data.total,
-        currentPage: result.data.data.pagination.currentPage,
-        pageTotal: result.data.data.pagination.pageTotal,
-        pageSize: result.data.data.pagination.pageSize,
-        prevPage: result.data.data.pagination.prevPage,
-        nextPage: result.data.data.pagination.nextPage,
-      });
-      
-      // Select notification based on query param or first notification if available
-      setSelectedNotification((prev) => {
-        // If we have a query param with notification ID, select that notification
-        if (notificationIdFromQuery) {
-          const notificationToSelect = mapped.find(
-            (n) => String(n.apiId) === notificationIdFromQuery
-          );
-          if (notificationToSelect) {
-            // Clear the query param after selecting
-            router.replace("/dashboard/notifications", undefined, { shallow: true });
-            return notificationToSelect;
-          }
-        }
-        // Otherwise, select first notification if none selected
-        if (!prev && mapped.length > 0) {
-          return mapped[0];
-        }
-        return prev;
-      });
-    } else {
-      setError(result.error);
-      setNotifications([]);
-    }
-
-    setIsLoading(false);
-  }, [token, currentPage, notificationIdFromQuery, router]);
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   React.useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
+    if (!notificationIdFromQuery) return;
+
+    const notificationToSelect = notifications.find(
+      (notification) => notification.apiId === notificationIdFromQuery,
+    );
+    if (!notificationToSelect) return;
+
+    setSelectedNotification(notificationToSelect);
+    void router.replace("/dashboard/notifications", undefined, {
+      shallow: true,
+    });
+  }, [notificationIdFromQuery, notifications, router]);
+
+  React.useEffect(() => {
+    setSelectedNotification((prev) => {
+      if (!notifications.length) return null;
+      if (!prev) return notifications[0];
+      return (
+        notifications.find((notification) => notification.id === prev.id) ??
+        notifications[0]
+      );
+    });
+  }, [notifications]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -127,30 +93,28 @@ const NotificationsPage: NextPageWithLayout = () => {
     return filtered;
   }, [notifications, filter, searchQuery]);
 
-  const handleNotificationClick = React.useCallback(async (notification: Notification) => {
+  const handleNotificationClick = React.useCallback((notification: Notification) => {
     setSelectedNotification(notification);
 
-    // Mark as read if unread
-    if (!notification.isRead && token) {
-      const result = await markNotificationsRead(token, [notification.apiId]);
-      
-      if (result.success) {
-        // Update local state
-        const updatedNotification = { ...notification, isRead: true };
-        setNotifications((prev) =>
-          prev.map((n) =>
-            n.id === notification.id ? updatedNotification : n
-          )
-        );
-        
-        // Update selected notification state
-        setSelectedNotification(updatedNotification);
-        
-        // Refetch profile to update notification count
-        refetchProfile();
-      }
+    if (!notification.isRead) {
+      const updatedNotification = { ...notification, isRead: true };
+      setSelectedNotification(updatedNotification);
+      markAsRead([notification.apiId]);
+      void refetchProfile();
     }
-  }, [token, refetchProfile]);
+  }, [markAsRead, refetchProfile]);
+
+  const handleDeleteNotification = React.useCallback(() => {
+    if (!selectedNotification) return;
+    const confirmed = window.confirm(
+      "Delete this notification? This action cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    deleteNotification(selectedNotification.apiId);
+    setSelectedNotification(null);
+    void refetchProfile();
+  }, [deleteNotification, refetchProfile, selectedNotification]);
 
   const handleCloseDetail = React.useCallback(() => {
     setSelectedNotification(null);
@@ -317,6 +281,14 @@ const NotificationsPage: NextPageWithLayout = () => {
                     {selectedNotification.fullDescription}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleDeleteNotification}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete notification
+                </button>
               </div>
             </div>
           ) : (
