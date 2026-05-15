@@ -8,7 +8,7 @@ import { ensureLandlordWallet } from "@/api/wallet";
 import {
   getWithdrawals,
   createWithdrawal,
-  getWithdrawalBanks,
+  getWithdrawalBanksByCurrency,
   resolveWithdrawalAccount,
   type WithdrawalRecipientDetailsDTO,
   type WithdrawalItemDTO,
@@ -136,12 +136,126 @@ const FinancePage: NextPageWithLayout = () => {
   const [withdrawNarration, setWithdrawNarration] = React.useState("");
   const [withdrawSubmitting, setWithdrawSubmitting] = React.useState(false);
 
+  const withdrawAutoResolveTimerRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const lastResolvedSignatureRef = React.useRef("");
+  const resolveRequestIdRef = React.useRef(0);
+  /** Prevents auto-resolve from looping on the same bank+account after a silent failure. */
+  const autoResolveFailedSignatureRef = React.useRef("");
+  /**
+   * Legacy flag from an earlier auto-resolve implementation. Kept in scope so
+   * dev/HMR cannot throw `ReferenceError: skipAutoResolveRef is not defined` if
+   * a stale client chunk still references it. Logic uses `autoResolveFailedSignatureRef`.
+   */
+  const skipAutoResolveRef = React.useRef(false);
+
+  const resolveWithdrawRecipient = React.useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      const digits = withdrawAccountNumber.replace(/\D/g, "");
+      const code = withdrawBankCode.trim();
+      if (!code || digits.length !== 10) {
+        if (!silent) {
+          showToast(
+            !code ? "Select a bank" : "Enter a valid 10-digit account number",
+            "error",
+          );
+        }
+        return false;
+      }
+      const signature = `${code}:${digits}`;
+      const reqId = ++resolveRequestIdRef.current;
+      setWithdrawResolveLoading(true);
+      const result = await resolveWithdrawalAccount({
+        bankCode: code,
+        accountNumber: digits,
+      });
+      if (reqId !== resolveRequestIdRef.current) {
+        setWithdrawResolveLoading(false);
+        return false;
+      }
+      setWithdrawResolveLoading(false);
+
+      if (result.success) {
+        lastResolvedSignatureRef.current = signature;
+        autoResolveFailedSignatureRef.current = "";
+        setWithdrawResolvedRecipient(result.data);
+        if (!silent) {
+          if (result.data.accountName) {
+            showToast("Account verified", "success");
+          } else {
+            showToast(
+              "Resolved, but the bank did not return an account holder name.",
+              "warning",
+            );
+          }
+        }
+        return true;
+      }
+
+      lastResolvedSignatureRef.current = "";
+      setWithdrawResolvedRecipient(null);
+      if (silent) {
+        autoResolveFailedSignatureRef.current = signature;
+      }
+      if (!silent) {
+        showToast(result.error || "Failed to resolve account", "error");
+      }
+      return false;
+    },
+    [showToast, withdrawAccountNumber, withdrawBankCode],
+  );
+
+  const handleResolveWithdrawalRecipient = React.useCallback(async () => {
+    autoResolveFailedSignatureRef.current = "";
+    await resolveWithdrawRecipient({ silent: false });
+  }, [resolveWithdrawRecipient]);
+
+  React.useEffect(() => {
+    if (tab !== "withdraw") return;
+    const digits = withdrawAccountNumber.replace(/\D/g, "");
+    const code = withdrawBankCode.trim();
+
+    if (digits.length !== 10 || !code) {
+      lastResolvedSignatureRef.current = "";
+      autoResolveFailedSignatureRef.current = "";
+      setWithdrawResolvedRecipient(null);
+      return;
+    }
+
+    const signature = `${code}:${digits}`;
+    if (signature === lastResolvedSignatureRef.current) {
+      return;
+    }
+    if (signature === autoResolveFailedSignatureRef.current) {
+      return;
+    }
+
+    if (withdrawAutoResolveTimerRef.current) {
+      clearTimeout(withdrawAutoResolveTimerRef.current);
+    }
+
+    withdrawAutoResolveTimerRef.current = setTimeout(() => {
+      withdrawAutoResolveTimerRef.current = null;
+      void resolveWithdrawRecipient({ silent: true });
+    }, 450);
+
+    return () => {
+      if (withdrawAutoResolveTimerRef.current) {
+        clearTimeout(withdrawAutoResolveTimerRef.current);
+        withdrawAutoResolveTimerRef.current = null;
+      }
+    };
+  }, [tab, withdrawBankCode, withdrawAccountNumber, resolveWithdrawRecipient]);
+
   React.useEffect(() => {
     let cancelled = false;
     const loadBanks = async () => {
-      if (!activeWallet?.id) return;
+      if (!landlordId || isUserLoading || !user?.role || user.role === "tenant")
+        return;
       setWithdrawBanksLoading(true);
-      const result = await getWithdrawalBanks(activeWallet.id);
+      const result = await getWithdrawalBanksByCurrency("NGN");
       if (cancelled) return;
       if (result.success) {
         setWithdrawBanks(result.data);
@@ -155,31 +269,7 @@ const FinancePage: NextPageWithLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeWallet?.id, showToast]);
-
-  const handleResolveWithdrawalRecipient = React.useCallback(async () => {
-    if (!withdrawBankCode || !withdrawAccountNumber) {
-      showToast("Bank code and account number are required", "error");
-      return;
-    }
-    if (!activeWallet?.id) return;
-    setWithdrawResolveLoading(true);
-    const result = await resolveWithdrawalAccount({
-      bankCode: withdrawBankCode,
-      accountNumber: withdrawAccountNumber,
-    });
-    if (result.success) {
-      const payload = result.data as any;
-      const recipient =
-        payload && payload.data ? payload.data : (payload as any);
-      setWithdrawResolvedRecipient(recipient as WithdrawalRecipientDetailsDTO);
-      showToast("Account resolved successfully", "success");
-    } else {
-      showToast(result.error || "Failed to resolve account", "error");
-      setWithdrawResolvedRecipient(null);
-    }
-    setWithdrawResolveLoading(false);
-  }, [activeWallet?.id, showToast, withdrawAccountNumber, withdrawBankCode]);
+  }, [landlordId, isUserLoading, user?.role, showToast]);
 
   // Deposits state
   const [deposits, setDeposits] = React.useState<DepositItemDTO[]>([]);
@@ -517,15 +607,32 @@ const FinancePage: NextPageWithLayout = () => {
                 </button>
               </div>
 
-              {withdrawResolvedRecipient ? (
-                <div className="rounded-md border border-green-200 bg-green-50 p-4">
-                  <p className="text-sm font-semibold text-green-900">
-                    Recipient resolved
+              {withdrawResolvedRecipient?.accountName ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                    Account holder
                   </p>
-                  <p className="mt-1 text-sm text-green-800">
-                    {withdrawResolvedRecipient.accountName
-                      ? `Name: ${withdrawResolvedRecipient.accountName}`
-                      : `Account resolved for ${withdrawAccountNumber}`}
+                  <p className="mt-1 text-lg font-semibold text-emerald-950">
+                    {withdrawResolvedRecipient.accountName}
+                  </p>
+                  <p className="mt-2 text-xs text-emerald-800">
+                    Account{" "}
+                    <span className="font-mono">{withdrawAccountNumber}</span>
+                    {withdrawBankCode ? (
+                      <>
+                        {" "}
+                        · Bank code{" "}
+                        <span className="font-mono">{withdrawBankCode}</span>
+                      </>
+                    ) : null}
+                  </p>
+                </div>
+              ) : withdrawResolvedRecipient ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-medium text-amber-900">
+                    Account details received without a holder name. You can
+                    still try submitting the withdrawal, or verify the account
+                    number and bank.
                   </p>
                 </div>
               ) : null}
@@ -560,6 +667,9 @@ const FinancePage: NextPageWithLayout = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    resolveRequestIdRef.current += 1;
+                    lastResolvedSignatureRef.current = "";
+                    autoResolveFailedSignatureRef.current = "";
                     setWithdrawResolvedRecipient(null);
                     setWithdrawAmount("");
                     setWithdrawNarration("");

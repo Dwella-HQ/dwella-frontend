@@ -17,9 +17,13 @@ export const createAnnouncementProperty = async (
     propertyId,
     payload,
   });
+  const body = {
+    ...payload,
+    fileIds: Array.isArray(payload.fileIds) ? payload.fileIds : [],
+  };
   const result = await apiPost<AnnouncementActionResponseDTO>(
     `/announcement/property/${propertyId}`,
-    payload,
+    body,
   );
 
   if (!result.success) {

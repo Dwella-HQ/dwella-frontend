@@ -10,16 +10,22 @@ export const createLandlordRequestSchema = z.object({
   isApproved: z.boolean().optional(),
   isActive: z.boolean().optional(),
   profilePictureId: z.string().uuid().optional(),
-  govermentIdDocumentId: z.string().uuid().optional(),
-  landSurveyDocumentId: z.string().uuid().optional(),
-  proofOfOwnershipDocumentId: z.string().uuid().optional(),
-  taxIdentificationNumberDocumentId: z.string().uuid().optional(),
+  govermentIdDocumentId: z.string().uuid(),
+  landSurveyDocumentId: z.string().uuid(),
+  proofOfOwnershipDocumentId: z.string().uuid(),
+  taxIdentificationNumberDocumentId: z.string().uuid(),
   address: z.object({
     address: z.string().min(1, "Address is required"),
     city: z.string().min(1, "City is required"),
     state: z.string().min(1, "State is required"),
     postalCode: z.string().min(1, "Postal code is required"),
     country: z.string().min(1, "Country is required"),
+  }),
+  bankAccount: z.object({
+    accountName: z.string().min(1, "Account name is required"),
+    accountCode: z.string().min(1, "Account code is required"),
+    bankName: z.string().min(1, "Bank name is required"),
+    bvn: z.string().min(11, "BVN must be 11 digits").max(11),
   }),
 });
 

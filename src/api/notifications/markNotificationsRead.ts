@@ -1,5 +1,5 @@
 import { createUrl } from "@/utils/createUrl";
-import type { MarkNotificationsReadRequestDTO, MarkNotificationsReadResponseDTO } from "./notifications.schema";
+import type { MarkNotificationsReadResponseDTO } from "./notifications.schema";
 import { markNotificationsReadResponseSchema } from "./notifications.schema";
 
 const MARK_NOTIFICATIONS_READ_ROUTE = "/partners/notifications/open";
@@ -10,7 +10,7 @@ type MarkNotificationsReadResult =
 
 export const markNotificationsRead = async (
   token: string,
-  notificationIds: number[]
+  notificationIds: Array<string | number>
 ): Promise<MarkNotificationsReadResult> => {
   try {
     const url = createUrl(MARK_NOTIFICATIONS_READ_ROUTE);

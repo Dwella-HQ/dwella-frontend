@@ -6,7 +6,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { useToast } from "@/components/Toast";
 import { getWallets, getWalletsByLandlord } from "@/api/wallet";
 import {
-  getWithdrawalBanks,
+  getWithdrawalBanksByCurrency,
   createWithdrawal,
   resolveWithdrawalAccount,
 } from "@/api/withdrawal";
@@ -85,9 +85,9 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     let cancelled = false;
     const loadBanks = async () => {
-      if (!walletId) return;
+      if (isLoading || !user) return;
       setBanksLoading(true);
-      const result = await getWithdrawalBanks(walletId);
+      const result = await getWithdrawalBanksByCurrency("NGN");
       if (cancelled) return;
       if (result.success) {
         setBanks(result.data);
@@ -101,7 +101,7 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [walletId, showToast]);
+  }, [isLoading, user, showToast]);
 
   const handleResolveAccount = React.useCallback(async () => {
     if (!bankCode || !accountNumber) {
@@ -110,18 +110,20 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
     }
     setResolveLoading(true);
     const result = await resolveWithdrawalAccount({
-      accountNumber,
+      accountNumber: accountNumber.trim(),
       bankCode,
     });
 
     if (result.success) {
-      // Backend may respond with { data: {...recipientDetails} } or directly the recipient details.
-      const payload = result.data as unknown as { data?: unknown };
-      const recipient = (
-        payload && payload.data ? payload.data : payload
-      ) as any;
-      setResolvedRecipient(recipient as WithdrawalRecipientDetailsDTO);
-      showToast("Account resolved successfully", "success");
+      setResolvedRecipient(result.data);
+      if (result.data.accountName) {
+        showToast("Account verified", "success");
+      } else {
+        showToast(
+          "Resolved, but the bank did not return an account holder name.",
+          "warning",
+        );
+      }
     } else {
       showToast(result.error || "Failed to resolve account", "error");
       setResolvedRecipient(null);
@@ -273,15 +275,29 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
               </div>
             </div>
 
-            {resolvedRecipient ? (
-              <div className="rounded-md border border-green-200 bg-green-50 p-4">
-                <p className="text-sm font-semibold text-green-900">
-                  Recipient resolved
+            {resolvedRecipient?.accountName ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                  Account holder
                 </p>
-                <p className="mt-1 text-sm text-green-800">
-                  {resolvedRecipient.accountName
-                    ? `Name: ${resolvedRecipient.accountName}`
-                    : `Account resolved for ${accountNumber}`}
+                <p className="mt-1 text-lg font-semibold text-emerald-950">
+                  {resolvedRecipient.accountName}
+                </p>
+                <p className="mt-2 text-xs text-emerald-800">
+                  Account <span className="font-mono">{accountNumber}</span>
+                  {bankCode ? (
+                    <>
+                      {" "}
+                      · Bank code <span className="font-mono">{bankCode}</span>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            ) : resolvedRecipient ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-900">
+                  Account details received without a holder name. Check the
+                  account number and bank, or contact support.
                 </p>
               </div>
             ) : null}

@@ -65,8 +65,8 @@ export interface Notification {
   dateTime: string;
   isRead: boolean;
   type: string;
-  // Store original API data for marking as read
-  apiId: number;
+  // Store original notification id for socket actions.
+  apiId: string;
 }
 
 /**
@@ -88,7 +88,7 @@ export const mapNotification = (notification: NotificationDTO): Notification => 
     dateTime: formatDateTime(notification.createdAt),
     isRead: notification.read,
     type: notification.type,
-    apiId: notification.id,
+    apiId: String(notification.id),
   };
 };
 

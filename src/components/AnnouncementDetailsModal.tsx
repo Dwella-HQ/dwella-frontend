@@ -1,7 +1,7 @@
 import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion } from "framer-motion";
-import { X, Paperclip } from "lucide-react";
+import { Trash2, X, Paperclip } from "lucide-react";
 import type { AnnouncementItemDTO } from "@/api/announcement";
 import { format, parseISO } from "date-fns";
 
@@ -9,6 +9,14 @@ type AnnouncementDetailsModalProps = {
   isOpen: boolean;
   onClose: () => void;
   announcement: AnnouncementItemDTO | null;
+  /**
+   * When provided, a Delete button is shown in the header. The parent owns
+   * confirmation + endpoint dispatch (so the right `landlord` vs `property`
+   * route is called based on `announcement.level`). The modal will close once
+   * the promise resolves successfully.
+   */
+  onDelete?: (announcement: AnnouncementItemDTO) => Promise<boolean | void>;
+  isDeleting?: boolean;
 };
 
 type AnnouncementFile = {
@@ -32,7 +40,19 @@ export const AnnouncementDetailsModal = ({
   isOpen,
   onClose,
   announcement,
+  onDelete,
+  isDeleting = false,
 }: AnnouncementDetailsModalProps) => {
+  const handleDelete = React.useCallback(async () => {
+    if (!announcement || !onDelete) return;
+    const result = await onDelete(announcement);
+    if (result !== false) {
+      onClose();
+    }
+  }, [announcement, onClose, onDelete]);
+
+  const canDelete = Boolean(onDelete && announcement?.id);
+
   const files = React.useMemo(() => {
     const rawFiles = (announcement as { files?: unknown } | null)?.files;
     if (!Array.isArray(rawFiles)) return [] as AnnouncementFile[];
@@ -72,19 +92,32 @@ export const AnnouncementDetailsModal = ({
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex items-center justify-between gap-3">
               <Dialog.Title className="text-xl font-bold text-gray-900">
                 Announcement Details
               </Dialog.Title>
-              <Dialog.Close asChild>
-                <button
-                  type="button"
-                  className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-red-600"
-                  aria-label="Close announcement details"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </Dialog.Close>
+              <div className="flex items-center gap-2">
+                {canDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete()}
+                    disabled={isDeleting}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                ) : null}
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-red-600"
+                    aria-label="Close announcement details"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </Dialog.Close>
+              </div>
             </div>
 
             <div className="space-y-5">

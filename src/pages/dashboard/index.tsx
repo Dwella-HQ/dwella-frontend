@@ -13,6 +13,7 @@ import { MyProperties } from "@/components/MyProperties";
 import { AddTenantModal } from "@/components/AddTenantModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
 import { AnnouncementDetailsModal } from "@/components/AnnouncementDetailsModal";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/Toast";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
@@ -39,9 +40,15 @@ import {
   type AnnouncementItemDTO,
   createAnnouncementLandlord,
   createAnnouncementProperty,
-  getAnnouncements,
+  deleteAnnouncementLandlord,
+  deleteAnnouncementProperty,
   subscribeAnnouncements,
 } from "@/api/announcement";
+import { mergeAnnouncementLists } from "@/utils/mergeAnnouncementLists";
+import {
+  loadCachedAnnouncements,
+  saveCachedAnnouncements,
+} from "@/utils/announcementsCache";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -54,6 +61,15 @@ const formatAnnouncementDate = (value?: string) => {
   }
 };
 
+const readAnnouncementToken = () => {
+  if (typeof window === "undefined") return "";
+  return (
+    window.localStorage.getItem("authToken") ||
+    window.localStorage.getItem("accessToken") ||
+    ""
+  );
+};
+
 const isLandlordLevelAnnouncement = (item: AnnouncementItemDTO) => {
   return (item.level || "").toUpperCase() === "LANDLORD";
 };
@@ -62,16 +78,6 @@ const isBroadcastAnnouncement = (item: AnnouncementItemDTO) => {
   const level = (item.level || "").toUpperCase();
   // Backend may emit either LANDLORD or PROPERTY for landlord-originated broadcasts.
   return level === "LANDLORD" || level === "PROPERTY";
-};
-
-const keepExistingWhenIncomingEmpty = (
-  previous: AnnouncementItemDTO[],
-  incoming: AnnouncementItemDTO[],
-) => {
-  if (incoming.length === 0 && previous.length > 0) {
-    return previous;
-  }
-  return incoming;
 };
 
 const parsePaymentDueDate = (payment: Payment): Date | null => {
@@ -228,6 +234,11 @@ const ManagerDashboard = () => {
     React.useState<AnnouncementItemDTO | null>(null);
   const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
     React.useState(false);
+  const [deletingAnnouncementId, setDeletingAnnouncementId] = React.useState<
+    string | null
+  >(null);
+  const [pendingDelete, setPendingDelete] =
+    React.useState<AnnouncementItemDTO | null>(null);
 
   // Redirect to landlord selection if no landlord is selected
   React.useEffect(() => {
@@ -313,32 +324,44 @@ const ManagerDashboard = () => {
   }, []);
 
   React.useEffect(() => {
-    if (!user?.token) return;
+    const token = user?.token || readAnnouncementToken();
+    if (!token) return;
     const subscription = subscribeAnnouncements({
-      token: user.token,
+      token,
       onLoad: (items) => {
-        const landlordItems = items.filter(isBroadcastAnnouncement);
-        setLiveAnnouncements((prev) =>
-          keepExistingWhenIncomingEmpty(prev, landlordItems),
-        );
-        console.log("Manager loaded announcements via socket", {
-          count: landlordItems.length,
-          items: landlordItems,
-          rawCount: items.length,
-        });
+        // No filter — log and display everything the server sends.
+        console.log("[manager] socket onLoad:", items.length, items);
+        setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, items));
       },
       onRaw: (payload) => {
-        console.log("Manager raw announcement socket payload", payload);
+        console.log("[manager] socket raw payload:", payload);
       },
       onError: (error) => {
-        console.warn("Manager announcement socket error:", error);
+        console.warn("[manager] socket error:", error);
       },
     });
     return () => {
       subscription.disconnect();
-      console.log("Manager announcement socket disconnected");
     };
   }, [user?.token]);
+
+  // Hydrate manager announcements from cache so refresh/Fast-Refresh never
+  // flashes an empty list while waiting for the socket.
+  const managerUserId = user?.id ? String(user.id) : null;
+  React.useEffect(() => {
+    if (!managerUserId) return;
+    const cached = loadCachedAnnouncements(managerUserId).filter(
+      isBroadcastAnnouncement,
+    );
+    if (cached.length > 0) {
+      setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
+    }
+  }, [managerUserId]);
+
+  React.useEffect(() => {
+    if (!managerUserId) return;
+    saveCachedAnnouncements(managerUserId, liveAnnouncements);
+  }, [liveAnnouncements, managerUserId]);
 
   if (!selectedLandlord) {
     return null;
@@ -384,6 +407,63 @@ const ManagerDashboard = () => {
       overdueCount,
     };
   }, [landlordProperties, recentMaintenance, landlordPayments]);
+  const canDeleteManagerAnnouncement = React.useCallback(
+    (item: AnnouncementItemDTO) =>
+      (item.level || "").toUpperCase() === "PROPERTY",
+    [],
+  );
+
+  const handleDeleteManagerAnnouncement = React.useCallback(
+    async (item: AnnouncementItemDTO): Promise<boolean> => {
+      if (!item.id) {
+        showToast("This announcement cannot be deleted yet.", "error");
+        return false;
+      }
+      if (!canDeleteManagerAnnouncement(item)) {
+        showToast(
+          "Property managers can only delete property-level announcements.",
+          "error",
+        );
+        return false;
+      }
+
+      setDeletingAnnouncementId(item.id);
+      const level = (item.level || "").toUpperCase();
+      const result =
+        level === "PROPERTY"
+          ? await deleteAnnouncementProperty(item.id)
+          : await deleteAnnouncementLandlord(item.id);
+
+      if (result.success) {
+        setLiveAnnouncements((prev) =>
+          prev.filter((announcement) => announcement.id !== item.id),
+        );
+        showToast("Announcement deleted", "success");
+        setDeletingAnnouncementId(null);
+        return true;
+      }
+
+      showToast(result.error || "Failed to delete announcement", "error");
+      setDeletingAnnouncementId(null);
+      return false;
+    },
+    [canDeleteManagerAnnouncement, showToast],
+  );
+
+  const requestDeleteManagerAnnouncement = React.useCallback(
+    (item: AnnouncementItemDTO) => {
+      setPendingDelete(item);
+      return false;
+    },
+    [],
+  );
+
+  const confirmDeleteManagerAnnouncement = React.useCallback(async () => {
+    if (!pendingDelete) return;
+    const success = await handleDeleteManagerAnnouncement(pendingDelete);
+    if (success) setPendingDelete(null);
+  }, [handleDeleteManagerAnnouncement, pendingDelete]);
+
   const handleManagerSendAnnouncement = React.useCallback(
     async (data: { title: string; message: string; fileIds?: string[] }) => {
       const primaryProperty = landlordProperties[0];
@@ -600,6 +680,28 @@ const ManagerDashboard = () => {
         isOpen={Boolean(selectedAnnouncement)}
         announcement={selectedAnnouncement}
         onClose={() => setSelectedAnnouncement(null)}
+        onDelete={
+          selectedAnnouncement &&
+          canDeleteManagerAnnouncement(selectedAnnouncement)
+            ? (item) => requestDeleteManagerAnnouncement(item)
+            : undefined
+        }
+        isDeleting={
+          selectedAnnouncement?.id != null &&
+          deletingAnnouncementId === selectedAnnouncement.id
+        }
+      />
+      <ConfirmDialog
+        isOpen={Boolean(pendingDelete)}
+        title="Delete announcement?"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDeleteManagerAnnouncement}
+        isProcessing={
+          pendingDelete?.id != null &&
+          deletingAnnouncementId === pendingDelete.id
+        }
       />
       <SendAnnouncementModal
         isOpen={isSendAnnouncementOpen}
@@ -829,7 +931,7 @@ const TenantDashboard = () => {
       onLoad: (items) => {
         const landlordItems = items.filter(isBroadcastAnnouncement);
         setLiveAnnouncements((prev) =>
-          keepExistingWhenIncomingEmpty(prev, landlordItems),
+          mergeAnnouncementLists(prev, landlordItems),
         );
         console.log("Tenant loaded announcements via socket", {
           count: landlordItems.length,
@@ -849,6 +951,22 @@ const TenantDashboard = () => {
       console.log("Tenant announcement socket disconnected");
     };
   }, [user?.id, user?.role, user?.token]);
+
+  const tenantUserId = user?.id ? String(user.id) : null;
+  React.useEffect(() => {
+    if (!tenantUserId) return;
+    const cached = loadCachedAnnouncements(tenantUserId).filter(
+      isBroadcastAnnouncement,
+    );
+    if (cached.length > 0) {
+      setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
+    }
+  }, [tenantUserId]);
+
+  React.useEffect(() => {
+    if (!tenantUserId) return;
+    saveCachedAnnouncements(tenantUserId, liveAnnouncements);
+  }, [liveAnnouncements, tenantUserId]);
 
   const latestLease = React.useMemo(
     () => getLatestLease(tenantDetails?.leases),
@@ -1277,6 +1395,11 @@ const LandlordDashboard = () => {
   >([]);
   const [selectedAnnouncement, setSelectedAnnouncement] =
     React.useState<AnnouncementItemDTO | null>(null);
+  const [deletingAnnouncementId, setDeletingAnnouncementId] = React.useState<
+    string | null
+  >(null);
+  const [pendingDelete, setPendingDelete] =
+    React.useState<AnnouncementItemDTO | null>(null);
   const [isLandlordVerified, setIsLandlordVerified] = React.useState(true);
 
   const landlordRecentPayments = React.useMemo(
@@ -1407,50 +1530,52 @@ const LandlordDashboard = () => {
     };
   }, []);
 
-  React.useEffect(() => {
-    if (!user?.token) return;
-    let cancelled = false;
-
-    getAnnouncements().then((result) => {
-      if (cancelled) return;
-      if (result.success) {
-        setLiveAnnouncements(result.data);
-      } else {
-        console.warn("Landlord announcements REST load failed:", result.error);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.token]);
-
   // Subscribe to announcements feed over websocket.
+  // NOTE: As of May 2026, the backend AnnouncementGateway rejects landlord/admin
+  // tokens with "Authentication failed: Invalid token". Landlords rely on
+  // optimistic updates + cache to see their own announcements until this is fixed.
   React.useEffect(() => {
-    if (!user?.token) return;
+    const token = user?.token || readAnnouncementToken();
+    if (!token) {
+      console.warn("[landlord] no token available for announcement socket");
+      return;
+    }
     const subscription = subscribeAnnouncements({
-      token: user.token,
+      token,
       onLoad: (items) => {
-        setLiveAnnouncements((prev) =>
-          keepExistingWhenIncomingEmpty(prev, items),
-        );
-        console.log("Loaded announcements via socket", {
-          count: items.length,
-          items,
-        });
+        console.log("[landlord] socket onLoad:", items.length, items);
+        setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, items));
       },
       onRaw: (payload) => {
-        console.log("Raw announcement socket payload", payload);
+        console.log("[landlord] socket raw payload:", payload);
       },
       onError: (error) => {
-        console.warn("Announcement socket error:", error);
+        console.warn("[landlord] socket error:", error);
+        console.warn(
+          "[landlord] Socket connection failed. Backend AnnouncementGateway may be rejecting landlord tokens. Relying on cache + optimistic updates.",
+        );
       },
     });
     return () => {
       subscription.disconnect();
-      console.log("Announcement socket disconnected");
     };
   }, [user?.token]);
+
+  // Cache hydration + persistence — the announcement the landlord just created
+  // survives refresh/navigation even if the websocket emits a stale list.
+  const landlordUserId = user?.id ? String(user.id) : null;
+  React.useEffect(() => {
+    if (!landlordUserId) return;
+    const cached = loadCachedAnnouncements(landlordUserId);
+    if (cached.length > 0) {
+      setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
+    }
+  }, [landlordUserId]);
+
+  React.useEffect(() => {
+    if (!landlordUserId) return;
+    saveCachedAnnouncements(landlordUserId, liveAnnouncements);
+  }, [liveAnnouncements, landlordUserId]);
 
   const handleAddProperty = React.useCallback(() => {
     router.push("/dashboard/properties/new");
@@ -1466,13 +1591,72 @@ const LandlordDashboard = () => {
     setIsSendAnnouncementOpen(true);
   }, [isLandlordVerified]);
 
+  const canDeleteLandlordAnnouncement = React.useCallback(
+    (item: AnnouncementItemDTO) => {
+      const level = (item.level || "").toUpperCase();
+      return level === "LANDLORD" || level === "PROPERTY";
+    },
+    [],
+  );
+
+  const handleDeleteLandlordAnnouncement = React.useCallback(
+    async (item: AnnouncementItemDTO): Promise<boolean> => {
+      if (!item.id) {
+        showToast("This announcement cannot be deleted yet.", "error");
+        return false;
+      }
+      if (!canDeleteLandlordAnnouncement(item)) {
+        showToast("This announcement cannot be deleted.", "error");
+        return false;
+      }
+
+      setDeletingAnnouncementId(item.id);
+      const level = (item.level || "").toUpperCase();
+      const result =
+        level === "PROPERTY"
+          ? await deleteAnnouncementProperty(item.id)
+          : await deleteAnnouncementLandlord(item.id);
+
+      if (result.success) {
+        setLiveAnnouncements((prev) =>
+          prev.filter((announcement) => announcement.id !== item.id),
+        );
+        showToast("Announcement deleted", "success");
+        setDeletingAnnouncementId(null);
+        return true;
+      }
+
+      showToast(result.error || "Failed to delete announcement", "error");
+      setDeletingAnnouncementId(null);
+      return false;
+    },
+    [canDeleteLandlordAnnouncement, showToast],
+  );
+
+  const requestDeleteLandlordAnnouncement = React.useCallback(
+    (item: AnnouncementItemDTO) => {
+      setPendingDelete(item);
+      return false;
+    },
+    [],
+  );
+
+  const confirmDeleteLandlordAnnouncement = React.useCallback(async () => {
+    if (!pendingDelete) return;
+    const success = await handleDeleteLandlordAnnouncement(pendingDelete);
+    if (success) setPendingDelete(null);
+  }, [handleDeleteLandlordAnnouncement, pendingDelete]);
+
   const handleAnnouncementSend = React.useCallback(
     async (data: { title: string; message: string; fileIds?: string[] }) => {
       const landlordId =
         typeof window !== "undefined" ? localStorage.getItem("landlordId") : "";
 
       if (!landlordId) {
-        showToast("Your landlord account could not be found. Please sign in again.", "error");
+        showToast(
+          "Your landlord account could not be found. Please sign in again.",
+          "error",
+        );
         throw new Error("Missing landlord account");
       }
 
@@ -1501,18 +1685,27 @@ const LandlordDashboard = () => {
             : null;
 
         // Fallback: update UI immediately even if websocket event is delayed/missing.
-        setLiveAnnouncements((prev) => [
-          {
-            id: responseData?.id,
-            title: data.title,
-            content: data.message,
-            level: "LANDLORD",
-            fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
-            createdAt: responseData?.createdAt || new Date().toISOString(),
-            updatedAt: responseData?.updatedAt || new Date().toISOString(),
-          },
-          ...prev,
-        ]);
+        const newAnnouncement = {
+          id: responseData?.id,
+          title: data.title,
+          content: data.message,
+          level: "LANDLORD",
+          fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+          createdAt: responseData?.createdAt || new Date().toISOString(),
+          updatedAt: responseData?.updatedAt || new Date().toISOString(),
+        };
+        console.log(
+          "[landlord dashboard] optimistic update: adding announcement",
+          newAnnouncement,
+        );
+        setLiveAnnouncements((prev) => {
+          const updated = [newAnnouncement, ...prev];
+          console.log(
+            "[landlord dashboard] new liveAnnouncements count:",
+            updated.length,
+          );
+          return updated;
+        });
         showToast("Announcement sent", "success");
         return;
       }
@@ -1692,6 +1885,29 @@ const LandlordDashboard = () => {
         isOpen={Boolean(selectedAnnouncement)}
         announcement={selectedAnnouncement}
         onClose={() => setSelectedAnnouncement(null)}
+        onDelete={
+          isLandlordVerified &&
+          selectedAnnouncement &&
+          canDeleteLandlordAnnouncement(selectedAnnouncement)
+            ? (item) => requestDeleteLandlordAnnouncement(item)
+            : undefined
+        }
+        isDeleting={
+          selectedAnnouncement?.id != null &&
+          deletingAnnouncementId === selectedAnnouncement.id
+        }
+      />
+      <ConfirmDialog
+        isOpen={Boolean(pendingDelete)}
+        title="Delete announcement?"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDeleteLandlordAnnouncement}
+        isProcessing={
+          pendingDelete?.id != null &&
+          deletingAnnouncementId === pendingDelete.id
+        }
       />
     </>
   );

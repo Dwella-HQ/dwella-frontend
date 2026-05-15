@@ -32,13 +32,34 @@ export const getAnnouncements = async (): Promise<GetAnnouncementsResult> => {
   const result = await apiGet<unknown>("/announcement");
   if (!result.success) return result;
 
-  const parsed = extractAnnouncementList(result.data)
-    .map((item) => announcementItemSchema.safeParse(item))
+  console.log("[getAnnouncements] raw API data:", result.data);
+
+  const rawList = extractAnnouncementList(result.data);
+  console.log(
+    "[getAnnouncements] extracted list length:",
+    rawList.length,
+    rawList,
+  );
+
+  const parseResults = rawList.map((item) => {
+    const r = announcementItemSchema.safeParse(item);
+    if (!r.success) {
+      console.warn(
+        "[getAnnouncements] item failed schema parse:",
+        item,
+        r.error.flatten(),
+      );
+    }
+    return r;
+  });
+
+  const parsed = parseResults
     .filter(
       (item): item is { success: true; data: AnnouncementItemDTO } =>
         item.success,
     )
     .map((item) => item.data);
 
+  console.log("[getAnnouncements] final parsed count:", parsed.length);
   return { success: true, data: parsed };
 };

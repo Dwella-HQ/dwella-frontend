@@ -12,9 +12,17 @@ export const announcementItemSchema = z.preprocess(
     const raw = value as {
       fileIds?: unknown;
       files?: unknown;
+      content?: unknown;
+      message?: unknown;
+      body?: unknown;
     };
 
-    if (Array.isArray(raw.fileIds)) return value;
+    const normalized = {
+      ...(value as Record<string, unknown>),
+      content: raw.content ?? raw.message ?? raw.body,
+    };
+
+    if (Array.isArray(raw.fileIds)) return normalized;
 
     if (Array.isArray(raw.files)) {
       const fileIds = raw.files
@@ -28,16 +36,16 @@ export const announcementItemSchema = z.preprocess(
         .filter((id): id is string => typeof id === "string");
 
       return {
-        ...raw,
+        ...normalized,
         fileIds,
       };
     }
 
-    return value;
+    return normalized;
   },
   z
     .object({
-      id: z.string().uuid().optional(),
+      id: z.string().optional(),
       title: z.string(),
       content: z.string(),
       level: z.string().optional(),
@@ -54,7 +62,7 @@ export const announcementItemSchema = z.preprocess(
             .passthrough(),
         )
         .optional(),
-      fileIds: z.array(z.string().uuid()).optional().default([]),
+      fileIds: z.array(z.string()).optional().default([]),
       createdAt: z.string().optional(),
       updatedAt: z.string().optional(),
     })

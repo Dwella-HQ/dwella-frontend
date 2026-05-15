@@ -80,6 +80,11 @@ export const InviteManagerModal = ({
       description: "Can communicate with tenants via chat",
     },
     {
+      id: "manage_property_announcement",
+      label: "Manage Property Announcements",
+      description: "Can send and manage announcements for assigned properties",
+    },
+    {
       id: "read_payment",
       label: "View Payments (Read-only)",
       description: "Can view payment information but cannot modify",
@@ -284,7 +289,8 @@ export const InviteManagerModal = ({
                   <div className="flex flex-col items-center justify-center py-8 px-4 rounded-lg border border-gray-200 bg-gray-50">
                     <p className="text-sm font-medium text-gray-900 mb-1">No Properties</p>
                     <p className="text-xs text-gray-500 text-center">
-                      You don't have any properties yet. Create a property first to assign it to a manager.
+                      You don&apos;t have any properties yet. Create a property
+                      first to assign it to a manager.
                     </p>
                   </div>
                 )}
