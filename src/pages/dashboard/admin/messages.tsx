@@ -59,18 +59,18 @@ const AdminMessagesPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Messages</title>
       </Head>
       <AdminLayout title="Messages">
-        <section className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-[#E2E8F0] bg-white p-3">
-            <div className="flex h-9 w-[420px] items-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3">
-              <Search className="h-3.5 w-3.5 text-[#64748B]" />
+        <section className="w-full min-w-0 space-y-4">
+          <div className="flex flex-col gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3">
+              <Search className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
               <input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full bg-transparent text-xs outline-none placeholder:text-[#94A3B8]"
+                className="w-full min-w-0 bg-transparent text-xs outline-none placeholder:text-[#94A3B8]"
                 placeholder="Search messages"
               />
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="text-xs text-[#64748B]">
                 {isConnected ? "Connected" : "Connecting..."}
               </span>
@@ -90,8 +90,8 @@ const AdminMessagesPage: NextPageWithLayout = () => {
             </div>
           ) : null}
 
-          <div className="grid h-[620px] grid-cols-[300px_1fr] gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3">
-            <div className="space-y-2 overflow-y-auto border-r border-[#E2E8F0] pr-3">
+          <div className="flex flex-col gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 lg:grid lg:h-[620px] lg:grid-cols-[300px_1fr]">
+            <div className="max-h-[min(40vh,320px)] space-y-2 overflow-y-auto border-b border-[#E2E8F0] pb-3 lg:max-h-none lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
               {isLoading && conversations.length === 0 ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-[#1E66FF]" />
@@ -129,7 +129,7 @@ const AdminMessagesPage: NextPageWithLayout = () => {
               )}
             </div>
 
-            <div className="flex min-h-0 flex-col">
+            <div className="flex min-h-[240px] min-w-0 w-full flex-col">
               {selectedConversation ? (
                 <>
                   <div className="flex-1 overflow-y-auto rounded-md border border-[#E2E8F0] p-3">

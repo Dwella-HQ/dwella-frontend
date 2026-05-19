@@ -275,7 +275,7 @@ const AdminTenantsPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Tenants</title>
       </Head>
       <AdminLayout title="Tenants">
-        <section className="space-y-3">
+        <section className="w-full min-w-0 space-y-3">
           <div className="flex justify-end">
             <button
               type="button"
@@ -292,7 +292,7 @@ const AdminTenantsPage: NextPageWithLayout = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
             {[
               { label: "All Tenants", value: stats.all },
               { label: "Active", value: stats.active },
@@ -304,7 +304,7 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                 className="rounded-[10px] border border-[#E2E8F0] bg-white px-3 py-2.5"
               >
                 <p className="text-[12px] text-[#64748B]">{item.label}</p>
-                <p className="mt-1 text-[32px] font-semibold leading-none">
+                <p className="mt-1 text-xl font-semibold leading-none sm:text-2xl lg:text-[32px]">
                   {item.value.toLocaleString()}
                 </p>
               </div>
@@ -317,7 +317,7 @@ const AdminTenantsPage: NextPageWithLayout = () => {
             </p>
           ) : null}
 
-          <div className="grid grid-cols-[1fr_210px_auto] items-center gap-2.5 rounded-[10px] border border-[#E2E8F0] bg-white p-2.5">
+          <div className="grid grid-cols-1 gap-2.5 rounded-[10px] border border-[#E2E8F0] bg-white p-2.5 sm:grid-cols-[1fr_210px_auto] sm:items-center">
             <div className="flex items-center gap-2 rounded-md bg-[#F8FAFC] px-3 py-2">
               <Search className="h-4 w-4 text-[#94A3B8]" />
               <input
@@ -353,9 +353,9 @@ const AdminTenantsPage: NextPageWithLayout = () => {
             </button>
           </div>
 
-          <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
+          <div className="w-full min-w-0 overflow-hidden rounded-[10px] border border-[#E2E8F0] bg-white p-4">
             <div className="flex items-center gap-2">
-              <p className="text-[20px] font-semibold leading-none">
+              <p className="text-lg font-semibold leading-none sm:text-[20px]">
                 Tenant List
               </p>
               {loading ? (

@@ -20,10 +20,10 @@ const AdminDisputesPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Disputes</title>
       </Head>
       <AdminLayout title="Disputes">
-        <section className="space-y-4">
-          <div className="grid grid-cols-[1fr_180px] gap-3">
+        <section className="w-full min-w-0 space-y-4">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px]">
             <div className="rounded-lg border border-[#E2E8F0] bg-white p-3">
-              <div className="grid grid-cols-[1fr_280px] gap-3 text-xs">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">
                 <input
                   className="h-9 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3"
                   placeholder="Search..."
@@ -40,8 +40,8 @@ const AdminDisputesPage: NextPageWithLayout = () => {
             </div>
           </div>
 
-          <div className="grid h-[680px] grid-cols-[320px_1fr] gap-3">
-            <div className="space-y-2 rounded-lg border border-[#E2E8F0] bg-white p-3">
+          <div className="flex flex-col gap-3 lg:grid lg:h-[680px] lg:grid-cols-[320px_1fr]">
+            <div className="max-h-[min(50vh,400px)] space-y-2 overflow-y-auto rounded-lg border border-[#E2E8F0] bg-white p-3 lg:max-h-none">
               <p className="text-sm font-semibold">All Disputes</p>
               {Array.from({ length: 9 }, (_, i) => (
                 <div
@@ -62,12 +62,12 @@ const AdminDisputesPage: NextPageWithLayout = () => {
                 </div>
               ))}
             </div>
-            <div className="rounded-lg border border-[#E2E8F0] bg-white p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-[30px] font-medium">
+            <div className="min-w-0 rounded-lg border border-[#E2E8F0] bg-white p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <p className="text-lg font-medium sm:text-2xl lg:text-[30px]">
                   Maintenance Issue Not Resolved
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <span className="rounded-full bg-red-100 px-3 py-1 text-xs text-red-600">
                     High Priority
                   </span>
@@ -76,7 +76,7 @@ const AdminDisputesPage: NextPageWithLayout = () => {
                   </span>
                 </div>
               </div>
-              <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-md bg-[#F8FAFC] p-3 text-sm">
                   Submitted By
                   <br />
@@ -92,7 +92,7 @@ const AdminDisputesPage: NextPageWithLayout = () => {
                   <span className="text-[#64748B] text-xs">Landlord</span>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-[#334155]">
+              <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-[#334155] sm:grid-cols-2">
                 <div>Sunset Apartments - Unit 1A</div>
                 <div>Submitted Dec 28, 2024</div>
               </div>
@@ -113,7 +113,7 @@ const AdminDisputesPage: NextPageWithLayout = () => {
                   placeholder="Type your response or resolution here..."
                 />
               </div>
-              <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button className="rounded-md bg-[#111827] py-3 text-sm font-medium text-white">
                   Send Response
                 </button>

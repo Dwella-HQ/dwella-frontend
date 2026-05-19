@@ -42,7 +42,7 @@ const PendingLandlordDetailPage: NextPageWithLayout = () => {
               <div className="h-16 w-16 rounded-md bg-[url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300')] bg-cover bg-center" />
               <div>
                 <h2 className="text-3xl font-semibold">Raman Ismail</h2>
-                <div className="mt-2 grid grid-cols-3 gap-4 text-xs">
+                <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
                   <div className="flex items-center gap-2">
                     <Phone className="h-3.5 w-3.5 text-blue-600" />
                     +234 812 345 6789

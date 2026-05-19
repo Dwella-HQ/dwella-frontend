@@ -296,8 +296,8 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
     let cancelled = false;
     void getMaintenanceRequests({ limit: 100, useLegacyEndpoint: true }).then(
       (result) => {
-      if (cancelled) return;
-      setPropertyMaintenanceFromApi(result.success ? result.data : []);
+        if (cancelled) return;
+        setPropertyMaintenanceFromApi(result.success ? result.data : []);
       },
     );
     return () => {
@@ -367,7 +367,7 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                 </div>
               </div>
               <div className="flex flex-col space-y-6 border-l border-[#E2E8F0] pl-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div
                     className="rounded-lg border border-gray-200 p-4"
                     style={{ backgroundColor: ADMIN_STAT_BG.blue }}
@@ -664,7 +664,7 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
             {tab === "documents" ? (
               <div className="mt-4 rounded-md border border-[#E2E8F0] p-3">
                 <p className="mb-2 text-sm font-semibold">Property Documents</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {documents.length ? (
                     documents.map((doc) => (
                       <div

@@ -110,7 +110,10 @@ const ACTION_MENU_WIDTH = 144;
 /** Two action rows + padding */
 const ACTION_MENU_HEIGHT = 76;
 
-function computeActionMenuPosition(btn: DOMRect): { top: number; left: number } {
+function computeActionMenuPosition(btn: DOMRect): {
+  top: number;
+  left: number;
+} {
   let top = btn.bottom + 4;
   if (top + ACTION_MENU_HEIGHT > window.innerHeight - 8) {
     top = Math.max(8, btn.top - ACTION_MENU_HEIGHT - 4);
@@ -209,9 +212,9 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Admin Properties</title>
       </Head>
       <AdminLayout title="Properties">
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="inline-flex rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-1">
+        <section className="w-full min-w-0 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="inline-flex w-fit max-w-full flex-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-1">
               <button
                 type="button"
                 onClick={() => setTab("active")}
@@ -236,7 +239,7 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-6 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
             {[
               ["Total Properties", String(stats.total)],
               ["Approved", String(stats.approved)],
@@ -250,7 +253,7 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
                 className="rounded-[10px] border border-[#E2E8F0] bg-white px-3 py-2.5"
               >
                 <p className="text-[12px] text-[#64748B]">{label}</p>
-                <p className="mt-1 text-[32px] font-semibold leading-none">
+                <p className="mt-1 text-xl font-semibold leading-none sm:text-2xl lg:text-[32px]">
                   {value}
                 </p>
               </div>
@@ -263,7 +266,7 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             </p>
           ) : null}
 
-          <div className="grid grid-cols-[1fr_210px_210px_auto] items-center gap-2.5 rounded-[10px] border border-[#E2E8F0] bg-white p-2.5">
+          <div className="grid grid-cols-1 gap-2.5 rounded-[10px] border border-[#E2E8F0] bg-white p-2.5 sm:grid-cols-2 lg:grid-cols-[1fr_210px_210px_auto] lg:items-center">
             <div className="flex items-center gap-2 rounded-md bg-[#F8FAFC] px-3 py-2">
               <Search className="h-4 w-4 text-[#94A3B8]" />
               <input
@@ -287,9 +290,9 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             </button>
           </div>
 
-          <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
+          <div className="w-full min-w-0 overflow-hidden rounded-[10px] border border-[#E2E8F0] bg-white p-4">
             <div className="flex items-center gap-2">
-              <p className="text-[20px] font-semibold leading-none">
+              <p className="text-lg font-semibold leading-none sm:text-[20px]">
                 Property List
               </p>
               {loading ? (
@@ -444,7 +447,8 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
                               aria-haspopup="menu"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                const btn = event.currentTarget.getBoundingClientRect();
+                                const btn =
+                                  event.currentTarget.getBoundingClientRect();
                                 setActionMenu((prev) =>
                                   prev?.propertyId === row.id
                                     ? null
@@ -470,7 +474,7 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
                 </p>
               ) : null}
             </div>
-            <div className="mt-4 flex items-center justify-between text-[12px] text-[#64748B]">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[12px] text-[#64748B]">
               <div className="inline-flex items-center gap-2">
                 <span>Records shown</span>
                 <span className="font-medium text-[#0F172A]">

@@ -94,6 +94,8 @@ export const subscribeAnnouncements = (
     initialToken.slice(0, 20),
   );
 
+  let authRejected = false;
+
   const socket: Socket = io(socketUrl, {
     transports: ["websocket"],
     autoConnect: false,
@@ -131,7 +133,18 @@ export const subscribeAnnouncements = (
 
   // Refresh the query string token on reconnect attempts too, since the
   // backend reads `client.handshake.query.token` before `auth.token`.
+  const stopReconnectIfAuthRejected = (message: string) => {
+    if (!/authentication failed/i.test(message)) return;
+    if (authRejected) return;
+    authRejected = true;
+    socket.io.opts.reconnection = false;
+    console.warn(
+      "[announcements] stopping socket reconnect after authentication failure",
+    );
+  };
+
   socket.io.on("reconnect_attempt", () => {
+    if (authRejected) return;
     const fresh = readFreshToken(options.token);
     socket.io.opts.query = { token: fresh };
   });
@@ -152,8 +165,10 @@ export const subscribeAnnouncements = (
   });
 
   socket.on("connect_error", (error: Error) => {
-    console.warn("[announcements] socket connect_error", error.message);
-    options.onError?.(error.message || "Failed to connect to announcements");
+    const message = error.message || "Failed to connect to announcements";
+    console.warn("[announcements] socket connect_error", message);
+    stopReconnectIfAuthRejected(message);
+    options.onError?.(message);
   });
 
   socket.on("error", (payload: unknown) => {
@@ -162,6 +177,7 @@ export const subscribeAnnouncements = (
       typeof payload === "string"
         ? payload
         : (payload as { message?: string })?.message || "Socket error";
+    stopReconnectIfAuthRejected(message);
     options.onError?.(message);
   });
 

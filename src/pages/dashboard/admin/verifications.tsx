@@ -213,7 +213,9 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
       });
       if (!uploadResult.success) {
         setActionBusy(null);
-        setModalError(uploadResult.error || "Failed to upload supporting file.");
+        setModalError(
+          uploadResult.error || "Failed to upload supporting file.",
+        );
         return;
       }
       supportingDocumentIds.push(uploadResult.data.id);
@@ -236,7 +238,9 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
     }
 
     showToast(
-      pendingAction === "VERIFIED" ? "Marked as verified" : "Marked as rejected",
+      pendingAction === "VERIFIED"
+        ? "Marked as verified"
+        : "Marked as rejected",
       "success",
     );
     closeActionModal();
@@ -264,7 +268,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Verifications</title>
       </Head>
       <AdminLayout title="Verifications">
-        <section className="space-y-4">
+        <section className="w-full min-w-0 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-white px-4 py-3">
             <div>
               <p className="text-[13px] font-semibold text-[#0F172A]">
@@ -286,7 +290,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-[minmax(280px,360px)_1fr] gap-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(280px,360px)_1fr]">
             <div className="flex flex-col rounded-lg border border-[#E2E8F0] bg-white">
               <div className="border-b border-[#E2E8F0] p-3">
                 <p className="mb-2 text-[12px] font-semibold text-[#0F172A]">
@@ -781,7 +785,9 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                   disabled={actionBusy !== null}
                   className="inline-flex items-center gap-2 rounded-md bg-[#111827] px-3 py-2 text-sm font-medium text-white hover:bg-[#1E293B] disabled:opacity-60"
                 >
-                  {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {actionBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
                   {pendingAction === "VERIFIED"
                     ? "Accept verification"
                     : "Reject verification"}

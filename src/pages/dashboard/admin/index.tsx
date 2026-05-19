@@ -155,7 +155,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Admin Dashboard</title>
       </Head>
       <AdminLayout title="Dashboard">
-        <section className="space-y-3">
+        <section className="w-full min-w-0 space-y-3">
           <div className="flex items-center gap-2">
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin text-[#64748B]" />
@@ -164,7 +164,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
               Overview of users, properties, payments, and verifications.
             </p>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
             {metrics.map((metric, index) => {
               const Icon = metricIcons[index] ?? Users;
               return (
@@ -177,7 +177,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
                       <p className="text-[12px] text-[#64748B]">
                         {metric.label}
                       </p>
-                      <p className="mt-1 text-[32px] font-semibold leading-none tracking-[-0.02em]">
+                      <p className="mt-1 text-xl font-semibold leading-none tracking-[-0.02em] sm:text-2xl lg:text-[32px]">
                         {metric.value}
                       </p>
                       <p className="mt-1 text-[11px] text-[#64748B]">
@@ -193,11 +193,11 @@ const AdminDashboardPage: NextPageWithLayout = () => {
             })}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[24px] font-semibold leading-none">
+                  <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
                     Total Properties
                   </p>
                   <p className="mt-1 text-[12px] text-[#64748B]">
@@ -210,7 +210,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
             <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[24px] font-semibold leading-none">
+                  <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
                     Total Users
                   </p>
                   <p className="mt-1 text-[12px] text-[#64748B]">
@@ -222,11 +222,11 @@ const AdminDashboardPage: NextPageWithLayout = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[24px] font-semibold leading-none">
+                  <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
                     Total Transaction Volume
                   </p>
                   <p className="mt-1 text-[12px] text-[#64748B]">
@@ -237,11 +237,12 @@ const AdminDashboardPage: NextPageWithLayout = () => {
               <div className="h-[170px] rounded-md bg-gradient-to-b from-[#F8FAFC] to-[#DBEAFE]" />
             </div>
             <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
-              <p className="text-[24px] font-semibold leading-none">
+              <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
                 Top Property Category
               </p>
               <p className="mt-2 text-[12px] text-[#64748B]">
-                Category insights will appear as more property data becomes available.
+                Category insights will appear as more property data becomes
+                available.
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 {["3 Bedroom", "2 Bedroom", "Self Contain", "Duplex"].map(

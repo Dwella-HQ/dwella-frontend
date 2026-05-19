@@ -6,6 +6,12 @@ import { Eye, EyeOff } from "lucide-react";
 
 type AdminSettingsTab = "profile" | "notifications" | "change-password";
 
+const settingsInputClassName =
+  "h-10 w-full rounded-md border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none focus:border-[#1E66FF] focus:ring-1 focus:ring-[#1E66FF]";
+
+const settingsPasswordInputClassName =
+  "h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-3 pr-10 text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none focus:border-[#1E66FF] focus:ring-1 focus:ring-[#1E66FF]";
+
 const AdminSettingsPage: NextPageWithLayout = () => {
   const [tab, setTab] = React.useState<AdminSettingsTab>("profile");
   const [showCurrent, setShowCurrent] = React.useState(false);
@@ -18,7 +24,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Settings</title>
       </Head>
       <AdminLayout title="Settings">
-        <section className="grid max-w-[980px] grid-cols-[240px_1fr] gap-4">
+        <section className="grid w-full max-w-[980px] grid-cols-1 gap-4 [color-scheme:light] lg:grid-cols-[240px_1fr]">
           <div className="h-fit rounded-lg border border-[#E2E8F0] bg-white p-3 text-sm">
             <button
               onClick={() => setTab("profile")}
@@ -50,13 +56,13 @@ const AdminSettingsPage: NextPageWithLayout = () => {
                   </div>
                   <p className="text-xs text-[#64748B]">Admin profile photo</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
                   <input
-                    className="h-10 rounded-md border border-[#E2E8F0] px-3"
+                    className={settingsInputClassName}
                     placeholder="Full Name"
                   />
                   <input
-                    className="h-10 rounded-md border border-[#E2E8F0] px-3"
+                    className={settingsInputClassName}
                     placeholder="Email Address"
                   />
                 </div>
@@ -78,7 +84,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
                 ].map((label) => (
                   <div key={label} className="border-b border-[#E2E8F0] pb-3">
                     <p className="font-medium">{label}</p>
-                    <div className="mt-2 flex gap-5 text-xs">
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs sm:gap-5">
                       <label className="flex items-center gap-2">
                         <input type="checkbox" defaultChecked />
                         Email
@@ -116,7 +122,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
                   <div className="relative">
                     <input
                       type={showCurrent ? "text" : "password"}
-                      className="h-11 w-full rounded-md border border-[#E2E8F0] px-3 pr-10"
+                      className={settingsPasswordInputClassName}
                       placeholder="Current Password"
                     />
                     <button
@@ -133,7 +139,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
                   <div className="relative">
                     <input
                       type={showNext ? "text" : "password"}
-                      className="h-11 w-full rounded-md border border-[#E2E8F0] px-3 pr-10"
+                      className={settingsPasswordInputClassName}
                       placeholder="New Password"
                     />
                     <button
@@ -150,7 +156,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
                   <div className="relative">
                     <input
                       type={showConfirm ? "text" : "password"}
-                      className="h-11 w-full rounded-md border border-[#E2E8F0] px-3 pr-10"
+                      className={settingsPasswordInputClassName}
                       placeholder="Confirm New Password"
                     />
                     <button
