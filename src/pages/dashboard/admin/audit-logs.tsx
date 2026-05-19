@@ -24,8 +24,8 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Audit Logs</title>
       </Head>
       <AdminLayout title="Audit Logs">
-        <section className="space-y-4">
-          <div className="grid grid-cols-5 gap-2.5">
+        <section className="w-full min-w-0 space-y-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
             {[
               ["Total Logs (30 days)", "18,420"],
               ["Admin Actions", "6,210"],
@@ -38,13 +38,13 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
                 className="rounded-xl border border-[#E2E8F0] bg-white p-3"
               >
                 <p className="text-[11px] text-[#64748B]">{label}</p>
-                <p className="text-2xl font-semibold">{value}</p>
+                <p className="text-xl font-semibold sm:text-2xl">{value}</p>
               </div>
             ))}
           </div>
 
           <div className="rounded-xl border border-[#E2E8F0] bg-white p-3">
-            <div className="grid grid-cols-[1fr_220px_220px_220px_auto] items-center gap-3 text-xs">
+            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 xl:grid-cols-[1fr_220px_220px_220px_auto] xl:items-center">
               <input
                 className="h-9 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3"
                 placeholder="Search..."
@@ -74,7 +74,7 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+          <div className="w-full min-w-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white p-4">
             <p className="text-sm font-semibold">Audit Logs</p>
             <p className="mb-3 text-xs text-[#64748B]">
               Track all system actions and admin activities
@@ -117,7 +117,7 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
                 </tbody>
               </table>
             </div>
-            <div className="mt-3 flex items-center justify-between text-[11px] text-[#64748B]">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-[#64748B]">
               <p>Number Of Items displayed per page</p>
               <div className="inline-flex items-center gap-3">
                 <span className="rounded bg-[#E0F2FE] px-2 py-0.5 text-[#0284C7]">

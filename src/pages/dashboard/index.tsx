@@ -42,13 +42,11 @@ import {
   createAnnouncementProperty,
   deleteAnnouncementLandlord,
   deleteAnnouncementProperty,
-  subscribeAnnouncements,
 } from "@/api/announcement";
-import { mergeAnnouncementLists } from "@/utils/mergeAnnouncementLists";
 import {
-  loadCachedAnnouncements,
-  saveCachedAnnouncements,
-} from "@/utils/announcementsCache";
+  isBroadcastAnnouncement,
+  useAnnouncementsFeed,
+} from "@/hooks/useAnnouncementsFeed";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -61,24 +59,8 @@ const formatAnnouncementDate = (value?: string) => {
   }
 };
 
-const readAnnouncementToken = () => {
-  if (typeof window === "undefined") return "";
-  return (
-    window.localStorage.getItem("authToken") ||
-    window.localStorage.getItem("accessToken") ||
-    ""
-  );
-};
-
-const isLandlordLevelAnnouncement = (item: AnnouncementItemDTO) => {
-  return (item.level || "").toUpperCase() === "LANDLORD";
-};
-
-const isBroadcastAnnouncement = (item: AnnouncementItemDTO) => {
-  const level = (item.level || "").toUpperCase();
-  // Backend may emit either LANDLORD or PROPERTY for landlord-originated broadcasts.
-  return level === "LANDLORD" || level === "PROPERTY";
-};
+const filterBroadcastAnnouncements = (items: AnnouncementItemDTO[]) =>
+  items.filter(isBroadcastAnnouncement);
 
 const parsePaymentDueDate = (payment: Payment): Date | null => {
   const s = payment.dueDate;
@@ -227,9 +209,18 @@ const ManagerDashboard = () => {
   const [maintenanceLoading, setMaintenanceLoading] = React.useState(true);
   const [allRentPayments, setAllRentPayments] = React.useState<Payment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = React.useState(true);
-  const [liveAnnouncements, setLiveAnnouncements] = React.useState<
-    AnnouncementItemDTO[]
-  >([]);
+  const managerUserId = user?.id ? String(user.id) : null;
+  const {
+    announcements: liveAnnouncements,
+    setAnnouncements: setLiveAnnouncements,
+  } = useAnnouncementsFeed({
+    userId: managerUserId,
+    userRole: user?.role,
+    token: user?.token,
+    enabled: user?.role === "property_manager",
+    filterCached: filterBroadcastAnnouncements,
+    logLabel: "manager",
+  });
   const [selectedAnnouncement, setSelectedAnnouncement] =
     React.useState<AnnouncementItemDTO | null>(null);
   const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
@@ -322,46 +313,6 @@ const ManagerDashboard = () => {
       cancelled = true;
     };
   }, []);
-
-  React.useEffect(() => {
-    const token = user?.token || readAnnouncementToken();
-    if (!token) return;
-    const subscription = subscribeAnnouncements({
-      token,
-      onLoad: (items) => {
-        // No filter — log and display everything the server sends.
-        console.log("[manager] socket onLoad:", items.length, items);
-        setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, items));
-      },
-      onRaw: (payload) => {
-        console.log("[manager] socket raw payload:", payload);
-      },
-      onError: (error) => {
-        console.warn("[manager] socket error:", error);
-      },
-    });
-    return () => {
-      subscription.disconnect();
-    };
-  }, [user?.token]);
-
-  // Hydrate manager announcements from cache so refresh/Fast-Refresh never
-  // flashes an empty list while waiting for the socket.
-  const managerUserId = user?.id ? String(user.id) : null;
-  React.useEffect(() => {
-    if (!managerUserId) return;
-    const cached = loadCachedAnnouncements(managerUserId).filter(
-      isBroadcastAnnouncement,
-    );
-    if (cached.length > 0) {
-      setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
-    }
-  }, [managerUserId]);
-
-  React.useEffect(() => {
-    if (!managerUserId) return;
-    saveCachedAnnouncements(managerUserId, liveAnnouncements);
-  }, [liveAnnouncements, managerUserId]);
 
   if (!selectedLandlord) {
     return null;
@@ -797,9 +748,19 @@ const TenantDashboard = () => {
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [tenantError, setTenantError] = React.useState<string | null>(null);
   const [isTenantUnassigned, setIsTenantUnassigned] = React.useState(false);
-  const [liveAnnouncements, setLiveAnnouncements] = React.useState<
-    AnnouncementItemDTO[]
-  >([]);
+  const tenantUserId = user?.id ? String(user.id) : null;
+  const {
+    announcements: liveAnnouncements,
+    setAnnouncements: setLiveAnnouncements,
+  } = useAnnouncementsFeed({
+    userId: tenantUserId,
+    userRole: user?.role,
+    token: user?.token,
+    enabled: user?.role === "tenant",
+    filterIncoming: filterBroadcastAnnouncements,
+    filterCached: filterBroadcastAnnouncements,
+    logLabel: "tenant",
+  });
   const [selectedAnnouncement, setSelectedAnnouncement] =
     React.useState<AnnouncementItemDTO | null>(null);
 
@@ -923,50 +884,6 @@ const TenantDashboard = () => {
       cancelled = true;
     };
   }, [user?.id, user?.role]);
-
-  React.useEffect(() => {
-    if (!user?.id || user.role !== "tenant" || !user.token) return;
-    const subscription = subscribeAnnouncements({
-      token: user.token,
-      onLoad: (items) => {
-        const landlordItems = items.filter(isBroadcastAnnouncement);
-        setLiveAnnouncements((prev) =>
-          mergeAnnouncementLists(prev, landlordItems),
-        );
-        console.log("Tenant loaded announcements via socket", {
-          count: landlordItems.length,
-          items: landlordItems,
-          rawCount: items.length,
-        });
-      },
-      onRaw: (payload) => {
-        console.log("Tenant raw announcement socket payload", payload);
-      },
-      onError: (error) => {
-        console.warn("Tenant announcement socket error:", error);
-      },
-    });
-    return () => {
-      subscription.disconnect();
-      console.log("Tenant announcement socket disconnected");
-    };
-  }, [user?.id, user?.role, user?.token]);
-
-  const tenantUserId = user?.id ? String(user.id) : null;
-  React.useEffect(() => {
-    if (!tenantUserId) return;
-    const cached = loadCachedAnnouncements(tenantUserId).filter(
-      isBroadcastAnnouncement,
-    );
-    if (cached.length > 0) {
-      setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
-    }
-  }, [tenantUserId]);
-
-  React.useEffect(() => {
-    if (!tenantUserId) return;
-    saveCachedAnnouncements(tenantUserId, liveAnnouncements);
-  }, [liveAnnouncements, tenantUserId]);
 
   const latestLease = React.useMemo(
     () => getLatestLease(tenantDetails?.leases),
@@ -1390,9 +1307,17 @@ const LandlordDashboard = () => {
   });
   const [overdueMetricsLoading, setOverdueMetricsLoading] =
     React.useState(false);
-  const [liveAnnouncements, setLiveAnnouncements] = React.useState<
-    AnnouncementItemDTO[]
-  >([]);
+  const landlordUserId = user?.id ? String(user.id) : null;
+  const {
+    announcements: liveAnnouncements,
+    setAnnouncements: setLiveAnnouncements,
+  } = useAnnouncementsFeed({
+    userId: landlordUserId,
+    userRole: user?.role,
+    token: user?.token,
+    enabled: user?.role === "landlord",
+    logLabel: "landlord",
+  });
   const [selectedAnnouncement, setSelectedAnnouncement] =
     React.useState<AnnouncementItemDTO | null>(null);
   const [deletingAnnouncementId, setDeletingAnnouncementId] = React.useState<
@@ -1529,53 +1454,6 @@ const LandlordDashboard = () => {
       cancelled = true;
     };
   }, []);
-
-  // Subscribe to announcements feed over websocket.
-  // NOTE: As of May 2026, the backend AnnouncementGateway rejects landlord/admin
-  // tokens with "Authentication failed: Invalid token". Landlords rely on
-  // optimistic updates + cache to see their own announcements until this is fixed.
-  React.useEffect(() => {
-    const token = user?.token || readAnnouncementToken();
-    if (!token) {
-      console.warn("[landlord] no token available for announcement socket");
-      return;
-    }
-    const subscription = subscribeAnnouncements({
-      token,
-      onLoad: (items) => {
-        console.log("[landlord] socket onLoad:", items.length, items);
-        setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, items));
-      },
-      onRaw: (payload) => {
-        console.log("[landlord] socket raw payload:", payload);
-      },
-      onError: (error) => {
-        console.warn("[landlord] socket error:", error);
-        console.warn(
-          "[landlord] Socket connection failed. Backend AnnouncementGateway may be rejecting landlord tokens. Relying on cache + optimistic updates.",
-        );
-      },
-    });
-    return () => {
-      subscription.disconnect();
-    };
-  }, [user?.token]);
-
-  // Cache hydration + persistence — the announcement the landlord just created
-  // survives refresh/navigation even if the websocket emits a stale list.
-  const landlordUserId = user?.id ? String(user.id) : null;
-  React.useEffect(() => {
-    if (!landlordUserId) return;
-    const cached = loadCachedAnnouncements(landlordUserId);
-    if (cached.length > 0) {
-      setLiveAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
-    }
-  }, [landlordUserId]);
-
-  React.useEffect(() => {
-    if (!landlordUserId) return;
-    saveCachedAnnouncements(landlordUserId, liveAnnouncements);
-  }, [liveAnnouncements, landlordUserId]);
 
   const handleAddProperty = React.useCallback(() => {
     router.push("/dashboard/properties/new");

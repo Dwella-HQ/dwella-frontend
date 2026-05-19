@@ -148,7 +148,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Transactions</title>
       </Head>
       <AdminLayout title="Transactions">
-        <section className="space-y-4">
+        <section className="w-full min-w-0 space-y-4">
           <div className="flex justify-end">
             <button
               type="button"
@@ -165,7 +165,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-6 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
             {[
               ["Total Transactions", String(stats.total)],
               ["Successful", String(stats.success)],
@@ -182,7 +182,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                 className="rounded-xl border border-[#E2E8F0] bg-white p-3"
               >
                 <p className="text-[11px] text-[#64748B]">{label}</p>
-                <p className="text-2xl font-semibold">{value}</p>
+                <p className="text-xl font-semibold sm:text-2xl">{value}</p>
               </div>
             ))}
           </div>
@@ -194,7 +194,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
           ) : null}
 
           <div className="rounded-xl border border-[#E2E8F0] bg-white p-3">
-            <div className="grid grid-cols-[1fr_300px_auto] items-center gap-3 text-xs">
+            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-[1fr_300px_auto] lg:items-center">
               <input
                 className="h-9 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3"
                 placeholder="Search..."
@@ -219,7 +219,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
               </button>
             </div>
           </div>
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+          <div className="w-full min-w-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white p-4">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold">Transactions</p>
               {loading ? (
@@ -277,7 +277,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                 </p>
               ) : null}
             </div>
-            <div className="mt-3 flex items-center justify-between text-[11px] text-[#64748B]">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-[#64748B]">
               <p>
                 Page {safePage} · {filtered.length} record(s) shown
               </p>

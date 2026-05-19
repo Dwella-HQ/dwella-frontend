@@ -10,7 +10,6 @@ import {
   createAnnouncementProperty,
   deleteAnnouncementLandlord,
   deleteAnnouncementProperty,
-  subscribeAnnouncements,
   type AnnouncementItemDTO,
 } from "@/api/announcement";
 import { AnnouncementDetailsModal } from "@/components/AnnouncementDetailsModal";
@@ -19,20 +18,10 @@ import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { getPropertiesByLandlord } from "@/api/properties";
-import { mergeAnnouncementLists } from "@/utils/mergeAnnouncementLists";
 import {
-  loadCachedAnnouncements,
-  saveCachedAnnouncements,
-} from "@/utils/announcementsCache";
-
-const readAnnouncementToken = (): string => {
-  if (typeof window === "undefined") return "";
-  return (
-    window.localStorage.getItem("authToken") ||
-    window.localStorage.getItem("accessToken") ||
-    ""
-  );
-};
+  isBroadcastAnnouncement,
+  useAnnouncementsFeed,
+} from "@/hooks/useAnnouncementsFeed";
 
 const formatDateValue = (value?: string) => {
   if (!value) return "Just now";
@@ -43,26 +32,11 @@ const formatDateValue = (value?: string) => {
   }
 };
 
-const isBroadcastAnnouncement = (item: AnnouncementItemDTO) => {
-  const level = (item.level || "").toUpperCase();
-  return level === "LANDLORD" || level === "PROPERTY";
-};
-
 const AnnouncementsPage: NextPageWithLayout = () => {
   const { user } = useUser();
   const { showToast } = useToast();
   const { selectedLandlord } = useSelectedLandlord();
   const userId = user?.id ? String(user.id) : null;
-  const [announcements, setAnnouncements] = React.useState<
-    AnnouncementItemDTO[]
-  >([]);
-  const [selectedAnnouncement, setSelectedAnnouncement] =
-    React.useState<AnnouncementItemDTO | null>(null);
-  const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
-    React.useState(false);
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
-  const [pendingDelete, setPendingDelete] =
-    React.useState<AnnouncementItemDTO | null>(null);
 
   const filterForRole = React.useCallback(
     (items: AnnouncementItemDTO[]) => {
@@ -73,65 +47,27 @@ const AnnouncementsPage: NextPageWithLayout = () => {
     [user?.role],
   );
 
-  // Hydrate from cache so refresh/navigation never shows an empty list while
-  // waiting for socket data.
-  React.useEffect(() => {
-    if (!userId) return;
-    const cached = filterForRole(loadCachedAnnouncements(userId));
-    if (cached.length > 0) {
-      setAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
-    }
-  }, [filterForRole, userId]);
+  const { announcements, setAnnouncements } = useAnnouncementsFeed({
+    userId,
+    userRole: user?.role,
+    token: user?.token,
+    enabled:
+      Boolean(userId) &&
+      (user?.role === "landlord" ||
+        user?.role === "property_manager" ||
+        user?.role === "tenant"),
+    filterIncoming: filterForRole,
+    filterCached: filterForRole,
+    logLabel: "announcements-page",
+  });
 
-  // Persist whatever the user can currently see.
-  React.useEffect(() => {
-    if (!userId) return;
-    saveCachedAnnouncements(userId, announcements);
-  }, [announcements, userId]);
-
-  // NOTE: As of May 2026, the backend AnnouncementGateway rejects landlord/admin
-  // tokens. Landlords/admins rely on optimistic updates + cache until backend is fixed.
-  React.useEffect(() => {
-    if (!user?.id) return;
-
-    const token = user.token || readAnnouncementToken();
-    if (!token) {
-      console.warn("[announcements page] no token for socket");
-      return;
-    }
-
-    const subscription = subscribeAnnouncements({
-      token,
-      onLoad: (items) => {
-        const roleFiltered = filterForRole(items);
-        console.log("[announcements page] socket onLoad", {
-          role: user?.role,
-          rawCount: items.length,
-          filteredCount: roleFiltered.length,
-          rawItems: items,
-          filteredItems: roleFiltered,
-        });
-        setAnnouncements((prev) => mergeAnnouncementLists(prev, roleFiltered));
-      },
-      onRaw: (payload) => {
-        console.log("[announcements page] socket raw payload:", payload);
-      },
-      onError: (error) => {
-        console.warn("[announcements page] socket error:", error);
-        if (error.includes("Authentication failed")) {
-          console.warn(
-            "[announcements page] Backend rejecting token for role:",
-            user?.role,
-            ". Using cache + optimistic updates only.",
-          );
-        }
-      },
-    });
-
-    return () => {
-      subscription.disconnect();
-    };
-  }, [filterForRole, user?.id, user?.role, user?.token]);
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    React.useState<AnnouncementItemDTO | null>(null);
+  const [isSendAnnouncementOpen, setIsSendAnnouncementOpen] =
+    React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] =
+    React.useState<AnnouncementItemDTO | null>(null);
 
   const canDeleteAnnouncements =
     user?.role === "landlord" || user?.role === "property_manager";

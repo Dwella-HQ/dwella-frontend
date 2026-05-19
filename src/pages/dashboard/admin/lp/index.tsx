@@ -96,9 +96,9 @@ const LPPage: NextPageWithLayout = () => {
         <title>DWELLA NG · L & P</title>
       </Head>
       <AdminLayout title="L & P">
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="inline-flex rounded-md bg-white p-1 shadow-sm">
+        <section className="w-full min-w-0 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="inline-flex max-w-full flex-wrap rounded-md bg-white p-1 shadow-sm">
               <button
                 type="button"
                 onClick={() => setTab("active")}
@@ -135,7 +135,7 @@ const LPPage: NextPageWithLayout = () => {
             </p>
           ) : null}
 
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {tab === "managers"
               ? [
                   ["Property Managers", String(managers.length)],
@@ -174,7 +174,7 @@ const LPPage: NextPageWithLayout = () => {
                 ))}
           </div>
 
-          <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
+          <div className="w-full min-w-0 overflow-hidden rounded-lg border border-[#E2E8F0] bg-white p-4">
             <div className="mb-3 flex items-center gap-2">
               <p className="text-sm font-semibold">
                 {tab === "managers"
@@ -317,7 +317,7 @@ const LPPage: NextPageWithLayout = () => {
                   </p>
                 )}
             </div>
-            <div className="mt-3 flex items-center justify-between text-[11px] text-[#64748B]">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-[#64748B]">
               <p>
                 Rows:{" "}
                 {tab === "managers" ? managers.length : landlordRows.length}

@@ -123,7 +123,7 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
           ) : null}
 
           <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
-            <div className="grid grid-cols-[72px_1fr_auto] items-start gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[72px_1fr] lg:grid-cols-[72px_1fr_auto] lg:items-start">
               <div className="relative h-16 w-16 overflow-hidden rounded-md bg-[#E2E8F0]">
                 {photo ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -146,7 +146,7 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
                       Assigned landlord
                     </p>
                     <h2 className="text-3xl font-semibold">{title}</h2>
-                    <div className="mt-2 grid grid-cols-3 gap-4 text-xs">
+                    <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
                       <div className="flex items-center gap-2">
                         <Phone className="h-3.5 w-3.5 shrink-0 text-blue-600" />
                         <span className="min-w-0 truncate">
@@ -196,7 +196,7 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
               </span>
             </div>
 
-            <div className="mt-4 grid grid-cols-4 gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div
                 className="rounded-md p-3"
                 style={{ backgroundColor: ADMIN_STAT_BG.blue }}

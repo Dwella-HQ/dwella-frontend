@@ -238,7 +238,7 @@ const AdminUnitDetailPage: NextPageWithLayout = () => {
                 <p className="mt-2 text-right text-3xl font-semibold">
                   {formatMoney(unit.rentAmount)}
                 </p>
-                <div className="mt-3 grid grid-cols-4 gap-2 text-sm">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                   <div
                     className="rounded-md p-3"
                     style={{ backgroundColor: ADMIN_STAT_BG.blue }}

@@ -71,27 +71,27 @@ const AdminNotificationsPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Notifications</title>
       </Head>
       <AdminLayout title="Notifications">
-        <section className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-[#E2E8F0] bg-white p-3">
-            <div className="flex h-9 w-[420px] items-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3">
-              <Search className="h-3.5 w-3.5 text-[#64748B]" />
+        <section className="w-full min-w-0 space-y-4">
+          <div className="flex flex-col gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3">
+              <Search className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
               <input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full bg-transparent text-xs outline-none placeholder:text-[#94A3B8]"
+                className="w-full min-w-0 bg-transparent text-xs outline-none placeholder:text-[#94A3B8]"
                 placeholder="Search notifications"
               />
             </div>
             <button
               type="button"
               onClick={refresh}
-              className="rounded-md bg-[#111827] px-6 py-2 text-xs font-medium text-white"
+              className="shrink-0 rounded-md bg-[#111827] px-6 py-2 text-xs font-medium text-white"
             >
               Refresh
             </button>
           </div>
-          <div className="grid h-[620px] grid-cols-[320px_1fr] gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3">
-            <div className="space-y-2 border-r border-[#E2E8F0] pr-3">
+          <div className="flex flex-col gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 lg:grid lg:h-[620px] lg:grid-cols-[320px_1fr]">
+            <div className="max-h-[min(40vh,320px)] space-y-2 overflow-y-auto border-b border-[#E2E8F0] pb-3 lg:max-h-none lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
               {isLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-[#1E66FF]" />
@@ -127,37 +127,39 @@ const AdminNotificationsPage: NextPageWithLayout = () => {
                 ))
               )}
             </div>
-            {selectedNotification ? (
-              <div className="rounded-md border border-[#E2E8F0] p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {selectedNotification.title}
-                    </p>
-                    <p className="mt-1 text-xs text-[#64748B]">
-                      {selectedNotification.dateTime}
-                    </p>
+            <div className="min-w-0 w-full">
+              {selectedNotification ? (
+                <div className="rounded-md border border-[#E2E8F0] p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {selectedNotification.title}
+                      </p>
+                      <p className="mt-1 text-xs text-[#64748B]">
+                        {selectedNotification.dateTime}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDeleteNotification}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleDeleteNotification}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
+                  <p className="mt-3 text-sm leading-6 text-[#475569]">
+                    {selectedNotification.fullDescription}
+                  </p>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-[#475569]">
-                  {selectedNotification.fullDescription}
-                </p>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center rounded-md border border-[#E2E8F0] p-4">
-                <p className="text-sm text-[#64748B]">
-                  Select a notification to view details.
-                </p>
-              </div>
-            )}
+              ) : (
+                <div className="flex items-center justify-center rounded-md border border-[#E2E8F0] p-4">
+                  <p className="text-sm text-[#64748B]">
+                    Select a notification to view details.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </section>
       </AdminLayout>
