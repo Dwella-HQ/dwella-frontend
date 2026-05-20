@@ -7,12 +7,8 @@ const keyFor = (userId: string | null | undefined): string =>
   `${STORAGE_PREFIX}${userId ?? "anon"}`;
 
 /**
- * Reads the cached announcement list for the given user.
- *
- * Page refreshes and route changes both reset React state, so without a cache
- * the announcements page shows an empty list until the REST/socket round-trip
- * finishes. That window is what made freshly-created announcements appear to
- * disappear.
+ * @deprecated Announcements are socket-only; persistent cache caused cross-device
+ * drift and is no longer read. Kept for one-time cleanup via clearCachedAnnouncements.
  */
 export function loadCachedAnnouncements(
   userId: string | null | undefined,

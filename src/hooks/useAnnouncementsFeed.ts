@@ -3,11 +3,11 @@ import {
   subscribeAnnouncements,
   type AnnouncementItemDTO,
 } from "@/api/announcement";
-import { mergeAnnouncementLists } from "@/utils/mergeAnnouncementLists";
 import {
-  loadCachedAnnouncements,
-  saveCachedAnnouncements,
-} from "@/utils/announcementsCache";
+  mergeAnnouncementLists,
+  sortAnnouncementList,
+} from "@/utils/mergeAnnouncementLists";
+import { clearCachedAnnouncements } from "@/utils/announcementsCache";
 
 export const readAnnouncementToken = (): string => {
   if (typeof window === "undefined") return "";
@@ -32,13 +32,17 @@ export type UseAnnouncementsFeedOptions = {
   token?: string;
   enabled?: boolean;
   filterIncoming?: (items: AnnouncementItemDTO[]) => AnnouncementItemDTO[];
+  /** @deprecated No longer used — localStorage cache removed. */
   filterCached?: (items: AnnouncementItemDTO[]) => AnnouncementItemDTO[];
   logLabel?: string;
 };
 
 /**
- * Shared announcements feed: localStorage cache + socket subscription.
- * Used by landlord, property manager, and tenant dashboards/pages.
+ * Shared announcements feed via socket.io only (backend does not support GET list).
+ *
+ * Each socket `onLoad` payload replaces in-memory state so every device converges
+ * on the same server snapshot. Optimistic rows from `setAnnouncements` are kept until
+ * the next socket load; use merge helpers when prepending a freshly-created row.
  */
 export function useAnnouncementsFeed({
   userId,
@@ -46,59 +50,48 @@ export function useAnnouncementsFeed({
   token,
   enabled = true,
   filterIncoming = passthroughAnnouncements,
-  filterCached = passthroughAnnouncements,
   logLabel = "announcements",
 }: UseAnnouncementsFeedOptions) {
   const [announcements, setAnnouncements] = React.useState<
     AnnouncementItemDTO[]
   >([]);
+  const [isLoading, setIsLoading] = React.useState(false);
 
   const filterIncomingRef = React.useRef(filterIncoming);
-  const filterCachedRef = React.useRef(filterCached);
   filterIncomingRef.current = filterIncoming;
-  filterCachedRef.current = filterCached;
 
-  const cacheLoadedForUserRef = React.useRef<string | null>(null);
-  const lastSavedCacheKeyRef = React.useRef<string>("");
+  const hasReceivedSocketLoadRef = React.useRef(false);
 
-  const applyIncoming = React.useCallback((items: AnnouncementItemDTO[]) => {
+  const applySocketLoad = React.useCallback((items: AnnouncementItemDTO[]) => {
     const filtered = filterIncomingRef.current(items);
-    setAnnouncements((prev) => mergeAnnouncementLists(prev, filtered));
+    hasReceivedSocketLoadRef.current = true;
+    setIsLoading(false);
+    setAnnouncements(sortAnnouncementList(filtered));
   }, []);
 
-  // Hydrate from cache once per user session (not on every parent re-render).
+  // Reset when the signed-in user changes; drop legacy per-device localStorage cache.
   React.useEffect(() => {
     if (!enabled || !userId) {
-      cacheLoadedForUserRef.current = null;
+      hasReceivedSocketLoadRef.current = false;
+      setAnnouncements([]);
+      setIsLoading(false);
       return;
     }
-    if (cacheLoadedForUserRef.current === userId) return;
-    cacheLoadedForUserRef.current = userId;
 
-    const cached = filterCachedRef.current(loadCachedAnnouncements(userId));
-    if (cached.length > 0) {
-      setAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
-    }
+    hasReceivedSocketLoadRef.current = false;
+    setAnnouncements([]);
+    setIsLoading(true);
+    clearCachedAnnouncements(userId);
   }, [enabled, userId]);
 
-  // Persist cache only when the list actually changes.
-  React.useEffect(() => {
-    if (!enabled || !userId) return;
-    const snapshot = JSON.stringify(
-      announcements.map((a) => a.id ?? `${a.title}:${a.createdAt}`),
-    );
-    if (snapshot === lastSavedCacheKeyRef.current) return;
-    lastSavedCacheKeyRef.current = snapshot;
-    saveCachedAnnouncements(userId, announcements);
-  }, [announcements, enabled, userId]);
-
-  // Socket subscription — reconnect only when auth identity changes, not filters.
+  // Socket subscription — reconnect when auth identity changes.
   React.useEffect(() => {
     if (!enabled || !userId) return;
 
     const socketToken = token || readAnnouncementToken();
     if (!socketToken) {
       console.warn(`[${logLabel}] no token for announcement socket`);
+      setIsLoading(false);
       return;
     }
 
@@ -106,22 +99,35 @@ export function useAnnouncementsFeed({
       token: socketToken,
       onLoad: (items) => {
         if (process.env.NODE_ENV === "development") {
-          console.log(`[${logLabel}] socket onLoad`, {
+          console.log(`[${logLabel}] socket onLoad (replace)`, {
             role: userRole,
             count: items.length,
           });
         }
-        applyIncoming(items);
+        applySocketLoad(items);
       },
       onError: (error) => {
         console.warn(`[${logLabel}] socket error:`, error);
+        if (!hasReceivedSocketLoadRef.current) {
+          setIsLoading(false);
+        }
       },
     });
 
     return () => {
       subscription.disconnect();
     };
-  }, [applyIncoming, enabled, logLabel, token, userId, userRole]);
+  }, [applySocketLoad, enabled, logLabel, token, userId, userRole]);
 
-  return { announcements, setAnnouncements };
+  /** Prepend an optimistic row until the next socket snapshot arrives. */
+  const prependOptimistic = React.useCallback((item: AnnouncementItemDTO) => {
+    setAnnouncements((prev) => mergeAnnouncementLists([item], prev));
+  }, []);
+
+  return {
+    announcements,
+    setAnnouncements,
+    prependOptimistic,
+    isLoading,
+  };
 }
