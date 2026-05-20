@@ -1,10 +1,20 @@
 import type { AnnouncementItemDTO } from "@/api/announcement";
 
-const sortByNewest = (a: AnnouncementItemDTO, b: AnnouncementItemDTO) => {
+export const sortAnnouncementsByNewest = (
+  a: AnnouncementItemDTO,
+  b: AnnouncementItemDTO,
+) => {
   const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
   const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
   return tb - ta;
 };
+
+/** Sort a list newest-first (used when applying authoritative socket payloads). */
+export function sortAnnouncementList(
+  items: AnnouncementItemDTO[],
+): AnnouncementItemDTO[] {
+  return [...items].sort(sortAnnouncementsByNewest);
+}
 
 /**
  * Builds a stable identity key for an announcement.
@@ -59,7 +69,7 @@ export function mergeAnnouncementLists(
     }
   }
 
-  const result = Array.from(map.values()).sort(sortByNewest);
+  const result = Array.from(map.values()).sort(sortAnnouncementsByNewest);
 
   if (
     result.length === previous.length &&
