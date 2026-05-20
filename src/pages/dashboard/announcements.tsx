@@ -57,7 +57,6 @@ const AnnouncementsPage: NextPageWithLayout = () => {
         user?.role === "property_manager" ||
         user?.role === "tenant"),
     filterIncoming: filterForRole,
-    filterCached: filterForRole,
     logLabel: "announcements-page",
   });
 

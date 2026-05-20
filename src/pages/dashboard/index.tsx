@@ -218,7 +218,7 @@ const ManagerDashboard = () => {
     userRole: user?.role,
     token: user?.token,
     enabled: user?.role === "property_manager",
-    filterCached: filterBroadcastAnnouncements,
+    filterIncoming: filterBroadcastAnnouncements,
     logLabel: "manager",
   });
   const [selectedAnnouncement, setSelectedAnnouncement] =
@@ -758,7 +758,6 @@ const TenantDashboard = () => {
     token: user?.token,
     enabled: user?.role === "tenant",
     filterIncoming: filterBroadcastAnnouncements,
-    filterCached: filterBroadcastAnnouncements,
     logLabel: "tenant",
   });
   const [selectedAnnouncement, setSelectedAnnouncement] =

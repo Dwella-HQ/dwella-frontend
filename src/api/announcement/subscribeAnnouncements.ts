@@ -9,6 +9,8 @@ import {
 
 const announcementArrayPayloadSchema = z.array(announcementItemSchema);
 
+export const LOAD_ANNOUNCEMENTS_EVENT = "load:announcements";
+
 type SubscribeAnnouncementsOptions = {
   token?: string;
   onLoad: (items: AnnouncementItemDTO[]) => void;
@@ -50,11 +52,6 @@ const extractAnnouncementList = (
   return null;
 };
 
-/**
- * Always read the freshest token available so reconnection attempts (e.g.
- * after the access token rotates or after Next.js Fast Refresh tears down the
- * page) authenticate with the current credentials.
- */
 const readFreshToken = (fallback?: string): string => {
   if (typeof window !== "undefined") {
     const authToken = window.localStorage.getItem("authToken");
@@ -66,20 +63,19 @@ const readFreshToken = (fallback?: string): string => {
 };
 
 /**
- * Subscribe to announcement updates over socket.io.
- * Backend contract:
- * - namespace: /announcement
- * - websocket transport only
- * - auth/query payload includes token
+ * Subscribe to announcements on `/announcement`: emit and listen for
+ * `load:announcements` on connect (all roles).
  */
 export const subscribeAnnouncements = (
   options: SubscribeAnnouncementsOptions,
 ): AnnouncementSubscription => {
   const socketUrl = createUrl("/announcement");
   const initialToken = readFreshToken(options.token);
+
   if (process.env.NODE_ENV === "development") {
     console.log("[announcements] opening socket", {
       tokenLength: initialToken.length,
+      event: LOAD_ANNOUNCEMENTS_EVENT,
     });
   }
 
@@ -94,32 +90,11 @@ export const subscribeAnnouncements = (
     reconnectionDelay: 800,
     reconnectionDelayMax: 5000,
     query: { token: initialToken },
-    // `auth` accepts a callback so every (re)connect picks up the latest token
-    // from storage. Avoids `Authentication failed: Invalid token` after the
-    // access token rotates while the socket was alive.
     auth: (cb) => {
       cb({ token: readFreshToken(options.token) });
     },
   });
 
-  const loadEvents = [
-    "load:announcements",
-    "announcements:load",
-    "announcement:load",
-    "announcement",
-    "announcements",
-  ];
-
-  const requestEvents = [
-    "get:announcements",
-    "announcements:get",
-    "load:announcements",
-    "findAllAnnouncements",
-    "findAllAnnouncement",
-  ];
-
-  // Refresh the query string token on reconnect attempts too, since the
-  // backend reads `client.handshake.query.token` before `auth.token`.
   const stopReconnectIfAuthRejected = (message: string) => {
     if (!/authentication failed/i.test(message)) return;
     if (authRejected) return;
@@ -137,18 +112,19 @@ export const subscribeAnnouncements = (
   });
 
   socket.on("connect", () => {
-    console.log("[announcements] socket connected", {
-      namespace: "/announcement",
-      socketId: socket.id,
-    });
-
-    requestEvents.forEach((event) => {
-      socket.emit(event);
-    });
+    if (process.env.NODE_ENV === "development") {
+      console.log("[announcements] socket connected", {
+        namespace: "/announcement",
+        socketId: socket.id,
+      });
+    }
+    socket.emit(LOAD_ANNOUNCEMENTS_EVENT);
   });
 
   socket.on("disconnect", (reason: string) => {
-    console.log("[announcements] socket disconnected", { reason });
+    if (process.env.NODE_ENV === "development") {
+      console.log("[announcements] socket disconnected", { reason });
+    }
   });
 
   socket.on("connect_error", (error: Error) => {
@@ -168,15 +144,6 @@ export const subscribeAnnouncements = (
     options.onError?.(message);
   });
 
-  // Debug-only: log unexpected server event names (avoid flooding the console).
-  if (process.env.NODE_ENV === "development") {
-    socket.onAny((event: string, ...args: unknown[]) => {
-      if (!loadEvents.includes(event) && event !== "connect") {
-        console.log("[announcements] socket event:", event, args);
-      }
-    });
-  }
-
   const handleAnnouncementLoad = (payload: unknown) => {
     options.onRaw?.(payload);
     const items = extractAnnouncementList(payload);
@@ -192,20 +159,13 @@ export const subscribeAnnouncements = (
     options.onError?.("Unable to read announcements");
   };
 
-  loadEvents.forEach((event) => {
-    socket.on(event, handleAnnouncementLoad);
-  });
+  socket.on(LOAD_ANNOUNCEMENTS_EVENT, handleAnnouncementLoad);
 
   socket.connect();
 
   return {
     disconnect: () => {
-      if (process.env.NODE_ENV === "development") {
-        socket.offAny();
-      }
-      loadEvents.forEach((event) => {
-        socket.removeAllListeners(event);
-      });
+      socket.removeAllListeners(LOAD_ANNOUNCEMENTS_EVENT);
       socket.removeAllListeners("connect");
       socket.removeAllListeners("disconnect");
       socket.removeAllListeners("connect_error");
