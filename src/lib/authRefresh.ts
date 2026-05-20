@@ -3,6 +3,26 @@ import { createUrl } from "@/utils/createUrl";
 
 export const REFRESH_TOKEN_STORAGE_KEY = "refreshToken";
 
+/** Fired after `persistAccessToken` updates storage (keep React user/socket consumers in sync). */
+export const AUTH_ACCESS_TOKEN_UPDATED_EVENT = "dwella:access-token-updated";
+
+/**
+ * Extract refresh token from common login response shapes (email + social login).
+ */
+export function extractRefreshTokenFromAuthPayload(
+  raw: unknown,
+): string | null {
+  const r = raw as {
+    refreshToken?: unknown;
+    data?: { refreshToken?: unknown };
+  };
+  const refresh =
+    (typeof r?.data?.refreshToken === "string" && r.data.refreshToken) ||
+    (typeof r?.refreshToken === "string" && r.refreshToken) ||
+    null;
+  return refresh;
+}
+
 export function getStoredRefreshToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
@@ -35,6 +55,12 @@ export function persistAccessToken(accessToken: string): void {
       u.token = accessToken;
       localStorage.setItem("user", JSON.stringify(u));
     }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    window.dispatchEvent(new Event(AUTH_ACCESS_TOKEN_UPDATED_EVENT));
   } catch {
     /* ignore */
   }

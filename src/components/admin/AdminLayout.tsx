@@ -107,7 +107,7 @@ export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
   if (isLoading || !user || user.role !== "super_admin") return null;
 
   return (
-    <div className="min-h-screen bg-[#EEF2F6] text-[#0F172A]">
+    <div className="min-h-screen [color-scheme:light] bg-[#EEF2F6] text-[#0F172A]">
       {sidebarOpen ? (
         <button
           type="button"
@@ -177,13 +177,13 @@ export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
             <h1 className="truncate text-sm font-semibold sm:text-[15px]">
               {title}
             </h1>
-            <div className="hidden min-w-0 flex-1 items-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1 md:flex lg:max-w-[306px]">
+            <div className="hidden min-w-0 flex-1 items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-1 md:flex lg:max-w-[306px]">
               <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" />
               <input
                 readOnly
                 value=""
                 placeholder="Search by user, action type, log ID, or keywords."
-                className="w-full min-w-0 bg-transparent text-xs outline-none placeholder:text-gray-400"
+                className="w-full min-w-0 bg-white text-xs text-[#0F172A] outline-none placeholder:text-gray-400"
               />
             </div>
           </div>

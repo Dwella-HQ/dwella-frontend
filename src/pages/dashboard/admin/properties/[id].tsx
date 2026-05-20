@@ -9,8 +9,15 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { RecentPayments } from "@/components/RecentPayments";
 import { MaintenanceRequests } from "@/components/MaintenanceRequests";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
-import { getProperty, type PropertyDTO } from "@/api/properties";
+import { getProperty, updateProperty, type PropertyDTO } from "@/api/properties";
 import { getUnitsByProperty, type UnitDTO } from "@/api/units";
+import { getTenantList } from "@/api/tenants";
+import type { TenantRecordDTO } from "@/api/tenants/tenants.schema";
+import {
+  buildUnitIndexSets,
+  resolveTenantUnitLabel,
+  tenantRecordBelongsToProperty,
+} from "@/lib/admin/tenantPropertyMatch";
 import { getRentPayments } from "@/api/rent-payment";
 import { getMaintenanceRequests } from "@/api/maintenance";
 import type {
@@ -18,6 +25,7 @@ import type {
   MaintenanceRequestWithDetails,
   Payment,
 } from "@/data/mockLandlordData";
+import { useToast } from "@/components/Toast";
 
 function formatAddress(property: PropertyDTO | null): string {
   if (!property?.address) return "Address unavailable";
@@ -28,23 +36,6 @@ function formatAddress(property: PropertyDTO | null): string {
 function getPhotos(property: PropertyDTO | null): string[] {
   if (!property?.photos?.length) return [];
   return property.photos.map((p) => p.url).filter((u): u is string => !!u);
-}
-
-function getOccupancy(property: PropertyDTO | null): string {
-  if (!property) return "—";
-  const units = Array.isArray(property.units) ? property.units : [];
-  if (!units.length) return "—";
-  const occupied = units.filter((unit) => {
-    if (!unit || typeof unit !== "object") return false;
-    const u = unit as Record<string, unknown>;
-    return (
-      u.isOccupied === true ||
-      u.isAvailable === false ||
-      u.status === "OCCUPIED" ||
-      u.status === "occupied"
-    );
-  }).length;
-  return `${Math.round((occupied / units.length) * 100)}%`;
 }
 
 function getYearBuilt(property: PropertyDTO | null): string {
@@ -109,8 +100,13 @@ function getUnitTenant(
 
 const AdminPropertyDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
-  const { id } = router.query;
+  const { showToast } = useToast();
+  const { id, mode: modeQuery } = router.query;
   const propertyId = typeof id === "string" ? id : null;
+  const isEditMode =
+    router.isReady &&
+    typeof modeQuery === "string" &&
+    modeQuery.toLowerCase() === "edit";
 
   const [tab, setTab] = React.useState<
     "overview" | "units" | "tenants" | "payments" | "maintenance" | "documents"
@@ -124,6 +120,136 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
   >([]);
   const [propertyMaintenanceFromApi, setPropertyMaintenanceFromApi] =
     React.useState<MaintenanceRequestWithDetails[]>([]);
+  const [tenantRecords, setTenantRecords] = React.useState<TenantRecordDTO[]>(
+    [],
+  );
+
+  const [editName, setEditName] = React.useState("");
+  const [editDescription, setEditDescription] = React.useState("");
+  const [editYearBuilt, setEditYearBuilt] = React.useState("");
+  const [editNumberOfUnits, setEditNumberOfUnits] = React.useState("");
+  const [editParkingSpace, setEditParkingSpace] = React.useState(false);
+  const [editAddrLine, setEditAddrLine] = React.useState("");
+  const [editAddrStreet, setEditAddrStreet] = React.useState("");
+  const [editAddrCity, setEditAddrCity] = React.useState("");
+  const [editAddrState, setEditAddrState] = React.useState("");
+  const [editAddrPostal, setEditAddrPostal] = React.useState("");
+  const [editAddrCountry, setEditAddrCountry] = React.useState("Nigeria");
+  const [editAmenitiesText, setEditAmenitiesText] = React.useState("");
+  const [isSavingEdit, setIsSavingEdit] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!property) return;
+    setEditName(property.name ?? "");
+    setEditDescription(property.description ?? "");
+    setEditYearBuilt(
+      property.yearBuilt != null ? String(property.yearBuilt) : "",
+    );
+    setEditNumberOfUnits(String(property.numberOfUnits ?? ""));
+    setEditParkingSpace(Boolean(property.parkingSpace));
+    const a = property.address;
+    setEditAddrLine(a?.address ?? "");
+    setEditAddrStreet(a?.street ?? "");
+    setEditAddrCity(a?.city ?? "");
+    setEditAddrState(a?.state ?? "");
+    setEditAddrPostal(a?.postalCode ?? "");
+    setEditAddrCountry(a?.country ?? "Nigeria");
+    setEditAmenitiesText((property.amenities ?? []).join(", "));
+  }, [property]);
+
+  const exitEditMode = React.useCallback(() => {
+    if (!propertyId) return;
+    void router.replace(`/dashboard/admin/properties/${propertyId}`, undefined, {
+      shallow: true,
+    });
+  }, [propertyId, router]);
+
+  const handleSavePropertyEdit = React.useCallback(async () => {
+    if (!propertyId || !property) return;
+    const name = editName.trim();
+    if (!name) {
+      showToast("Property name is required.", "error");
+      return;
+    }
+    const city = editAddrCity.trim();
+    const state = editAddrState.trim();
+    const addrLine = editAddrLine.trim();
+    if (!addrLine || !city || !state) {
+      showToast(
+        "Address line, city, and state are required to save.",
+        "error",
+      );
+      return;
+    }
+    const numUnits = Number.parseInt(editNumberOfUnits, 10);
+    if (!Number.isFinite(numUnits) || numUnits < 0) {
+      showToast("Number of units must be a valid non-negative number.", "error");
+      return;
+    }
+    let yearBuiltPayload: string | undefined;
+    const yb = editYearBuilt.trim();
+    if (yb.length > 0) {
+      if (yb.length !== 4 || !/^\d{4}$/.test(yb)) {
+        showToast("Year built must be exactly 4 digits (e.g. 2019).", "error");
+        return;
+      }
+      yearBuiltPayload = yb;
+    }
+
+    const amenities = editAmenitiesText
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const landlordId =
+      property.landlordId ?? property.landlord?.id ?? undefined;
+
+    setIsSavingEdit(true);
+    const result = await updateProperty(propertyId, {
+      ...(landlordId ? { landlordId } : {}),
+      name,
+      description: editDescription.trim() || undefined,
+      yearBuilt: yearBuiltPayload,
+      numberOfUnits: numUnits,
+      parkingSpace: editParkingSpace,
+      amenities,
+      address: {
+        address: addrLine,
+        street: editAddrStreet.trim() || undefined,
+        city,
+        state,
+        postalCode: editAddrPostal.trim() || undefined,
+        country: editAddrCountry.trim() || "Nigeria",
+      },
+    });
+    setIsSavingEdit(false);
+
+    if (!result.success) {
+      showToast(result.error || "Failed to update property.", "error");
+      return;
+    }
+
+    setProperty(result.data);
+    showToast("Property updated.", "success");
+    exitEditMode();
+  }, [
+    editAddrCity,
+    editAddrCountry,
+    editAddrLine,
+    editAddrPostal,
+    editAddrState,
+    editAddrStreet,
+    editAmenitiesText,
+    editDescription,
+    editName,
+    editNumberOfUnits,
+    editParkingSpace,
+    editYearBuilt,
+    exitEditMode,
+    property,
+    propertyId,
+    showToast,
+  ]);
 
   const tabs = [
     "overview",
@@ -145,13 +271,7 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
   );
   const units = React.useMemo<Record<string, unknown>[]>(() => {
     if (unitsFromApi.length > 0) {
-      return unitsFromApi.map((u) => ({
-        id: u.id,
-        name: u.name,
-        numberOfBedrooms: u.numberOfBedrooms,
-        isAvailable: u.isAvailable,
-        rentAmount: u.rentAmount,
-      }));
+      return unitsFromApi.map((u) => u as unknown as Record<string, unknown>);
     }
     return embeddedUnits;
   }, [unitsFromApi, embeddedUnits]);
@@ -160,47 +280,162 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
       ? unitsFromApi.length
       : (property?.numberOfUnits ?? embeddedUnits.length ?? "—");
   const tenants = React.useMemo(() => {
-    const rows = units
-      .map((unit) => {
-        const tenant = getUnitTenant(unit);
-        if (!tenant) return null;
-        return {
-          id:
-            readString(tenant.id) ??
-            readString(unit.id) ??
-            Math.random().toString(36),
-          name:
-            readString(tenant.fullName) ??
-            readString(tenant.name) ??
-            readString(tenant.email) ??
-            "Unnamed tenant",
-          email: readString(tenant.email) ?? "—",
-          phone:
-            readString(tenant.phoneNumber) ?? readString(tenant.phone) ?? "—",
-          unitName:
-            readString(unit.name) ??
-            readString(unit.unitNumber) ??
-            readString(unit.code) ??
-            "—",
-          status: unitStatusLabel(unit),
-        };
-      })
-      .filter(
-        (
-          row,
-        ): row is {
-          id: string;
-          name: string;
-          email: string;
-          phone: string;
-          unitName: string;
-          status: string;
-        } => row !== null,
-      );
-    const unique = new Map<string, (typeof rows)[number]>();
-    rows.forEach((row) => unique.set(row.id, row));
-    return Array.from(unique.values());
+    type Row = {
+      id: string;
+      name: string;
+      email: string;
+      phone: string;
+      unitName: string;
+      status: string;
+    };
+    if (!propertyId) return [];
+
+    const fromEmbedded: Row[] = [];
+    for (const unit of units) {
+      const tenant = getUnitTenant(unit);
+      if (!tenant) continue;
+      const tid =
+        readString(tenant.id) ??
+        readString(asRecord(tenant.user)?.id) ??
+        readString(tenant.email);
+      if (!tid) continue;
+      fromEmbedded.push({
+        id: tid,
+        name:
+          readString(tenant.fullName) ??
+          readString(tenant.name) ??
+          readString(asRecord(tenant.user)?.fullName) ??
+          readString(tenant.email) ??
+          "—",
+        email:
+          readString(tenant.email) ??
+          readString(asRecord(tenant.user)?.email) ??
+          "—",
+        phone:
+          readString(tenant.phoneNumber) ??
+          readString(tenant.phone) ??
+          readString(asRecord(tenant.user)?.phoneNumber) ??
+          "—",
+        unitName:
+          readString(unit.name) ??
+          readString(unit.unitNumber) ??
+          readString(unit.code) ??
+          "—",
+        status: unitStatusLabel(unit),
+      });
+    }
+
+    const { unitIds, unitNamesLower } = buildUnitIndexSets(units);
+
+    const fromTenantApi: Row[] = [];
+    for (const tr of tenantRecords) {
+      const r = tr as Record<string, unknown>;
+      if (
+        !tenantRecordBelongsToProperty(
+          r,
+          propertyId,
+          unitIds,
+          unitNamesLower,
+        )
+      ) {
+        continue;
+      }
+      const tid = readString(r.id);
+      if (!tid) continue;
+      fromTenantApi.push({
+        id: tid,
+        name:
+          readString(r.fullName) ??
+          readString(r.name) ??
+          readString(asRecord(r.user)?.fullName) ??
+          readString(asRecord(r.user)?.email) ??
+          "—",
+        email:
+          readString(r.email) ?? readString(asRecord(r.user)?.email) ?? "—",
+        phone:
+          readString(r.phoneNumber) ??
+          readString(r.phone) ??
+          readString(asRecord(r.user)?.phoneNumber) ??
+          "—",
+        unitName: resolveTenantUnitLabel(r, units),
+        status: readString(r.status) ?? "Active",
+      });
+    }
+
+    const merged = new Map<string, Row>();
+    for (const row of fromTenantApi) merged.set(row.id, row);
+    for (const row of fromEmbedded) merged.set(row.id, row);
+    return Array.from(merged.values());
+  }, [units, tenantRecords, propertyId]);
+
+  const overviewMonthlyRent = React.useMemo(() => {
+    let sum = 0;
+    for (const u of units) {
+      const n = readNumber((u as Record<string, unknown>).rentAmount);
+      if (n != null && n > 0) sum += n;
+    }
+    if (sum <= 0) return "—";
+    return formatMoney(sum);
   }, [units]);
+
+  const overviewOccupancy = React.useMemo(() => {
+    if (!propertyId || !units.length) return "—";
+    const idx = buildUnitIndexSets(units);
+    let occupied = 0;
+    for (const unit of units) {
+      if (getUnitTenant(unit)) {
+        occupied += 1;
+        continue;
+      }
+      const uid = readString(unit.id);
+      const uname = readString(unit.name)?.trim().toLowerCase();
+      const claimed = tenantRecords.some((tr) => {
+        const r = tr as Record<string, unknown>;
+        if (
+          !tenantRecordBelongsToProperty(
+            r,
+            propertyId,
+            idx.unitIds,
+            idx.unitNamesLower,
+          )
+        ) {
+          return false;
+        }
+        const cu = asRecord(r.currentUnit);
+        if (cu) {
+          if (uid && readString(cu.id) === uid) return true;
+          const cname = readString(cu.name)?.trim().toLowerCase();
+          if (uname && cname === uname) return true;
+        }
+        const leases = r.leases;
+        if (!Array.isArray(leases)) return false;
+        for (const raw of leases) {
+          const lease = asRecord(raw);
+          const ut = lease ? asRecord(lease.unit) : null;
+          if (ut) {
+            if (uid && readString(ut.id) === uid) return true;
+            const tname = readString(ut.name)?.trim().toLowerCase();
+            if (uname && tname === uname) return true;
+          }
+        }
+        return false;
+      });
+      if (claimed) {
+        occupied += 1;
+        continue;
+      }
+      const ur = unit as Record<string, unknown>;
+      if (
+        ur.isOccupied === true ||
+        ur.isAvailable === false ||
+        readString(ur.status)?.toUpperCase() === "OCCUPIED" ||
+        readString(ur.status)?.toLowerCase() === "occupied"
+      ) {
+        occupied += 1;
+      }
+    }
+    return `${Math.round((occupied / units.length) * 100)}%`;
+  }, [units, tenantRecords, propertyId]);
   const documents = property?.documents ?? [];
   const propertyNameBase = React.useMemo(
     () =>
@@ -305,6 +540,18 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
     };
   }, [propertyId]);
 
+  React.useEffect(() => {
+    if (!propertyId) return;
+    let cancelled = false;
+    void getTenantList({ limit: 500 }).then((result) => {
+      if (cancelled) return;
+      setTenantRecords(result.success ? result.data : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId]);
+
   return (
     <>
       <Head>
@@ -331,10 +578,25 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                   </p>
                 </div>
               </div>
-              <button className="inline-flex items-center gap-2 rounded-md border border-[#CBD5E1] px-3 py-1.5 text-xs">
-                <Download className="h-3.5 w-3.5" />
-                Export
-              </button>
+              <div className="flex items-center gap-2">
+                {!isEditMode && propertyId ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void router.push(
+                        `/dashboard/admin/properties/${propertyId}?mode=edit`,
+                      )
+                    }
+                    className="inline-flex items-center gap-2 rounded-md border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs hover:bg-[#F8FAFC]"
+                  >
+                    Edit property
+                  </button>
+                ) : null}
+                <button className="inline-flex items-center gap-2 rounded-md border border-[#CBD5E1] px-3 py-1.5 text-xs">
+                  <Download className="h-3.5 w-3.5" />
+                  Export
+                </button>
+              </div>
             </div>
             <div className="grid gap-6 border-b border-[#E2E8F0] pb-4 lg:grid-cols-3 lg:items-stretch">
               <div className="lg:col-span-2 flex">
@@ -392,7 +654,9 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                     >
                       Monthly Rent
                     </p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">—</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {overviewMonthlyRent}
+                    </p>
                   </div>
                   <div
                     className="rounded-lg border border-gray-200 p-4"
@@ -405,7 +669,7 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                       Occupancy
                     </p>
                     <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {getOccupancy(property)}
+                      {overviewOccupancy}
                     </p>
                   </div>
                   <div
@@ -477,6 +741,159 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                 {loadError}
               </p>
             ) : null}
+
+            {isEditMode && property && !loadError ? (
+              <div className="mt-4 rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-[#0F172A]">
+                    Edit property details
+                  </h3>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={exitEditMode}
+                      disabled={isSavingEdit}
+                      className="rounded-md border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-medium text-[#334155] hover:bg-[#F8FAFC] disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSavePropertyEdit()}
+                      disabled={isSavingEdit}
+                      className="rounded-md bg-[#1E66FF] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1857CC] disabled:opacity-50"
+                    >
+                      {isSavingEdit ? "Saving…" : "Save changes"}
+                    </button>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-xs font-medium text-[#334155] sm:col-span-2">
+                    Property name *
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-[#334155] sm:col-span-2">
+                    Description
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-[#334155]">
+                    Year built (YYYY)
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={editYearBuilt}
+                      onChange={(e) =>
+                        setEditYearBuilt(e.target.value.replace(/\D/g, "").slice(0, 4))
+                      }
+                      placeholder="2019"
+                      className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-[#334155]">
+                    Number of units *
+                    <input
+                      type="number"
+                      min={0}
+                      value={editNumberOfUnits}
+                      onChange={(e) => setEditNumberOfUnits(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-[#334155] sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={editParkingSpace}
+                      onChange={(e) => setEditParkingSpace(e.target.checked)}
+                      className="rounded border-[#CBD5E1]"
+                    />
+                    Parking space available
+                  </label>
+                  <div className="sm:col-span-2">
+                    <p className="mb-2 text-xs font-semibold uppercase text-[#64748B]">
+                      Address
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-xs font-medium text-[#334155] sm:col-span-2">
+                        Street / address line *
+                        <input
+                          type="text"
+                          value={editAddrLine}
+                          onChange={(e) => setEditAddrLine(e.target.value)}
+                          className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-[#334155]">
+                        Line 2 (optional)
+                        <input
+                          type="text"
+                          value={editAddrStreet}
+                          onChange={(e) => setEditAddrStreet(e.target.value)}
+                          className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-[#334155]">
+                        City *
+                        <input
+                          type="text"
+                          value={editAddrCity}
+                          onChange={(e) => setEditAddrCity(e.target.value)}
+                          className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-[#334155]">
+                        State *
+                        <input
+                          type="text"
+                          value={editAddrState}
+                          onChange={(e) => setEditAddrState(e.target.value)}
+                          className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-[#334155]">
+                        Postal code
+                        <input
+                          type="text"
+                          value={editAddrPostal}
+                          onChange={(e) => setEditAddrPostal(e.target.value)}
+                          className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-[#334155]">
+                        Country
+                        <input
+                          type="text"
+                          value={editAddrCountry}
+                          onChange={(e) => setEditAddrCountry(e.target.value)}
+                          className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <label className="block text-xs font-medium text-[#334155] sm:col-span-2">
+                    Amenities (comma-separated)
+                    <input
+                      type="text"
+                      value={editAmenitiesText}
+                      onChange={(e) => setEditAmenitiesText(e.target.value)}
+                      placeholder="Pool, Gym, Parking"
+                      className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-2 overflow-x-auto border-b border-gray-200 scrollbar-hide">
               <div className="inline-flex min-w-max gap-4">
                 {tabs.map((t) => (
@@ -640,7 +1057,8 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                           className="py-4 text-center text-[#64748B]"
                           colSpan={7}
                         >
-                          No tenants found on this property response.
+                          No tenants are associated with this property in the
+                          current data.
                         </td>
                       </tr>
                     )}

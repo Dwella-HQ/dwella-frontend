@@ -65,21 +65,31 @@ function DocLink({
   file?: VerificationFileRef | null;
 }) {
   if (!file?.url) return null;
+  const titleAttr =
+    file.fileName != null ? `${label}: ${file.fileName}` : label;
   return (
     <a
       href={file.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] text-[#1E66FF] transition hover:bg-[#F8FAFC]"
+      title={titleAttr}
+      className="flex min-h-0 min-w-0 w-full max-w-full items-center gap-2 overflow-hidden rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] text-[#1E66FF] transition hover:bg-[#F8FAFC]"
     >
       <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
-      <span className="min-w-0 flex-1 truncate">
-        <span className="font-medium text-[#0F172A]">{label}</span>
+      <span className="min-w-0 flex-1 overflow-hidden">
+        <span className="block truncate font-medium text-[#0F172A]">
+          {label}
+        </span>
         {file.fileName ? (
-          <span className="text-[#64748B]"> · {file.fileName}</span>
+          <span
+            className="block truncate text-[11px] leading-snug text-[#64748B]"
+            title={file.fileName}
+          >
+            {file.fileName}
+          </span>
         ) : null}
       </span>
-      <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
+      <ExternalLink className="h-3 w-3 shrink-0 opacity-50" aria-hidden />
     </a>
   );
 }
@@ -290,7 +300,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(280px,360px)_1fr]">
+          <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
             <div className="flex flex-col rounded-lg border border-[#E2E8F0] bg-white">
               <div className="border-b border-[#E2E8F0] p-3">
                 <p className="mb-2 text-[12px] font-semibold text-[#0F172A]">
@@ -302,7 +312,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                     onChange={(e) =>
                       setFilterStatus(e.target.value as typeof filterStatus)
                     }
-                    className="h-8 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-2 text-[11px]"
+                    className="h-8 rounded-md border border-[#E2E8F0] bg-white px-2 text-[11px] text-[#0F172A]"
                   >
                     <option value="all">All statuses</option>
                     <option value="PENDING">Pending</option>
@@ -314,7 +324,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                     onChange={(e) =>
                       setFilterKind(e.target.value as typeof filterKind)
                     }
-                    className="h-8 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-2 text-[11px]"
+                    className="h-8 rounded-md border border-[#E2E8F0] bg-white px-2 text-[11px] text-[#0F172A]"
                   >
                     <option value="all">All types</option>
                     <option value="landlord">Landlord</option>
@@ -389,7 +399,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
               </div>
             </div>
 
-            <div className="min-h-[420px] rounded-lg border border-[#E2E8F0] bg-white p-5">
+            <div className="min-h-[420px] min-w-0 overflow-hidden rounded-lg border border-[#E2E8F0] bg-white p-5">
               {!selectedId && (
                 <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center text-[13px] text-[#64748B]">
                   <BadgeCheck className="mb-3 h-10 w-10 text-[#CBD5E1]" />
@@ -415,7 +425,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                   const propertyIdDisp = entityPropertyId(d);
 
                   return (
-                    <div className="space-y-5">
+                    <div className="min-w-0 space-y-5">
                       <div>
                         <p className="text-[20px] font-semibold leading-tight text-[#0F172A]">
                           {verificationSubjectLabel(d)}
@@ -423,7 +433,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                         <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-[#64748B]">
                           Verification reference
                         </p>
-                        <p className="font-mono text-[12px] text-[#334155]">
+                        <p className="break-all font-mono text-[12px] text-[#334155]">
                           {d.id}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -510,7 +520,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                       ) : null}
 
                       {land ? (
-                        <div className="rounded-lg border border-[#E2E8F0] p-4">
+                        <div className="min-w-0 rounded-lg border border-[#E2E8F0] p-4">
                           <p className="text-[12px] font-semibold text-[#0F172A]">
                             Landlord
                           </p>
@@ -555,7 +565,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                               ) : null}
                             </div>
                           </div>
-                          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                          <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
                             <DocLink
                               label="Profile photo"
                               file={land.profilePicture}
@@ -581,7 +591,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                       ) : null}
 
                       {prop ? (
-                        <div className="rounded-lg border border-[#E2E8F0] p-4">
+                        <div className="min-w-0 rounded-lg border border-[#E2E8F0] p-4">
                           <p className="text-[12px] font-semibold text-[#0F172A]">
                             Property
                           </p>

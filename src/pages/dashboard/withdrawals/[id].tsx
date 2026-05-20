@@ -12,7 +12,6 @@ import {
   updateWithdrawal,
   deleteWithdrawal,
   type WithdrawalItemDTO,
-  type WithdrawalRecipientDetailsDTO,
 } from "@/api/withdrawal";
 
 const WithdrawalsIdPage: NextPageWithLayout = () => {
@@ -28,10 +27,6 @@ const WithdrawalsIdPage: NextPageWithLayout = () => {
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [editAmount, setEditAmount] = React.useState<string>("");
   const [editNarration, setEditNarration] = React.useState<string>("");
-  const [editStatus, setEditStatus] = React.useState<string>("");
-
-  const [recipient, setRecipient] =
-    React.useState<WithdrawalRecipientDetailsDTO>({});
 
   React.useEffect(() => {
     let cancelled = false;
@@ -63,8 +58,6 @@ const WithdrawalsIdPage: NextPageWithLayout = () => {
       withdrawal.amount !== undefined ? String(withdrawal.amount) : "",
     );
     setEditNarration(withdrawal.narration ?? "");
-    setEditStatus(withdrawal.status ?? "");
-    setRecipient((withdrawal.recipientDetails as any) ?? {});
   }, [withdrawal]);
 
   const handleDelete = React.useCallback(async () => {
@@ -86,8 +79,6 @@ const WithdrawalsIdPage: NextPageWithLayout = () => {
     const payload = {
       amount: editAmount ? Number(editAmount) : undefined,
       narration: editNarration || undefined,
-      recipientDetails: recipient,
-      status: editStatus || undefined,
     };
     const result = await updateWithdrawal(id, payload);
     if (result.success) {
@@ -103,7 +94,7 @@ const WithdrawalsIdPage: NextPageWithLayout = () => {
       showToast(result.error || "Failed to update withdrawal", "error");
     }
     setLoading(false);
-  }, [editAmount, editNarration, editStatus, id, recipient, showToast]);
+  }, [editAmount, editNarration, id, showToast]);
 
   return (
     <>
@@ -206,13 +197,22 @@ const WithdrawalsIdPage: NextPageWithLayout = () => {
               </p>
               <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-4 space-y-2">
                 <p className="text-sm text-gray-700">
-                  Name: {recipient.accountName ?? "—"}
+                  Name:{" "}
+                  {(withdrawal.recipientDetails as { accountName?: string })
+                    ?.accountName ??
+                    (withdrawal.recipientDetails as { fullName?: string })
+                      ?.fullName ??
+                    "—"}
                 </p>
                 <p className="text-sm text-gray-700">
-                  Bank: {recipient.bankName ?? recipient.bankCode ?? "—"}
+                  Bank:{" "}
+                  {withdrawal.recipientDetails?.bankName ??
+                    withdrawal.recipientDetails?.bankCode ??
+                    "—"}
                 </p>
                 <p className="text-sm text-gray-700">
-                  Account Number: {recipient.accountNumber ?? "—"}
+                  Account Number:{" "}
+                  {withdrawal.recipientDetails?.accountNumber ?? "—"}
                 </p>
               </div>
             </div>
@@ -240,7 +240,8 @@ const WithdrawalsIdPage: NextPageWithLayout = () => {
               Edit Withdrawal
             </Dialog.Title>
             <Dialog.Description className="mt-1 text-sm text-gray-600">
-              Update the withdrawal fields below.
+              Update amount or narration. The payout bank account is managed in
+              Settings, not here.
             </Dialog.Description>
 
             <div className="mt-5 space-y-4">
@@ -262,74 +263,6 @@ const WithdrawalsIdPage: NextPageWithLayout = () => {
                 <input
                   value={editNarration}
                   onChange={(e) => setEditNarration(e.target.value)}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Status
-                </label>
-                <input
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value)}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Account Name
-                  </label>
-                  <input
-                    value={recipient.accountName ?? ""}
-                    onChange={(e) =>
-                      setRecipient((p) => ({
-                        ...p,
-                        accountName: e.target.value,
-                      }))
-                    }
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Account Number
-                  </label>
-                  <input
-                    value={recipient.accountNumber ?? ""}
-                    onChange={(e) =>
-                      setRecipient((p) => ({
-                        ...p,
-                        accountNumber: e.target.value,
-                      }))
-                    }
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Bank Code
-                </label>
-                <input
-                  value={recipient.bankCode ?? ""}
-                  onChange={(e) =>
-                    setRecipient((p) => ({ ...p, bankCode: e.target.value }))
-                  }
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Bank Name
-                </label>
-                <input
-                  value={recipient.bankName ?? ""}
-                  onChange={(e) =>
-                    setRecipient((p) => ({ ...p, bankName: e.target.value }))
-                  }
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
                 />
               </div>

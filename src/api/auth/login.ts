@@ -1,5 +1,8 @@
 import { apiPost } from "@/lib/apiClient";
-import { setStoredRefreshToken } from "@/lib/authRefresh";
+import {
+  extractRefreshTokenFromAuthPayload,
+  setStoredRefreshToken,
+} from "@/lib/authRefresh";
 
 import type { LoginRequestDTO, NewLoginResponseDTO } from "./auth.schema";
 import { newLoginResponseSchema } from "./auth.schema";
@@ -88,16 +91,7 @@ export const login = async (
       return result.data;
     })();
 
-    const rawNormalized = normalized as {
-      refreshToken?: unknown;
-      data?: { refreshToken?: unknown };
-    };
-    const refreshToken =
-      (typeof rawNormalized?.data?.refreshToken === "string" &&
-        rawNormalized.data.refreshToken) ||
-      (typeof rawNormalized?.refreshToken === "string" &&
-        rawNormalized.refreshToken) ||
-      null;
+    const refreshToken = extractRefreshTokenFromAuthPayload(normalized);
     if (typeof window !== "undefined" && refreshToken) {
       setStoredRefreshToken(refreshToken);
     }

@@ -60,16 +60,6 @@ const readFreshToken = (fallback?: string): string => {
     const authToken = window.localStorage.getItem("authToken");
     const accessToken = window.localStorage.getItem("accessToken");
     const stored = authToken || accessToken;
-    console.log(
-      "[socket token] authToken exists:",
-      !!authToken,
-      "accessToken exists:",
-      !!accessToken,
-      "using:",
-      stored ? "FOUND" : "NONE",
-      "fallback:",
-      fallback ? "PROVIDED" : "NONE",
-    );
     if (stored) return stored;
   }
   return fallback || "";
@@ -87,12 +77,11 @@ export const subscribeAnnouncements = (
 ): AnnouncementSubscription => {
   const socketUrl = createUrl("/announcement");
   const initialToken = readFreshToken(options.token);
-  console.log(
-    "[socket] creating announcement socket, token length:",
-    initialToken.length,
-    "first 20 chars:",
-    initialToken.slice(0, 20),
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log("[announcements] opening socket", {
+      tokenLength: initialToken.length,
+    });
+  }
 
   let authRejected = false;
 
@@ -109,9 +98,7 @@ export const subscribeAnnouncements = (
     // from storage. Avoids `Authentication failed: Invalid token` after the
     // access token rotates while the socket was alive.
     auth: (cb) => {
-      const freshToken = readFreshToken(options.token);
-      console.log("[socket auth callback] token length:", freshToken.length);
-      cb({ token: freshToken });
+      cb({ token: readFreshToken(options.token) });
     },
   });
 
@@ -181,11 +168,14 @@ export const subscribeAnnouncements = (
     options.onError?.(message);
   });
 
-  // Catch-all: log every event the server emits so we can see event names
-  // that are outside our expected list (useful for debugging role-based rooms).
-  socket.onAny((event: string, ...args: unknown[]) => {
-    console.log("[announcements] socket ANY event:", event, args);
-  });
+  // Debug-only: log unexpected server event names (avoid flooding the console).
+  if (process.env.NODE_ENV === "development") {
+    socket.onAny((event: string, ...args: unknown[]) => {
+      if (!loadEvents.includes(event) && event !== "connect") {
+        console.log("[announcements] socket event:", event, args);
+      }
+    });
+  }
 
   const handleAnnouncementLoad = (payload: unknown) => {
     options.onRaw?.(payload);
@@ -210,7 +200,9 @@ export const subscribeAnnouncements = (
 
   return {
     disconnect: () => {
-      socket.offAny();
+      if (process.env.NODE_ENV === "development") {
+        socket.offAny();
+      }
       loadEvents.forEach((event) => {
         socket.removeAllListeners(event);
       });

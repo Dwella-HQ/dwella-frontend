@@ -1,7 +1,4 @@
-export { createUser } from "./createUser";
-export type {
-  CreateUserRequestDTO,
-  CreateUserResponseDTO,
-} from "./createUser";
-
-
+export { updateUser } from "./updateUser";
+export type { UpdateUserBody } from "./updateUser";
+export { updateUserPassword } from "./updateUserPassword";
+export type { UpdateUserPasswordBody } from "./updateUserPassword";

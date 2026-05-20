@@ -140,7 +140,8 @@ const AdminUnitDetailPage: NextPageWithLayout = () => {
   }, [router.isReady, unitIdStr, propertyId]);
 
   const imageUrl = unitImage(unit, property);
-  const occupied = unit ? !unit.isAvailable : false;
+  /** Treat as occupied when we resolved a tenant lease, even if `isAvailable` is stale. */
+  const occupied = Boolean(tenant) || (unit ? !unit.isAvailable : false);
   const propertyName = property?.name || "Property";
   const filteredPayments = React.useMemo(() => {
     if (!unit) return [];

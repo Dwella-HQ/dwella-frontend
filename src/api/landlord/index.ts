@@ -2,6 +2,11 @@ export { createLandlord } from "./createLandlord";
 export { getLandlords } from "./getLandlords";
 export { getLandlord } from "./getLandlord";
 export { getLandlordByUser } from "./getLandlordByUser";
+export { updateLandlord } from "./updateLandlord";
+export type {
+  LandlordBankAccountDTO,
+  UpdateLandlordDTO,
+} from "./updateLandlord";
 export { queryLandlords } from "./queryLandlords";
 export {
   getLandlordSettings,

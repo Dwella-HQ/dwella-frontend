@@ -1,4 +1,4 @@
-export { getRentPayments } from "./getRentPayments";
+export { getRentPayments, getRentPaymentItems } from "./getRentPayments";
 export {
   createRentPayment,
   generateRentPaymentIdempotencyKey,

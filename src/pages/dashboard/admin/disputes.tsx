@@ -20,18 +20,22 @@ const AdminDisputesPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Disputes</title>
       </Head>
       <AdminLayout title="Disputes">
-        <section className="w-full min-w-0 space-y-4">
+        <section className="relative w-full min-w-0 space-y-4">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px]">
             <div className="rounded-lg border border-[#E2E8F0] bg-white p-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">
                 <input
-                  className="h-9 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3"
+                  className="h-9 rounded-md border border-[#E2E8F0] bg-white px-3 text-[#0F172A]"
                   placeholder="Search..."
                 />
-                <input
-                  className="h-9 rounded-md border border-[#E2E8F0] px-3"
-                  placeholder="Status      All"
-                />
+                <select
+                  defaultValue="all"
+                  className="h-9 rounded-md border border-[#E2E8F0] bg-white px-3 text-[12px] text-[#0F172A]"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="open">Open</option>
+                  <option value="resolved">Resolved</option>
+                </select>
               </div>
             </div>
             <div className="rounded-lg border border-[#E2E8F0] bg-white p-3 text-center">
@@ -109,7 +113,7 @@ const AdminDisputesPage: NextPageWithLayout = () => {
                 <textarea
                   value={response}
                   onChange={(event) => setResponse(event.target.value)}
-                  className="h-28 w-full rounded-md border border-[#E2E8F0] p-3 text-sm"
+                  className="h-28 w-full rounded-md border border-[#E2E8F0] bg-white p-3 text-sm text-[#0F172A] placeholder:text-[#94A3B8]"
                   placeholder="Type your response or resolution here..."
                 />
               </div>
@@ -127,6 +131,18 @@ const AdminDisputesPage: NextPageWithLayout = () => {
                 >
                   Mark as Resolved
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* No disputes API wired yet — list UI is placeholder only */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 z-30 rounded-xl bg-white/60 backdrop-blur-[1px]"
+          >
+            <div className="sticky top-24 flex justify-center px-4">
+              <div className="rounded-full border border-blue-200 bg-blue-50 px-5 py-2 text-sm font-semibold text-blue-900 shadow-sm">
+                Disputes are coming soon
               </div>
             </div>
           </div>

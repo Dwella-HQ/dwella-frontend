@@ -1,4 +1,10 @@
 import * as React from "react";
+import {
+  AUTH_ACCESS_TOKEN_UPDATED_EVENT,
+  getStoredRefreshToken,
+  REFRESH_TOKEN_STORAGE_KEY,
+  tryRefreshAccessToken,
+} from "@/lib/authRefresh";
 
 export type UserRole =
   | "landlord"
@@ -59,6 +65,66 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
+  // When the access token is refreshed in the background, localStorage is updated
+  // but React state was stale — sync so hooks depending on `user.token` stay current.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncUserFromStorage = () => {
+      try {
+        const storedUser = localStorage.getItem("user");
+        const token = localStorage.getItem("authToken");
+        if (!storedUser || !token) return;
+        const parsedUser = JSON.parse(storedUser) as Omit<User, "token"> &
+          Partial<Pick<User, "token">>;
+        const next: User = { ...parsedUser, token };
+        setUserState((prev) => {
+          if (
+            prev &&
+            prev.id === next.id &&
+            prev.token === next.token &&
+            prev.email === next.email &&
+            prev.role === next.role
+          ) {
+            return prev;
+          }
+          return next;
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onTokenUpdated = () => syncUserFromStorage();
+    window.addEventListener(AUTH_ACCESS_TOKEN_UPDATED_EVENT, onTokenUpdated);
+    window.addEventListener("storage", onTokenUpdated);
+    return () => {
+      window.removeEventListener(
+        AUTH_ACCESS_TOKEN_UPDATED_EVENT,
+        onTokenUpdated,
+      );
+      window.removeEventListener("storage", onTokenUpdated);
+    };
+  }, []);
+
+  /** Proactively refresh the access token so short-lived JWTs rarely expire during active use. */
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !user?.token) return;
+    if (!getStoredRefreshToken()) return;
+
+    const tick = () => void tryRefreshAccessToken();
+    const intervalMs = 8 * 60 * 1000;
+    const intervalId = window.setInterval(tick, intervalMs);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user?.token]);
+
   const setUser = React.useCallback((newUser: User | null) => {
     setUserState(newUser);
 
@@ -71,6 +137,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         localStorage.removeItem("user");
         localStorage.removeItem("authToken");
+        localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
         localStorage.removeItem("userId");
         localStorage.removeItem("landlordId");
         localStorage.removeItem("tenantId");
@@ -93,6 +160,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("user");
       localStorage.removeItem("authToken");
+      localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
       localStorage.removeItem("userId");
       localStorage.removeItem("landlordId");
       localStorage.removeItem("tenantId");

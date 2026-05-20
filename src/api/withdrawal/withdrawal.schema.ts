@@ -3,11 +3,15 @@ import { z } from "zod";
 export const withdrawalRecipientDetailsSchema = z
   .object({
     accountName: z.string().optional(),
+    /** Some responses use fullName (TransferUserDetails) instead of accountName. */
+    fullName: z.string().optional(),
     bankCode: z.string().optional(),
     bankName: z.string().optional(),
     accountNumber: z.string().optional(),
   })
   .passthrough();
+
+const amountMin = 0.01;
 
 export const withdrawalCreateSchema = z.object({
   walletId: z.string(),
@@ -16,9 +20,11 @@ export const withdrawalCreateSchema = z.object({
     .or(z.string().transform((v) => Number(v)))
     .refine((n) => !Number.isNaN(n), {
       message: "Invalid amount",
+    })
+    .refine((n) => n >= amountMin, {
+      message: `Amount must be at least ${amountMin}`,
     }),
   narration: z.string().optional(),
-  recipientDetails: withdrawalRecipientDetailsSchema.optional(),
 });
 
 export const withdrawalResolveAccountSchema = z.object({
@@ -26,15 +32,16 @@ export const withdrawalResolveAccountSchema = z.object({
   bankCode: z.string(),
 });
 
+const optionalWithdrawalAmount = z
+  .union([z.number(), z.string().transform((v) => Number(v))])
+  .refine((n) => !Number.isNaN(n) && n >= amountMin, {
+    message: `Amount must be at least ${amountMin}`,
+  });
+
 export const withdrawalUpdateSchema = z.object({
-  // Keep it flexible: backend may require different fields depending on status transitions.
-  amount: z
-    .number()
-    .or(z.string().transform((v) => Number(v)))
-    .optional(),
+  walletId: z.string().optional(),
+  amount: optionalWithdrawalAmount.optional(),
   narration: z.string().optional(),
-  recipientDetails: withdrawalRecipientDetailsSchema.optional(),
-  status: z.string().optional(),
 });
 
 export const withdrawalBankSchema = z

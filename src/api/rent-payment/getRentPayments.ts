@@ -13,6 +13,10 @@ type GetRentPaymentsResult =
   | { success: true; data: Payment[] }
   | { success: false; error: string };
 
+export type GetRentPaymentItemsResult =
+  | { success: true; data: RentPaymentItemDTO[] }
+  | { success: false; error: string };
+
 function extractRawItems(payload: unknown): unknown[] {
   if (Array.isArray(payload)) {
     return payload;
@@ -42,9 +46,10 @@ function parseItems(raw: unknown[]): RentPaymentItemDTO[] {
   return out;
 }
 
-export const getRentPayments = async (
+/** Parsed rent-payment rows (not mapped to dashboard `Payment` UI shape). */
+export const getRentPaymentItems = async (
   params?: GetRentPaymentsParams,
-): Promise<GetRentPaymentsResult> => {
+): Promise<GetRentPaymentItemsResult> => {
   const url = createUrl(
     "/rent-payment",
     params as Record<string, string | number>,
@@ -58,8 +63,28 @@ export const getRentPayments = async (
   try {
     const rawItems = extractRawItems(result.data);
     const items = parseItems(rawItems);
+    return { success: true, data: items };
+  } catch (parseError) {
+    console.error("Get rent payment items parse error:", parseError);
+    return {
+      success: false,
+      error: "Invalid response data format received",
+    };
+  }
+};
 
-    return { success: true, data: mapAndSortRecentPayments(items) };
+export const getRentPayments = async (
+  params?: GetRentPaymentsParams,
+): Promise<GetRentPaymentsResult> => {
+  try {
+    const itemsResult = await getRentPaymentItems(params);
+    if (!itemsResult.success) {
+      return itemsResult;
+    }
+    return {
+      success: true,
+      data: mapAndSortRecentPayments(itemsResult.data),
+    };
   } catch (parseError) {
     console.error("Get rent payments parse error:", parseError);
     return {

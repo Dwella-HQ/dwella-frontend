@@ -5,10 +5,18 @@ import { Loader2 } from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { getLandlords, type LandlordDTO } from "@/api/landlord";
+import { getProperties, type PropertyDTO } from "@/api/properties";
+import { getRentPaymentItems } from "@/api/rent-payment";
+import type { RentPaymentItemDTO } from "@/api/rent-payment/rentPayment.schema";
 import {
   getPropertyManagers,
   type PropertyManagerDTO,
 } from "@/api/property-managers";
+import {
+  buildLandlordMetricsMap,
+  sumLandlordLpPortfolioTotals,
+  type LandlordLpMetrics,
+} from "@/lib/admin/buildLandlordLpMetrics";
 
 function landlordDisplayName(l: LandlordDTO): string {
   const ext = l as Record<string, unknown>;
@@ -23,9 +31,30 @@ function landlordDisplayName(l: LandlordDTO): string {
 }
 
 function landlordPhone(l: LandlordDTO): string {
-  const u = l.user as { phoneNumber?: string | null } | undefined;
-  return u?.phoneNumber?.trim() || "—";
+  const fromUser = l.user?.phoneNumber?.trim();
+  const fromBusiness = l.businessPhoneNumber?.trim();
+  return fromUser || fromBusiness || "—";
 }
+
+function landlordEmail(l: LandlordDTO): string {
+  const biz = l.businessEmail?.trim();
+  return biz || l.user?.email || "—";
+}
+
+function formatNgn(amount: number): string {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+const emptyMetrics: LandlordLpMetrics = {
+  propertyCount: 0,
+  unitCount: 0,
+  monthlyRevenue: 0,
+  totalRevenue: 0,
+};
 
 function pmDisplayName(m: PropertyManagerDTO): string {
   return (
@@ -44,6 +73,11 @@ const LPPage: NextPageWithLayout = () => {
   );
   const [landlords, setLandlords] = React.useState<LandlordDTO[]>([]);
   const [managers, setManagers] = React.useState<PropertyManagerDTO[]>([]);
+  /** Properties + rent rows for L&P metrics (not used on Property Managers tab). */
+  const [lpProperties, setLpProperties] = React.useState<PropertyDTO[]>([]);
+  const [lpRentItems, setLpRentItems] = React.useState<RentPaymentItemDTO[]>(
+    [],
+  );
   const [loadingLandlords, setLoadingLandlords] = React.useState(false);
   const [loadingManagers, setLoadingManagers] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -51,14 +85,29 @@ const LPPage: NextPageWithLayout = () => {
   const loadLandlords = React.useCallback(async () => {
     setLoadingLandlords(true);
     setError(null);
-    const result = await getLandlords();
+    const [landlordsResult, propertiesResult, paymentsResult] =
+      await Promise.all([
+        getLandlords(),
+        getProperties(),
+        getRentPaymentItems({ limit: 3000 }),
+      ]);
     setLoadingLandlords(false);
-    if (!result.success) {
-      setError(result.error);
+    if (!landlordsResult.success) {
+      setError(landlordsResult.error);
       setLandlords([]);
+      setLpProperties([]);
+      setLpRentItems([]);
       return;
     }
-    setLandlords(result.data);
+    setLandlords(landlordsResult.data);
+    setLpProperties(propertiesResult.success ? propertiesResult.data : []);
+    setLpRentItems(paymentsResult.success ? paymentsResult.data : []);
+    if (!propertiesResult.success) {
+      console.warn("LP: properties for metrics failed:", propertiesResult.error);
+    }
+    if (!paymentsResult.success) {
+      console.warn("LP: rent payments for metrics failed:", paymentsResult.error);
+    }
   }, []);
 
   const loadManagers = React.useCallback(async () => {
@@ -89,6 +138,16 @@ const LPPage: NextPageWithLayout = () => {
     const pending = landlords.filter((l) => !l.isApproved).length;
     return { total, pending };
   }, [landlords]);
+
+  const landlordMetricsById = React.useMemo(
+    () => buildLandlordMetricsMap(lpProperties, lpRentItems),
+    [lpProperties, lpRentItems],
+  );
+
+  const portfolioTotals = React.useMemo(
+    () => sumLandlordLpPortfolioTotals(landlordMetricsById),
+    [landlordMetricsById],
+  );
 
   return (
     <>
@@ -160,9 +219,9 @@ const LPPage: NextPageWithLayout = () => {
                       : "Pending approval",
                     String(statsLandlord.pending),
                   ],
-                  ["Properties Managed", "—"],
-                  ["Total Units", "—"],
-                  ["Total Revenue", "—"],
+                  ["Properties Managed", String(portfolioTotals.propertiesManaged)],
+                  ["Total Units", String(portfolioTotals.totalUnits)],
+                  ["Total Revenue", formatNgn(portfolioTotals.totalRevenue)],
                 ].map(([label, value]) => (
                   <div
                     key={label}
@@ -261,16 +320,19 @@ const LPPage: NextPageWithLayout = () => {
                   </thead>
                   <tbody>
                     {!loadingLandlords &&
-                      landlordRows.map((row, i) => (
+                      landlordRows.map((row, i) => {
+                        const m =
+                          landlordMetricsById.get(row.id) ?? emptyMetrics;
+                        return (
                         <tr key={row.id} className="border-t border-[#F1F5F9]">
                           <td className="py-2">{i + 1}</td>
                           <td className="py-2">{landlordDisplayName(row)}</td>
                           <td className="py-2">{landlordPhone(row)}</td>
-                          <td className="py-2">{row.user?.email ?? "—"}</td>
-                          <td className="py-2">—</td>
-                          <td className="py-2">—</td>
-                          <td className="py-2">—</td>
-                          <td className="py-2">—</td>
+                          <td className="py-2">{landlordEmail(row)}</td>
+                          <td className="py-2">{m.propertyCount}</td>
+                          <td className="py-2">{m.unitCount}</td>
+                          <td className="py-2">{formatNgn(m.monthlyRevenue)}</td>
+                          <td className="py-2">{formatNgn(m.totalRevenue)}</td>
                           <td className="py-2">
                             <span
                               className={`rounded-full px-2 py-0.5 text-[11px] ${landlordStatus(row) === "Active" ? "bg-green-100 text-green-700" : landlordStatus(row) === "Pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}
@@ -298,7 +360,8 @@ const LPPage: NextPageWithLayout = () => {
                             )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                   </tbody>
                 </table>
               )}

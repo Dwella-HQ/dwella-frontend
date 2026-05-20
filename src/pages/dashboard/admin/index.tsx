@@ -1,4 +1,5 @@
 import Head from "next/head";
+import dynamic from "next/dynamic";
 import * as React from "react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -9,6 +10,8 @@ import { getPropertyManagers } from "@/api/property-managers";
 import { getProperties } from "@/api/properties";
 import { getTransactions } from "@/api/transaction";
 import { getVerifications } from "@/api/verification";
+import type { PropertyDTO } from "@/api/properties/properties.schema";
+import type { TransactionDTO } from "@/api/transaction";
 import {
   Home,
   KeyRound,
@@ -18,6 +21,31 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+
+const AdminDashboardCharts = dynamic(
+  () => import("@/components/admin/AdminDashboardCharts"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {[0, 1, 2, 3].map((k) => (
+          <div
+            key={k}
+            className="flex h-[300px] items-center justify-center rounded-[10px] border border-[#E2E8F0] bg-white"
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-[#94A3B8]" />
+          </div>
+        ))}
+      </div>
+    ),
+  },
+);
+
+function extractCreatedAt(rec: object): string | undefined {
+  const r = rec as Record<string, unknown>;
+  const v = r.createdAt ?? r.created_at;
+  return typeof v === "string" ? v : undefined;
+}
 
 function fmtInt(n: number): string {
   return n.toLocaleString();
@@ -53,6 +81,16 @@ const AdminDashboardPage: NextPageWithLayout = () => {
   const [metrics, setMetrics] = React.useState(adminMetrics);
   const [loading, setLoading] = React.useState(true);
 
+  const [chartsPayload, setChartsPayload] = React.useState<{
+    propertyDatesIso: string[];
+    userDatesIso: string[];
+    transactions: TransactionDTO[];
+    propertyCategoryRows: Pick<
+      PropertyDTO,
+      "propertyType" | "numberOfUnits"
+    >[];
+  } | null>(null);
+
   React.useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -68,13 +106,47 @@ const AdminDashboardPage: NextPageWithLayout = () => {
 
       if (cancelled) return;
 
-      const tenantsCount = tenantsR.success ? tenantsR.data.length : 0;
-      const landlordsCount = landlordsR.success ? landlordsR.data.length : 0;
-      const pmCount = pmR.success ? pmR.data.length : 0;
-      const propsCount = propsR.success ? propsR.data.length : 0;
-      const txCount = txR.success ? txR.data.length : 0;
+      const tenantsRows = tenantsR.success ? tenantsR.data : [];
+      const landlordsRows = landlordsR.success ? landlordsR.data : [];
+      const pmRows = pmR.success ? pmR.data : [];
+      const propsRows = propsR.success ? propsR.data : [];
+      const txRows = txR.success ? txR.data : [];
+
+      const propertyDatesIso: string[] = [];
+      for (const p of propsRows) {
+        if (typeof p.createdAt === "string") propertyDatesIso.push(p.createdAt);
+      }
+
+      const userDatesIso: string[] = [];
+      for (const t of tenantsRows) {
+        const d = extractCreatedAt(t as object);
+        if (d) userDatesIso.push(d);
+      }
+      for (const l of landlordsRows) {
+        if (typeof l.createdAt === "string") userDatesIso.push(l.createdAt);
+      }
+      for (const m of pmRows) {
+        const d = extractCreatedAt(m as object);
+        if (d) userDatesIso.push(d);
+      }
+
+      setChartsPayload({
+        propertyDatesIso,
+        userDatesIso,
+        transactions: txRows,
+        propertyCategoryRows: propsRows.map((p) => ({
+          propertyType: p.propertyType,
+          numberOfUnits: p.numberOfUnits,
+        })),
+      });
+
+      const tenantsCount = tenantsRows.length;
+      const landlordsCount = landlordsRows.length;
+      const pmCount = pmRows.length;
+      const propsCount = propsRows.length;
+      const txCount = txRows.length;
       const txVolume = txR.success
-        ? txR.data.reduce(
+        ? txRows.reduce(
             (sum, row) =>
               sum + parseTxVolumeFromRow(row as Record<string, unknown>),
             0,
@@ -193,73 +265,19 @@ const AdminDashboardPage: NextPageWithLayout = () => {
             })}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
-                    Total Properties
-                  </p>
-                  <p className="mt-1 text-[12px] text-[#64748B]">
-                    Current property count across the platform
-                  </p>
-                </div>
+          <div className="mt-2">
+            {chartsPayload ? (
+              <AdminDashboardCharts
+                propertyDatesIso={chartsPayload.propertyDatesIso}
+                userDatesIso={chartsPayload.userDatesIso}
+                transactions={chartsPayload.transactions}
+                propertyCategoryRows={chartsPayload.propertyCategoryRows}
+              />
+            ) : (
+              <div className="flex min-h-[220px] items-center justify-center rounded-[10px] border border-dashed border-[#E2E8F0] bg-white py-12 text-sm text-[#94A3B8]">
+                Loading charts…
               </div>
-              <div className="h-[170px] rounded-md bg-gradient-to-b from-[#F8FAFC] to-[#EEF2FF]" />
-            </div>
-            <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
-                    Total Users
-                  </p>
-                  <p className="mt-1 text-[12px] text-[#64748B]">
-                    Approximate sum of tenants, landlords, and property managers
-                  </p>
-                </div>
-              </div>
-              <div className="h-[170px] rounded-md bg-gradient-to-b from-[#F8FAFC] to-[#DBEAFE]" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
-                    Total Transaction Volume
-                  </p>
-                  <p className="mt-1 text-[12px] text-[#64748B]">
-                    Total value of recorded payments
-                  </p>
-                </div>
-              </div>
-              <div className="h-[170px] rounded-md bg-gradient-to-b from-[#F8FAFC] to-[#DBEAFE]" />
-            </div>
-            <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
-              <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
-                Top Property Category
-              </p>
-              <p className="mt-2 text-[12px] text-[#64748B]">
-                Category insights will appear as more property data becomes
-                available.
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                {["3 Bedroom", "2 Bedroom", "Self Contain", "Duplex"].map(
-                  (item, index) => (
-                    <div
-                      key={item}
-                      className="rounded-md bg-[#F8FAFC] px-3 py-2"
-                    >
-                      <p className="text-[16px] font-medium">
-                        {index + 1} {item}
-                      </p>
-                      <p className="text-[12px] text-[#64748B]">—</p>
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
+            )}
           </div>
         </section>
       </AdminLayout>

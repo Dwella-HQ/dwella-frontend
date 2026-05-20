@@ -1,16 +1,18 @@
 import Head from "next/head";
+import Link from "next/link";
 import * as React from "react";
 import type { NextPageWithLayout } from "../_app";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useToast } from "@/components/Toast";
-import { getWalletsByLandlord, type WalletDTO } from "@/api/wallet";
+import {
+  getWalletsByLandlord,
+  getWallet,
+  type WalletDTO,
+} from "@/api/wallet";
 import { ensureLandlordWallet } from "@/api/wallet";
 import {
   getWithdrawals,
   createWithdrawal,
-  getWithdrawalBanksByCurrency,
-  resolveWithdrawalAccount,
-  type WithdrawalRecipientDetailsDTO,
   type WithdrawalItemDTO,
   type WithdrawalCreateDTO,
 } from "@/api/withdrawal";
@@ -53,6 +55,30 @@ const extractWithdrawalList = (payload: unknown): WithdrawalItemDTO[] => {
 
   return maybeList as WithdrawalItemDTO[];
 };
+
+const WITHDRAW_MIN = 0.01;
+
+function withdrawalRecipientLabel(w: WithdrawalItemDTO): string {
+  const r = w.recipientDetails;
+  if (!r) return "—";
+  const accountName = (r as { accountName?: string }).accountName;
+  const fullName = (r as { fullName?: string }).fullName;
+  const name = accountName ?? fullName;
+  const tail = r.accountNumber;
+  if (name && tail) return `${name} · ${tail}`;
+  if (name) return name;
+  if (tail) return String(tail);
+  return "—";
+}
+
+function isWalletPayoutConfigured(
+  d: WalletDTO["withdrawalDetails"],
+): boolean {
+  if (!d) return false;
+  const acc = String(d.accountNumber ?? "").replace(/\D/g, "");
+  const code = String(d.bankCode ?? "").trim();
+  return acc.length === 10 && code.length > 0;
+}
 
 const FinancePage: NextPageWithLayout = () => {
   const { showToast } = useToast();
@@ -121,155 +147,33 @@ const FinancePage: NextPageWithLayout = () => {
     };
   }, [isUserLoading, landlordId, showToast, user?.role]);
 
-  // Withdraw form state
-  const [withdrawBanks, setWithdrawBanks] = React.useState<
-    { bankCode?: string; bankName?: string; name?: string; code?: string }[]
-  >([]);
-  const [withdrawBanksLoading, setWithdrawBanksLoading] = React.useState(false);
-  const [withdrawBankCode, setWithdrawBankCode] = React.useState("");
-  const [withdrawAccountNumber, setWithdrawAccountNumber] = React.useState("");
-  const [withdrawResolvedRecipient, setWithdrawResolvedRecipient] =
-    React.useState<WithdrawalRecipientDetailsDTO | null>(null);
-  const [withdrawResolveLoading, setWithdrawResolveLoading] =
-    React.useState(false);
-  const [withdrawAmount, setWithdrawAmount] = React.useState("");
-  const [withdrawNarration, setWithdrawNarration] = React.useState("");
-  const [withdrawSubmitting, setWithdrawSubmitting] = React.useState(false);
-
-  const withdrawAutoResolveTimerRef = React.useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
-  const lastResolvedSignatureRef = React.useRef("");
-  const resolveRequestIdRef = React.useRef(0);
-  /** Prevents auto-resolve from looping on the same bank+account after a silent failure. */
-  const autoResolveFailedSignatureRef = React.useRef("");
-  /**
-   * Legacy flag from an earlier auto-resolve implementation. Kept in scope so
-   * dev/HMR cannot throw `ReferenceError: skipAutoResolveRef is not defined` if
-   * a stale client chunk still references it. Logic uses `autoResolveFailedSignatureRef`.
-   */
-  const skipAutoResolveRef = React.useRef(false);
-
-  const resolveWithdrawRecipient = React.useCallback(
-    async (options?: { silent?: boolean }) => {
-      const silent = options?.silent ?? false;
-      const digits = withdrawAccountNumber.replace(/\D/g, "");
-      const code = withdrawBankCode.trim();
-      if (!code || digits.length !== 10) {
-        if (!silent) {
-          showToast(
-            !code ? "Select a bank" : "Enter a valid 10-digit account number",
-            "error",
-          );
-        }
-        return false;
-      }
-      const signature = `${code}:${digits}`;
-      const reqId = ++resolveRequestIdRef.current;
-      setWithdrawResolveLoading(true);
-      const result = await resolveWithdrawalAccount({
-        bankCode: code,
-        accountNumber: digits,
-      });
-      if (reqId !== resolveRequestIdRef.current) {
-        setWithdrawResolveLoading(false);
-        return false;
-      }
-      setWithdrawResolveLoading(false);
-
-      if (result.success) {
-        lastResolvedSignatureRef.current = signature;
-        autoResolveFailedSignatureRef.current = "";
-        setWithdrawResolvedRecipient(result.data);
-        if (!silent) {
-          if (result.data.accountName) {
-            showToast("Account verified", "success");
-          } else {
-            showToast(
-              "Resolved, but the bank did not return an account holder name.",
-              "warning",
-            );
-          }
-        }
-        return true;
-      }
-
-      lastResolvedSignatureRef.current = "";
-      setWithdrawResolvedRecipient(null);
-      if (silent) {
-        autoResolveFailedSignatureRef.current = signature;
-      }
-      if (!silent) {
-        showToast(result.error || "Failed to resolve account", "error");
-      }
-      return false;
-    },
-    [showToast, withdrawAccountNumber, withdrawBankCode],
+  const [payoutWallet, setPayoutWallet] = React.useState<WalletDTO | null>(
+    null,
   );
-
-  const handleResolveWithdrawalRecipient = React.useCallback(async () => {
-    autoResolveFailedSignatureRef.current = "";
-    await resolveWithdrawRecipient({ silent: false });
-  }, [resolveWithdrawRecipient]);
-
-  React.useEffect(() => {
-    if (tab !== "withdraw") return;
-    const digits = withdrawAccountNumber.replace(/\D/g, "");
-    const code = withdrawBankCode.trim();
-
-    if (digits.length !== 10 || !code) {
-      lastResolvedSignatureRef.current = "";
-      autoResolveFailedSignatureRef.current = "";
-      setWithdrawResolvedRecipient(null);
-      return;
-    }
-
-    const signature = `${code}:${digits}`;
-    if (signature === lastResolvedSignatureRef.current) {
-      return;
-    }
-    if (signature === autoResolveFailedSignatureRef.current) {
-      return;
-    }
-
-    if (withdrawAutoResolveTimerRef.current) {
-      clearTimeout(withdrawAutoResolveTimerRef.current);
-    }
-
-    withdrawAutoResolveTimerRef.current = setTimeout(() => {
-      withdrawAutoResolveTimerRef.current = null;
-      void resolveWithdrawRecipient({ silent: true });
-    }, 450);
-
-    return () => {
-      if (withdrawAutoResolveTimerRef.current) {
-        clearTimeout(withdrawAutoResolveTimerRef.current);
-        withdrawAutoResolveTimerRef.current = null;
-      }
-    };
-  }, [tab, withdrawBankCode, withdrawAccountNumber, resolveWithdrawRecipient]);
+  const [payoutWalletLoading, setPayoutWalletLoading] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
-    const loadBanks = async () => {
-      if (!landlordId || isUserLoading || !user?.role || user.role === "tenant")
-        return;
-      setWithdrawBanksLoading(true);
-      const result = await getWithdrawalBanksByCurrency("NGN");
+    if (!activeWallet?.id) {
+      setPayoutWallet(null);
+      return;
+    }
+    (async () => {
+      setPayoutWalletLoading(true);
+      const res = await getWallet(activeWallet.id);
       if (cancelled) return;
-      if (result.success) {
-        setWithdrawBanks(result.data);
-      } else {
-        setWithdrawBanks([]);
-        showToast(result.error || "Failed to load banks", "error");
-      }
-      setWithdrawBanksLoading(false);
-    };
-    loadBanks();
+      setPayoutWallet(res.success ? res.data : null);
+      setPayoutWalletLoading(false);
+    })();
     return () => {
       cancelled = true;
     };
-  }, [landlordId, isUserLoading, user?.role, showToast]);
+  }, [activeWallet?.id]);
+
+  // Withdraw form state (destination is fixed server-side on the wallet)
+  const [withdrawAmount, setWithdrawAmount] = React.useState("");
+  const [withdrawNarration, setWithdrawNarration] = React.useState("");
+  const [withdrawSubmitting, setWithdrawSubmitting] = React.useState(false);
 
   // Deposits state
   const [deposits, setDeposits] = React.useState<DepositItemDTO[]>([]);
@@ -322,29 +226,30 @@ const FinancePage: NextPageWithLayout = () => {
       showToast("Wallet not ready", "error");
       return;
     }
-    if (
-      !withdrawAmount ||
-      Number.isNaN(Number(withdrawAmount)) ||
-      Number(withdrawAmount) <= 0
-    ) {
-      showToast("Enter a valid amount", "error");
+    const configured = isWalletPayoutConfigured(
+      payoutWallet?.withdrawalDetails,
+    );
+    if (!configured) {
+      showToast(
+        "Add a verified bank account in Settings before withdrawing.",
+        "error",
+      );
       return;
     }
-    if (!withdrawBankCode || !withdrawAccountNumber) {
-      showToast("Bank code and account number are required", "error");
+    const amt = Number(withdrawAmount);
+    if (
+      !withdrawAmount ||
+      Number.isNaN(amt) ||
+      amt < WITHDRAW_MIN
+    ) {
+      showToast(`Enter an amount of at least ${WITHDRAW_MIN}`, "error");
       return;
     }
     setWithdrawSubmitting(true);
     const payload: WithdrawalCreateDTO = {
       walletId: activeWallet.id,
-      amount: Number(withdrawAmount),
+      amount: amt,
       narration: withdrawNarration || undefined,
-      recipientDetails:
-        withdrawResolvedRecipient ??
-        ({
-          bankCode: withdrawBankCode,
-          accountNumber: withdrawAccountNumber,
-        } as any),
     };
 
     const result = await createWithdrawal(payload);
@@ -352,9 +257,8 @@ const FinancePage: NextPageWithLayout = () => {
       showToast("Withdrawal request created", "success");
       setWithdrawAmount("");
       setWithdrawNarration("");
-      setWithdrawResolvedRecipient(null);
-      setWithdrawAccountNumber("");
-      setWithdrawBankCode("");
+      const wres = await getWallet(activeWallet.id);
+      if (wres.success) setPayoutWallet(wres.data);
       refreshLists();
     } else {
       showToast(result.error || "Failed to create withdrawal", "error");
@@ -362,14 +266,11 @@ const FinancePage: NextPageWithLayout = () => {
     setWithdrawSubmitting(false);
   }, [
     activeWallet?.id,
-    createWithdrawal,
+    payoutWallet?.withdrawalDetails,
     refreshLists,
     showToast,
-    withdrawAccountNumber,
     withdrawAmount,
-    withdrawBankCode,
     withdrawNarration,
-    withdrawResolvedRecipient,
   ]);
 
   const handleSubmitDeposit = React.useCallback(async () => {
@@ -556,86 +457,62 @@ const FinancePage: NextPageWithLayout = () => {
               <h2 className="text-base font-semibold text-gray-900">
                 Withdraw
               </h2>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Bank
-                  </label>
-                  <select
-                    value={withdrawBankCode}
-                    disabled={withdrawBanksLoading}
-                    onChange={(e) => setWithdrawBankCode(e.target.value)}
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                  >
-                    <option value="">Select bank</option>
-                    {withdrawBanks.map((b, idx) => {
-                      const code = b.bankCode || b.code || "";
-                      const name =
-                        b.bankName || b.name || code || `Bank ${idx + 1}`;
-                      return (
-                        <option key={`${name}-${idx}`} value={code}>
-                          {name}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Account Number
-                  </label>
-                  <input
-                    value={withdrawAccountNumber}
-                    onChange={(e) => setWithdrawAccountNumber(e.target.value)}
-                    inputMode="numeric"
-                    placeholder="Enter account number"
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={handleResolveWithdrawalRecipient}
-                  disabled={withdrawResolveLoading}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition disabled:opacity-60"
+              <p className="text-sm text-gray-600">
+                Funds are sent only to the bank account on file for this wallet.
+                Update it in{" "}
+                <Link
+                  href="/dashboard/settings"
+                  className="font-medium text-brand-main underline underline-offset-2"
                 >
-                  {withdrawResolveLoading ? "Resolving..." : "Resolve Account"}
-                </button>
-              </div>
+                  Settings
+                </Link>
+                .
+              </p>
 
-              {withdrawResolvedRecipient?.accountName ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
-                    Account holder
+              {payoutWalletLoading ? (
+                <p className="text-sm text-gray-600">Loading payout details…</p>
+              ) : (
+                <div
+                  className={`rounded-lg border p-4 ${
+                    isWalletPayoutConfigured(payoutWallet?.withdrawalDetails)
+                      ? "border-emerald-200 bg-emerald-50/80"
+                      : "border-amber-200 bg-amber-50"
+                  }`}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    Payout account
                   </p>
-                  <p className="mt-1 text-lg font-semibold text-emerald-950">
-                    {withdrawResolvedRecipient.accountName}
-                  </p>
-                  <p className="mt-2 text-xs text-emerald-800">
-                    Account{" "}
-                    <span className="font-mono">{withdrawAccountNumber}</span>
-                    {withdrawBankCode ? (
-                      <>
-                        {" "}
-                        · Bank code{" "}
-                        <span className="font-mono">{withdrawBankCode}</span>
-                      </>
-                    ) : null}
-                  </p>
+                  {isWalletPayoutConfigured(payoutWallet?.withdrawalDetails) ? (
+                    <div className="mt-2 space-y-1 text-sm text-gray-900">
+                      <p className="font-semibold">
+                        {payoutWallet?.withdrawalDetails?.fullName?.trim() ||
+                          payoutWallet?.withdrawalDetails?.email ||
+                          "Linked account"}
+                      </p>
+                      <p className="text-gray-700">
+                        {payoutWallet?.withdrawalDetails?.bankName ||
+                          "Bank"}{" "}
+                        ·{" "}
+                        <span className="font-mono">
+                          {payoutWallet?.withdrawalDetails?.accountNumber}
+                        </span>
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-amber-900">
+                      No verified payout account is linked yet. Add your bank
+                      details in{" "}
+                      <Link
+                        href="/dashboard/settings"
+                        className="font-medium underline"
+                      >
+                        Settings
+                      </Link>{" "}
+                      before requesting a withdrawal.
+                    </p>
+                  )}
                 </div>
-              ) : withdrawResolvedRecipient ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-sm font-medium text-amber-900">
-                    Account details received without a holder name. You can
-                    still try submitting the withdrawal, or verify the account
-                    number and bank.
-                  </p>
-                </div>
-              ) : null}
+              )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
@@ -649,6 +526,9 @@ const FinancePage: NextPageWithLayout = () => {
                     placeholder="e.g. 5000"
                     className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Minimum {WITHDRAW_MIN} NGN
+                  </p>
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -667,14 +547,8 @@ const FinancePage: NextPageWithLayout = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    resolveRequestIdRef.current += 1;
-                    lastResolvedSignatureRef.current = "";
-                    autoResolveFailedSignatureRef.current = "";
-                    setWithdrawResolvedRecipient(null);
                     setWithdrawAmount("");
                     setWithdrawNarration("");
-                    setWithdrawAccountNumber("");
-                    setWithdrawBankCode("");
                   }}
                   className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
                 >
@@ -683,7 +557,11 @@ const FinancePage: NextPageWithLayout = () => {
                 <button
                   type="button"
                   onClick={handleSubmitWithdrawal}
-                  disabled={withdrawSubmitting}
+                  disabled={
+                    withdrawSubmitting ||
+                    payoutWalletLoading ||
+                    !isWalletPayoutConfigured(payoutWallet?.withdrawalDetails)
+                  }
                   className="rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white hover:bg-brand-main/90 transition disabled:opacity-60"
                 >
                   {withdrawSubmitting ? "Submitting..." : "Request Withdrawal"}
@@ -729,9 +607,7 @@ const FinancePage: NextPageWithLayout = () => {
                             {w.status ?? "—"}
                           </td>
                           <td className="py-3 pr-3 text-sm text-gray-700">
-                            {w.recipientDetails?.accountName ??
-                              w.recipientDetails?.accountNumber ??
-                              "—"}
+                            {withdrawalRecipientLabel(w)}
                           </td>
                           <td className="py-3 pr-3 text-sm text-gray-700">
                             {formatDateValue(w.createdAt)}

@@ -3,11 +3,21 @@ import * as React from "react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 
+/** Consistent white fields — avoids OS dark styling on selects / inputs */
+const fieldCls =
+  "h-9 rounded-md border border-[#E2E8F0] bg-white px-3 text-[12px] text-[#0F172A] placeholder:text-[#94A3B8]";
+
 const AdminAuditLogsPage: NextPageWithLayout = () => {
   const [page, setPage] = React.useState(1);
   const [severity, setSeverity] = React.useState<"All" | "Critical" | "Info">(
     "All",
   );
+  const [actorType, setActorType] = React.useState<"All" | "Admin" | "User">(
+    "All",
+  );
+  const [roleFilter, setRoleFilter] = React.useState<
+    "All" | "Admin" | "Landlord" | "Tenant"
+  >("All");
 
   const rows = Array.from({ length: 14 }, (_, i) => ({
     id: i,
@@ -24,7 +34,7 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
         <title>DWELLA NG · Audit Logs</title>
       </Head>
       <AdminLayout title="Audit Logs">
-        <section className="w-full min-w-0 space-y-4">
+        <section className="relative w-full min-w-0 space-y-4">
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
             {[
               ["Total Logs (30 days)", "18,420"],
@@ -46,29 +56,49 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
           <div className="rounded-xl border border-[#E2E8F0] bg-white p-3">
             <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 xl:grid-cols-[1fr_220px_220px_220px_auto] xl:items-center">
               <input
-                className="h-9 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3"
+                className={fieldCls}
                 placeholder="Search..."
+                readOnly
+                aria-readonly
               />
-              <input
-                className="h-9 rounded-md border border-[#E2E8F0] px-3"
-                placeholder="Actor Type      All"
-              />
-              <input
-                className="h-9 rounded-md border border-[#E2E8F0] px-3"
-                placeholder="Role      All"
-              />
+              <select
+                value={actorType}
+                onChange={(event) =>
+                  setActorType(event.target.value as typeof actorType)
+                }
+                className={fieldCls}
+              >
+                <option value="All">Actor type — All</option>
+                <option value="Admin">Admin</option>
+                <option value="User">User</option>
+              </select>
+              <select
+                value={roleFilter}
+                onChange={(event) =>
+                  setRoleFilter(event.target.value as typeof roleFilter)
+                }
+                className={fieldCls}
+              >
+                <option value="All">Role — All</option>
+                <option value="Admin">Admin</option>
+                <option value="Landlord">Landlord</option>
+                <option value="Tenant">Tenant</option>
+              </select>
               <select
                 value={severity}
                 onChange={(event) =>
                   setSeverity(event.target.value as "All" | "Critical" | "Info")
                 }
-                className="h-9 rounded-md border border-[#E2E8F0] px-3"
+                className={fieldCls}
               >
-                <option>All</option>
-                <option>Critical</option>
-                <option>Info</option>
+                <option value="All">Severity — All</option>
+                <option value="Critical">Critical</option>
+                <option value="Info">Info</option>
               </select>
-              <button className="h-9 rounded-md border border-[#E2E8F0] px-4">
+              <button
+                type="button"
+                className="h-9 rounded-md border border-[#E2E8F0] bg-white px-4 text-[#0F172A]"
+              >
                 Filters
               </button>
             </div>
@@ -125,20 +155,37 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
                 </span>
                 <span>1-12 of 20 items</span>
                 <button
+                  type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  className="rounded border border-[#E2E8F0] px-2 py-0.5"
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5"
                 >
                   {"<"}
                 </button>
-                <button className="rounded bg-[#1E66FF] px-2 py-0.5 text-white">
+                <button
+                  type="button"
+                  className="rounded bg-[#1E66FF] px-2 py-0.5 text-white"
+                >
                   {page}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setPage((prev) => prev + 1)}
-                  className="rounded border border-[#E2E8F0] px-2 py-0.5"
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5"
                 >
                   {">"}
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Live audit API not wired yet — same pattern as landlord Reports page */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 z-30 rounded-xl bg-white/60 backdrop-blur-[1px]"
+          >
+            <div className="sticky top-24 flex justify-center px-4">
+              <div className="rounded-full border border-blue-200 bg-blue-50 px-5 py-2 text-sm font-semibold text-blue-900 shadow-sm">
+                Audit logs are coming soon
               </div>
             </div>
           </div>

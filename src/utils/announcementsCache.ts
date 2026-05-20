@@ -22,7 +22,6 @@ export function loadCachedAnnouncements(
     const key = keyFor(userId);
     const raw = window.localStorage.getItem(key);
     if (!raw) {
-      console.log(`[cache] loadCachedAnnouncements: no cache for key=${key}`);
       return [];
     }
     const parsed = JSON.parse(raw);
@@ -32,10 +31,6 @@ export function loadCachedAnnouncements(
       );
       return [];
     }
-    console.log(
-      `[cache] loadCachedAnnouncements: loaded ${parsed.length} items for key=${key}`,
-      parsed,
-    );
     return parsed as AnnouncementItemDTO[];
   } catch (err) {
     console.error(`[cache] loadCachedAnnouncements error:`, err);
@@ -56,10 +51,6 @@ export function saveCachedAnnouncements(
     const key = keyFor(userId);
     const trimmed = items.slice(0, MAX_ITEMS);
     window.localStorage.setItem(key, JSON.stringify(trimmed));
-    console.log(
-      `[cache] saveCachedAnnouncements: saved ${trimmed.length} items for key=${key}`,
-      trimmed,
-    );
   } catch (err) {
     console.error(`[cache] saveCachedAnnouncements error:`, err);
   }
