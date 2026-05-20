@@ -1,32 +1,28 @@
 import Head from "next/head";
 import * as React from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, X } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { getTransactions, type TransactionDTO } from "@/api/transaction";
-
-function txDisplayId(tx: TransactionDTO): string {
-  const r = tx as Record<string, unknown>;
-  return String(r.reference ?? r.referenceId ?? tx.id ?? "—");
-}
-
-function nestedName(tx: TransactionDTO, key: string): string {
-  const r = tx as Record<string, unknown>;
-  const block = r[key];
-  if (!block || typeof block !== "object") return "—";
-  const o = block as Record<string, unknown>;
-  const name = o.fullName ?? o.name ?? o.businessName ?? o.title ?? o.email;
-  return typeof name === "string" && name.trim() ? name : "—";
-}
-
-function nestedProperty(tx: TransactionDTO): string {
-  const r = tx as Record<string, unknown>;
-  const prop = r.property ?? r.estate;
-  if (!prop || typeof prop !== "object") return "—";
-  const o = prop as Record<string, unknown>;
-  const name = o.name ?? o.title;
-  return typeof name === "string" ? name : "—";
-}
+import {
+  getTransactions,
+  getTransactionById,
+  type TransactionDTO,
+} from "@/api/transaction";
+import { getRentPaymentItems } from "@/api/rent-payment";
+import type { RentPaymentItemDTO } from "@/api/rent-payment/rentPayment.schema";
+import {
+  buildRentPaymentIndex,
+  formatActionLabel,
+  formatTransactionRef,
+  resolveLandlordLabel,
+  resolveNarration,
+  resolvePropertyLabel,
+  resolveReceiverEmail,
+  resolveSenderEmail,
+  resolveTenantLabel,
+  transactionApiId,
+} from "@/lib/admin/transactionDisplay";
 
 function parseAmount(tx: TransactionDTO): number {
   const r = tx as Record<string, unknown>;
@@ -79,7 +75,54 @@ function uiStatus(tx: TransactionDTO): "Pending" | "Success" | "Other" {
   return "Other";
 }
 
+function parseCurrency(tx: TransactionDTO): string {
+  const r = tx as Record<string, unknown>;
+  const c = r.currency;
+  return typeof c === "string" && c.trim() ? c.trim() : "NGN";
+}
+
+function formatUpdatedAt(tx: TransactionDTO): string {
+  const r = tx as Record<string, unknown>;
+  const u = r.updatedAt;
+  if (typeof u !== "string") return "—";
+  const d = new Date(u);
+  return Number.isNaN(d.getTime()) ? u : d.toLocaleString("en-GB");
+}
+
+function gatewayPaidAtDisplay(tx: TransactionDTO): string {
+  const r = tx as Record<string, unknown>;
+  const meta = r.metaData;
+  if (meta && typeof meta === "object") {
+    const m = meta as Record<string, unknown>;
+    const paid = m.paidAt ?? m.paid_at;
+    if (typeof paid === "string" && paid.trim()) {
+      const d = new Date(paid);
+      return Number.isNaN(d.getTime()) ? paid : d.toLocaleString("en-GB");
+    }
+  }
+  return "—";
+}
+
+function gatewayChannel(tx: TransactionDTO): string {
+  const r = tx as Record<string, unknown>;
+  const meta = r.metaData;
+  if (meta && typeof meta === "object") {
+    const m = meta as Record<string, unknown>;
+    const ch = m.channel;
+    if (typeof ch === "string" && ch.trim()) return ch.trim();
+  }
+  return "—";
+}
+
+function fullTransactionId(tx: TransactionDTO): string {
+  const r = tx as Record<string, unknown>;
+  return r.id != null ? String(r.id) : "—";
+}
+
 const PAGE_SIZE = 15;
+
+const fieldShell =
+  "h-9 rounded-md border border-[#E2E8F0] bg-white px-3 text-[12px] text-[#0F172A]";
 
 const AdminTransactionsPage: NextPageWithLayout = () => {
   const [status, setStatus] = React.useState<"All" | "Pending" | "Success">(
@@ -87,25 +130,100 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
   );
   const [page, setPage] = React.useState(1);
   const [rows, setRows] = React.useState<TransactionDTO[]>([]);
+  const [rentById, setRentById] = React.useState<
+    Map<string, RentPaymentItemDTO>
+  >(() => new Map());
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+
+  const [detailOpen, setDetailOpen] = React.useState(false);
+  const [detailListRow, setDetailListRow] =
+    React.useState<TransactionDTO | null>(null);
+  const [detailRemote, setDetailRemote] = React.useState<TransactionDTO | null>(
+    null,
+  );
+  const [detailLoading, setDetailLoading] = React.useState(false);
+  const [detailFetchNote, setDetailFetchNote] = React.useState<string | null>(
+    null,
+  );
 
   const load = React.useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await getTransactions();
+    const [txResult, rentResult] = await Promise.all([
+      getTransactions(),
+      getRentPaymentItems({ limit: 500 }),
+    ]);
     setLoading(false);
-    if (!result.success) {
-      setError(result.error);
+    if (rentResult.success) {
+      setRentById(buildRentPaymentIndex(rentResult.data));
+    } else {
+      setRentById(new Map());
+    }
+    if (!txResult.success) {
+      setError(txResult.error);
       setRows([]);
       return;
     }
-    setRows(result.data);
+    setRows(txResult.data);
   }, []);
 
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  const openDetailModal = React.useCallback((tx: TransactionDTO) => {
+    setDetailListRow(tx);
+    setDetailRemote(null);
+    setDetailFetchNote(null);
+    setDetailOpen(true);
+
+    void (async () => {
+      setDetailLoading(true);
+      const r = tx as Record<string, unknown>;
+      const candidates = [
+        transactionApiId(tx),
+        typeof r.reference === "string" ? r.reference : null,
+        r.referenceId != null ? String(r.referenceId) : null,
+      ].filter((x): x is string => Boolean(x && String(x).trim()));
+
+      let loaded: TransactionDTO | null = null;
+      let sawNetworkError = false;
+      for (const id of candidates) {
+        const res = await getTransactionById(id);
+        if (res.success) {
+          loaded = res.data;
+          break;
+        }
+        if (
+          res.error &&
+          res.error !== "Invalid transaction response" &&
+          res.error !== "Invalid response data format received"
+        ) {
+          sawNetworkError = true;
+        }
+      }
+      setDetailLoading(false);
+      if (loaded) {
+        setDetailRemote(loaded);
+        setDetailFetchNote(null);
+      } else if (candidates.length === 0) {
+        setDetailFetchNote(
+          "This row has no transaction id — showing list payload only.",
+        );
+      } else if (sawNetworkError) {
+        setDetailFetchNote(
+          "Could not load details from the server — showing list payload only.",
+        );
+      } else {
+        setDetailFetchNote(
+          "Detail endpoint did not return usable data — showing list payload only.",
+        );
+      }
+    })();
+  }, []);
+
+  const detailShown = detailRemote ?? detailListRow;
 
   const filtered = React.useMemo(() => {
     return rows.filter((tx) => {
@@ -195,17 +313,13 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
 
           <div className="rounded-xl border border-[#E2E8F0] bg-white p-3">
             <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-[1fr_300px_auto] lg:items-center">
-              <input
-                className="h-9 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3"
-                placeholder="Search..."
-                disabled
-              />
+              <input className={fieldShell} placeholder="Search..." disabled />
               <select
                 value={status}
                 onChange={(event) =>
                   setStatus(event.target.value as "All" | "Pending" | "Success")
                 }
-                className="h-9 rounded-md border border-[#E2E8F0] px-3"
+                className={fieldShell}
               >
                 <option value="All">All</option>
                 <option value="Pending">Pending</option>
@@ -213,7 +327,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
               </select>
               <button
                 type="button"
-                className="h-9 rounded-md border border-[#E2E8F0] px-4"
+                className={`${fieldShell} inline-flex cursor-default items-center justify-center px-4`}
               >
                 Filters
               </button>
@@ -227,31 +341,50 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
               ) : null}
             </div>
             <p className="mb-3 text-xs text-[#64748B]">
-              Transaction records update as new payments are received.
+              From <code className="text-[11px]">GET /transaction</code>. Payer,
+              property hint, and narration come from each row; rent-payment
+              links fill gaps when IDs match. Open a row for full structured
+              details (no raw JSON).
             </p>
             <div className="overflow-auto">
               <table className="w-full min-w-[1050px] text-xs">
                 <thead className="text-[#64748B]">
                   <tr>
-                    <th className="py-2.5 text-left">Transaction ID</th>
-                    <th className="py-2.5 text-left">Tenant</th>
-                    <th className="py-2.5 text-left">Landlord</th>
-                    <th className="py-2.5 text-left">Property</th>
+                    <th className="py-2.5 text-left">Reference</th>
+                    <th className="py-2.5 text-left">From</th>
+                    <th className="py-2.5 text-left">To</th>
+                    <th className="py-2.5 text-left">Property / unit</th>
                     <th className="py-2.5 text-left">Amount</th>
                     <th className="py-2.5 text-left">Date</th>
                     <th className="py-2.5 text-left">Status</th>
+                    <th className="py-2.5 text-left">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {slice.map((tx, i) => (
                     <tr
-                      key={`${txDisplayId(tx)}-${i}`}
-                      className="border-t border-[#F1F5F9]"
+                      key={`${fullTransactionId(tx)}-${i}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openDetailModal(tx)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ")
+                          openDetailModal(tx);
+                      }}
+                      className="cursor-pointer border-t border-[#F1F5F9] hover:bg-[#F8FAFC]"
                     >
-                      <td className="py-2.5 font-mono">{txDisplayId(tx)}</td>
-                      <td className="py-2.5">{nestedName(tx, "tenant")}</td>
-                      <td className="py-2.5">{nestedName(tx, "landlord")}</td>
-                      <td className="py-2.5">{nestedProperty(tx)}</td>
+                      <td className="py-2.5 font-mono text-[11px]">
+                        {formatTransactionRef(tx)}
+                      </td>
+                      <td className="max-w-[140px] truncate py-2.5">
+                        {resolveTenantLabel(tx, rentById)}
+                      </td>
+                      <td className="max-w-[140px] truncate py-2.5">
+                        {resolveLandlordLabel(tx)}
+                      </td>
+                      <td className="max-w-[180px] truncate py-2.5 text-[#334155]">
+                        {resolvePropertyLabel(tx, rentById)}
+                      </td>
                       <td className="py-2.5">{formatMoney(parseAmount(tx))}</td>
                       <td className="py-2.5">{formatTxDate(tx)}</td>
                       <td className="py-2.5">
@@ -266,6 +399,9 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                         >
                           {normalizeStatus(tx.status) || "—"}
                         </span>
+                      </td>
+                      <td className="max-w-[120px] truncate py-2.5 text-[#334155]">
+                        {formatActionLabel(tx)}
                       </td>
                     </tr>
                   ))}
@@ -286,7 +422,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                   type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
                   disabled={safePage <= 1}
-                  className="rounded border border-[#E2E8F0] px-2 py-0.5 disabled:opacity-40"
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 disabled:opacity-40"
                 >
                   {"<"}
                 </button>
@@ -299,7 +435,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                     setPage((prev) => Math.min(pageCount, prev + 1))
                   }
                   disabled={safePage >= pageCount}
-                  className="rounded border border-[#E2E8F0] px-2 py-0.5 disabled:opacity-40"
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 disabled:opacity-40"
                 >
                   {">"}
                 </button>
@@ -307,6 +443,162 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
             </div>
           </div>
         </section>
+
+        <Dialog.Root
+          open={detailOpen}
+          onOpenChange={(open) => {
+            setDetailOpen(open);
+            if (!open) {
+              setDetailListRow(null);
+              setDetailRemote(null);
+              setDetailFetchNote(null);
+            }
+          }}
+        >
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/40 data-[state=open]:animate-in data-[state=closed]:animate-out" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] max-h-[85vh] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-xl focus:outline-none sm:p-5">
+              <div className="flex items-start justify-between gap-3 border-b border-[#F1F5F9] pb-3">
+                <div>
+                  <Dialog.Title className="text-base font-semibold text-[#0F172A]">
+                    Transaction details
+                  </Dialog.Title>
+                  <Dialog.Description className="mt-1 text-[12px] text-[#64748B]">
+                    {detailLoading
+                      ? "Loading from GET /transaction/{id}…"
+                      : "Structured fields from the transaction record."}
+                  </Dialog.Description>
+                </div>
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    className="rounded-md p-1 text-[#64748B] hover:bg-[#F1F5F9]"
+                    aria-label="Close"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </Dialog.Close>
+              </div>
+
+              {detailFetchNote ? (
+                <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
+                  {detailFetchNote}
+                </p>
+              ) : null}
+
+              {detailShown ? (
+                <div className="mt-4 space-y-4 text-[12px]">
+                  <section>
+                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                      Payment
+                    </h3>
+                    <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-2">
+                      <dt className="text-[#64748B]">Amount</dt>
+                      <dd className="font-medium">
+                        {formatMoney(parseAmount(detailShown))}{" "}
+                        <span className="font-normal text-[#64748B]">
+                          ({parseCurrency(detailShown)})
+                        </span>
+                      </dd>
+                      <dt className="text-[#64748B]">Status</dt>
+                      <dd>{normalizeStatus(detailShown.status) || "—"}</dd>
+                      <dt className="text-[#64748B]">Created</dt>
+                      <dd>{formatTxDate(detailShown)}</dd>
+                      <dt className="text-[#64748B]">Updated</dt>
+                      <dd>{formatUpdatedAt(detailShown)}</dd>
+                      <dt className="text-[#64748B]">Action</dt>
+                      <dd>{formatActionLabel(detailShown)}</dd>
+                      <dt className="text-[#64748B]">Method</dt>
+                      <dd>
+                        {typeof (detailShown as Record<string, unknown>)
+                          .paymentMethod === "string"
+                          ? String(
+                              (detailShown as Record<string, unknown>)
+                                .paymentMethod,
+                            )
+                          : "—"}
+                      </dd>
+                      <dt className="text-[#64748B]">Provider</dt>
+                      <dd>
+                        {typeof (detailShown as Record<string, unknown>)
+                          .provider === "string"
+                          ? String(
+                              (detailShown as Record<string, unknown>).provider,
+                            )
+                          : "—"}
+                      </dd>
+                      <dt className="text-[#64748B]">Ledger type</dt>
+                      <dd>
+                        {typeof (detailShown as Record<string, unknown>)
+                          .type === "string"
+                          ? String(
+                              (detailShown as Record<string, unknown>).type,
+                            )
+                          : "—"}
+                      </dd>
+                    </dl>
+                  </section>
+
+                  <section>
+                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                      Parties
+                    </h3>
+                    <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-2">
+                      <dt className="text-[#64748B]">From (payer)</dt>
+                      <dd className="font-medium">
+                        {resolveTenantLabel(detailShown, rentById)}
+                      </dd>
+                      <dt className="text-[#64748B]">Payer email</dt>
+                      <dd className="break-all">
+                        {resolveSenderEmail(detailShown)}
+                      </dd>
+                      <dt className="text-[#64748B]">To (payee)</dt>
+                      <dd className="font-medium">
+                        {resolveLandlordLabel(detailShown)}
+                      </dd>
+                      <dt className="text-[#64748B]">Payee email</dt>
+                      <dd className="break-all">
+                        {resolveReceiverEmail(detailShown)}
+                      </dd>
+                      <dt className="text-[#64748B]">Property / unit</dt>
+                      <dd>{resolvePropertyLabel(detailShown, rentById)}</dd>
+                    </dl>
+                  </section>
+
+                  <section>
+                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                      Description
+                    </h3>
+                    <p className="whitespace-pre-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[12px] text-[#334155]">
+                      {(() => {
+                        const n = resolveNarration(detailShown);
+                        return n === "—"
+                          ? "No narration on this transaction."
+                          : n;
+                      })()}
+                    </p>
+                  </section>
+
+                  <section>
+                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                      Payment gateway
+                    </h3>
+                    <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-2">
+                      <dt className="text-[#64748B]">Channel</dt>
+                      <dd>{gatewayChannel(detailShown)}</dd>
+                      <dt className="text-[#64748B]">Paid at</dt>
+                      <dd>{gatewayPaidAtDisplay(detailShown)}</dd>
+                    </dl>
+                  </section>
+
+                  <p className="border-t border-[#F1F5F9] pt-3 font-mono text-[10px] leading-relaxed text-[#94A3B8]">
+                    Transaction ID: {fullTransactionId(detailShown)}
+                  </p>
+                </div>
+              ) : null}
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
       </AdminLayout>
     </>
   );

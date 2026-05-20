@@ -1,25 +1,15 @@
-import { useRouter } from "next/router";
-import * as React from "react";
 import type { NextPageWithLayout } from "@/pages/_app";
-import { AdminLayout } from "@/components/admin/AdminLayout";
+import { AdminTenantProfile } from "@/components/admin/AdminTenantProfile";
 
-const AdminTenantProfileRedirectPage: NextPageWithLayout = () => {
-  const router = useRouter();
-  const { tenantId } = router.query;
-
-  React.useEffect(() => {
-    if (!router.isReady) return;
-    const tenantIdStr = typeof tenantId === "string" ? tenantId : "1";
-    void router.replace(`/dashboard/admin/properties/1/tenants/${tenantIdStr}`);
-  }, [router, tenantId]);
-
+/** Tenant profile opened from the global Tenants list — stays under /admin/tenants so nav + back match. */
+const AdminTenantFromListPage: NextPageWithLayout = () => {
   return (
-    <AdminLayout title="Tenant">
-      <div className="rounded-lg border border-[#E2E8F0] bg-white p-6 text-sm text-[#64748B]">
-        Opening tenant profile...
-      </div>
-    </AdminLayout>
+    <AdminTenantProfile
+      layoutTitle="Tenants"
+      backHref="/dashboard/admin/tenants"
+      backLabel="Back to tenant list"
+    />
   );
 };
 
-export default AdminTenantProfileRedirectPage;
+export default AdminTenantFromListPage;

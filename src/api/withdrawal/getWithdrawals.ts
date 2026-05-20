@@ -1,5 +1,5 @@
 import { apiGet } from "@/lib/apiClient";
-import type { ApiResult, WithdrawalCreateDTO } from "./withdrawal.schema";
+import type { ApiResult } from "./withdrawal.schema";
 
 export type GetWithdrawalsResult = ApiResult<unknown>;
 

@@ -73,12 +73,12 @@ const AdminNotificationsPage: NextPageWithLayout = () => {
       <AdminLayout title="Notifications">
         <section className="w-full min-w-0 space-y-4">
           <div className="flex flex-col gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3">
+            <div className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3">
               <Search className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
               <input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full min-w-0 bg-transparent text-xs outline-none placeholder:text-[#94A3B8]"
+                className="w-full min-w-0 bg-white text-xs text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
                 placeholder="Search notifications"
               />
             </div>

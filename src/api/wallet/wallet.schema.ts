@@ -48,6 +48,17 @@ const stringOrNumberToString = z
   .union([z.string(), z.number()])
   .transform((v) => String(v));
 
+/** Saved payout account the backend uses for withdrawals (see TransferUserDetails). */
+export const walletWithdrawalDetailsSchema = z
+  .object({
+    fullName: z.string().optional(),
+    email: z.string().optional(),
+    bankCode: z.string().optional(),
+    bankName: z.string().optional(),
+    accountNumber: z.string().optional(),
+  })
+  .passthrough();
+
 // Wallet Schema
 export const walletSchema = z
   .object({
@@ -67,6 +78,7 @@ export const walletSchema = z
     currency: z.string().default("NGN"),
     balance: stringOrNumberToString.optional(),
     escrowBalance: stringOrNumberToString.optional(),
+    withdrawalDetails: walletWithdrawalDetailsSchema.optional().nullable(),
     isActive: z.boolean().default(true),
     createdAt: z.string(),
     updatedAt: z.string(),

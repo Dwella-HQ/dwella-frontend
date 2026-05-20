@@ -1,3 +1,5 @@
+import { REFRESH_TOKEN_STORAGE_KEY } from "@/lib/authRefresh";
+
 /**
  * Logout utility function
  * Clears authentication data from localStorage
@@ -7,6 +9,7 @@
 export const logout = () => {
   // Clear all auth-related data from localStorage
   localStorage.removeItem("authToken");
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   localStorage.removeItem("user");
   localStorage.removeItem("selectedLandlord");
   localStorage.removeItem("selectedLandlordId");

@@ -214,7 +214,7 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
       <AdminLayout title="Properties">
         <section className="w-full min-w-0 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="inline-flex w-fit max-w-full flex-wrap rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-1">
+            <div className="inline-flex w-fit max-w-full flex-wrap rounded-lg border border-[#E2E8F0] bg-white p-1">
               <button
                 type="button"
                 onClick={() => setTab("active")}
@@ -267,19 +267,19 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
           ) : null}
 
           <div className="grid grid-cols-1 gap-2.5 rounded-[10px] border border-[#E2E8F0] bg-white p-2.5 sm:grid-cols-2 lg:grid-cols-[1fr_210px_210px_auto] lg:items-center">
-            <div className="flex items-center gap-2 rounded-md bg-[#F8FAFC] px-3 py-2">
+            <div className="flex items-center gap-2 rounded-md bg-white px-3 py-2">
               <Search className="h-4 w-4 text-[#94A3B8]" />
               <input
                 placeholder="Search..."
-                className="w-full bg-transparent text-[12px] outline-none placeholder:text-[#94A3B8]"
+                className="w-full bg-white text-[12px] text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
               />
             </div>
-            <button className="flex items-center justify-between rounded-md border border-[#E2E8F0] px-3 py-2 text-[12px] text-[#64748B]">
+            <button className="flex items-center justify-between rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] text-[#64748B]">
               <span>Status</span>
               <span className="text-[#0F172A]">All</span>
               <ChevronDown className="h-4 w-4" />
             </button>
-            <button className="flex items-center justify-between rounded-md border border-[#E2E8F0] px-3 py-2 text-[12px] text-[#64748B]">
+            <button className="flex items-center justify-between rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] text-[#64748B]">
               <span>Property Type</span>
               <span className="text-[#0F172A]">All</span>
               <ChevronDown className="h-4 w-4" />

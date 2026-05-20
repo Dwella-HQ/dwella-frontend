@@ -23,6 +23,9 @@ export const isBroadcastAnnouncement = (item: AnnouncementItemDTO) => {
   return level === "LANDLORD" || level === "PROPERTY";
 };
 
+/** Stable identity — default param `(items) => items` would be a new fn every render. */
+const passthroughAnnouncements = (items: AnnouncementItemDTO[]) => items;
+
 export type UseAnnouncementsFeedOptions = {
   userId: string | null | undefined;
   userRole?: string;
@@ -42,35 +45,54 @@ export function useAnnouncementsFeed({
   userRole,
   token,
   enabled = true,
-  filterIncoming = (items) => items,
-  filterCached = (items) => items,
+  filterIncoming = passthroughAnnouncements,
+  filterCached = passthroughAnnouncements,
   logLabel = "announcements",
 }: UseAnnouncementsFeedOptions) {
   const [announcements, setAnnouncements] = React.useState<
     AnnouncementItemDTO[]
   >([]);
 
-  const applyIncoming = React.useCallback(
-    (items: AnnouncementItemDTO[]) => {
-      const filtered = filterIncoming(items);
-      setAnnouncements((prev) => mergeAnnouncementLists(prev, filtered));
-    },
-    [filterIncoming],
-  );
+  const filterIncomingRef = React.useRef(filterIncoming);
+  const filterCachedRef = React.useRef(filterCached);
+  filterIncomingRef.current = filterIncoming;
+  filterCachedRef.current = filterCached;
 
+  const cacheLoadedForUserRef = React.useRef<string | null>(null);
+  const lastSavedCacheKeyRef = React.useRef<string>("");
+
+  const applyIncoming = React.useCallback((items: AnnouncementItemDTO[]) => {
+    const filtered = filterIncomingRef.current(items);
+    setAnnouncements((prev) => mergeAnnouncementLists(prev, filtered));
+  }, []);
+
+  // Hydrate from cache once per user session (not on every parent re-render).
   React.useEffect(() => {
-    if (!enabled || !userId) return;
-    const cached = filterCached(loadCachedAnnouncements(userId));
+    if (!enabled || !userId) {
+      cacheLoadedForUserRef.current = null;
+      return;
+    }
+    if (cacheLoadedForUserRef.current === userId) return;
+    cacheLoadedForUserRef.current = userId;
+
+    const cached = filterCachedRef.current(loadCachedAnnouncements(userId));
     if (cached.length > 0) {
       setAnnouncements((prev) => mergeAnnouncementLists(prev, cached));
     }
-  }, [enabled, filterCached, userId]);
+  }, [enabled, userId]);
 
+  // Persist cache only when the list actually changes.
   React.useEffect(() => {
     if (!enabled || !userId) return;
+    const snapshot = JSON.stringify(
+      announcements.map((a) => a.id ?? `${a.title}:${a.createdAt}`),
+    );
+    if (snapshot === lastSavedCacheKeyRef.current) return;
+    lastSavedCacheKeyRef.current = snapshot;
     saveCachedAnnouncements(userId, announcements);
   }, [announcements, enabled, userId]);
 
+  // Socket subscription — reconnect only when auth identity changes, not filters.
   React.useEffect(() => {
     if (!enabled || !userId) return;
 
@@ -83,14 +105,13 @@ export function useAnnouncementsFeed({
     const subscription = subscribeAnnouncements({
       token: socketToken,
       onLoad: (items) => {
-        console.log(`[${logLabel}] socket onLoad`, {
-          role: userRole,
-          count: items.length,
-        });
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[${logLabel}] socket onLoad`, {
+            role: userRole,
+            count: items.length,
+          });
+        }
         applyIncoming(items);
-      },
-      onRaw: (payload) => {
-        console.log(`[${logLabel}] socket raw payload:`, payload);
       },
       onError: (error) => {
         console.warn(`[${logLabel}] socket error:`, error);

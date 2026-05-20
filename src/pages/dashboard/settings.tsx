@@ -1,3 +1,5 @@
+import { isValidPhoneNumber } from "react-phone-number-input";
+import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 import Head from "next/head";
 import * as React from "react";
 import { motion } from "framer-motion";
@@ -21,14 +23,24 @@ import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
 import { getProfile } from "@/api/auth";
 import {
+  getLandlord,
   getLandlordByUser,
   getLandlordSettings,
+  updateLandlord,
   updateLandlordDocumentsSettings,
   updateLandlordNotificationPreferencesSettings,
   updateLandlordPlatformPreferencesSettings,
-  updateLandlordProfileSettings,
 } from "@/api/landlord";
-import type { LandlordDTO } from "@/api/landlord";
+import type {
+  LandlordBankAccountDTO,
+  LandlordDTO,
+  UpdateLandlordDTO,
+} from "@/api/landlord";
+import {
+  getWithdrawalBanksByCurrency,
+  resolveWithdrawalAccount,
+} from "@/api/withdrawal";
+import type { WithdrawalBankDTO } from "@/api/withdrawal";
 import type { NextPageWithLayout } from "../_app";
 
 type SettingsTab =
@@ -38,6 +50,114 @@ type SettingsTab =
   | "payment-details"
   | "preferences"
   | "change-password";
+
+const PAY_ACCOUNT_LEN = 10;
+const PAY_BVN_LEN = 11;
+
+const bankOptionCode = (bank: WithdrawalBankDTO) =>
+  (bank.bankCode || bank.code || "").trim();
+
+const bankOptionName = (bank: WithdrawalBankDTO, index: number) => {
+  const code = bankOptionCode(bank);
+  return bank.bankName || bank.name || code || `Bank ${index + 1}`;
+};
+
+/** Console label for payment settings debugging (filter DevTools by this string). */
+const PAYMENT_SETTINGS_LOG = "[Dwella Settings · Payment]";
+const PROFILE_SETTINGS_LOG = "[Dwella Settings · Profile]";
+
+type ProfileFormState = {
+  businessName: string;
+  businessEmail: string;
+  businessPhoneNumber: string;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+};
+
+type PaymentBankAccountFields = {
+  accountName?: string;
+  accountNumber?: string;
+  accountCode?: string;
+  bankName?: string;
+  bankCode?: string;
+  bvn?: string;
+};
+
+/**
+ * Read bank account from GET /landlord/:id (top-level `bankAccount`).
+ */
+function pickBankAccountFromLandlordRecord(
+  landlord: Record<string, unknown>,
+): PaymentBankAccountFields | null {
+  const top = landlord.bankAccount;
+  if (top && typeof top === "object") {
+    return top as PaymentBankAccountFields;
+  }
+  const settings = landlord.settings;
+  if (settings && typeof settings === "object") {
+    const nested = (settings as Record<string, unknown>).bankAccount;
+    if (nested && typeof nested === "object") {
+      return nested as PaymentBankAccountFields;
+    }
+  }
+  return null;
+}
+
+/** Build PATCH /landlord/:id body from form + existing landlord (avoids wiping fields). */
+function buildLandlordUpdatePayload(
+  profileForm: ProfileFormState,
+  landlord: LandlordDTO | null,
+  userId: string | null,
+  extras?: { bankAccount?: LandlordBankAccountDTO },
+): UpdateLandlordDTO {
+  const payload: UpdateLandlordDTO = {
+    userId: userId ?? landlord?.userId ?? undefined,
+    businessName:
+      profileForm.businessName.trim() ||
+      landlord?.businessName ||
+      landlord?.landLordName ||
+      undefined,
+    businessEmail:
+      profileForm.businessEmail.trim() || landlord?.businessEmail || undefined,
+    businessPhoneNumber:
+      profileForm.businessPhoneNumber.trim() ||
+      landlord?.businessPhoneNumber ||
+      undefined,
+    govermentIdDocumentId: landlord?.govermentIdDocumentId,
+    landSurveyDocumentId: landlord?.landSurveyDocumentId,
+    proofOfOwnershipDocumentId: landlord?.proofOfOwnershipDocumentId,
+    taxIdentificationNumberDocumentId:
+      landlord?.taxIdentificationNumberDocumentId,
+  };
+
+  const addressLine =
+    profileForm.address.trim() || landlord?.address?.address || "";
+  const city = profileForm.city.trim() || landlord?.address?.city || "";
+  const state = profileForm.state.trim() || landlord?.address?.state || "";
+  const country =
+    profileForm.country.trim() || landlord?.address?.country || "";
+  if (addressLine || city || state || country) {
+    payload.address = {
+      address: addressLine,
+      city,
+      state,
+      postalCode:
+        profileForm.postalCode.trim() ||
+        landlord?.address?.postalCode ||
+        undefined,
+      country: country || "Nigeria",
+    };
+  }
+
+  if (extras?.bankAccount) {
+    payload.bankAccount = extras.bankAccount;
+  }
+
+  return payload;
+}
 
 const SettingsPage: NextPageWithLayout = () => {
   const { user } = useUser();
@@ -86,6 +206,113 @@ const SettingsPage: NextPageWithLayout = () => {
   });
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
   const [profileSnapshot, setProfileSnapshot] = React.useState(profileForm);
+  /** Draft phone in the yellow banner — not persisted until Save. */
+  const [pendingBusinessPhone, setPendingBusinessPhone] = React.useState("");
+
+  const [paymentForm, setPaymentForm] = React.useState({
+    bankCode: "",
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+    bvn: "",
+  });
+  const [paymentBanks, setPaymentBanks] = React.useState<WithdrawalBankDTO[]>(
+    [],
+  );
+  const [paymentBanksLoading, setPaymentBanksLoading] = React.useState(false);
+  const [paymentResolveLoading, setPaymentResolveLoading] =
+    React.useState(false);
+  const [isPaymentAccountResolved, setIsPaymentAccountResolved] =
+    React.useState(false);
+
+  const paymentAutoResolveTimerRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const paymentLastResolvedSignatureRef = React.useRef("");
+  const paymentResolveRequestIdRef = React.useRef(0);
+  const paymentAutoResolveFailedSignatureRef = React.useRef("");
+
+  const syncPaymentFormFromBankAccount = React.useCallback(
+    (ba: PaymentBankAccountFields) => {
+      const digits = String(ba.accountNumber ?? ba.accountCode ?? "")
+        .replace(/\D/g, "")
+        .slice(0, PAY_ACCOUNT_LEN);
+      const code = String(ba.bankCode ?? "").trim();
+      setPaymentForm({
+        bankCode: code,
+        bankName: String(ba.bankName ?? ""),
+        accountNumber: digits,
+        accountName: String(ba.accountName ?? "").trim(),
+        bvn: String(ba.bvn ?? "")
+          .replace(/\D/g, "")
+          .slice(0, PAY_BVN_LEN),
+      });
+      if (
+        digits.length === PAY_ACCOUNT_LEN &&
+        code &&
+        String(ba.accountName ?? "").trim()
+      ) {
+        paymentLastResolvedSignatureRef.current = `${code}:${digits}`;
+        setIsPaymentAccountResolved(true);
+      } else {
+        paymentLastResolvedSignatureRef.current = "";
+        setIsPaymentAccountResolved(false);
+      }
+    },
+    [],
+  );
+
+  const applyProfileFormFromLandlord = React.useCallback(
+    (data: LandlordDTO, fallbackEmail?: string) => {
+      const next: ProfileFormState = {
+        businessName: data.businessName ?? data.landLordName ?? "",
+        businessEmail:
+          data.businessEmail ?? data.user?.email ?? fallbackEmail ?? "",
+        businessPhoneNumber: data.businessPhoneNumber ?? "",
+        address: data.address?.address ?? "",
+        city: data.address?.city ?? "",
+        state: data.address?.state ?? "",
+        postalCode: data.address?.postalCode ?? "",
+        country: data.address?.country ?? "Nigeria",
+      };
+      setProfileForm(next);
+      setProfileSnapshot(next);
+      return next;
+    },
+    [],
+  );
+
+  const refreshLandlordFromApi = React.useCallback(
+    async (id: string) => {
+      const landlordResult = await getLandlord(id);
+
+      if (landlordResult.success) {
+        setLandlord(landlordResult.data);
+        applyProfileFormFromLandlord(landlordResult.data, user?.email);
+        const baFromLandlord = pickBankAccountFromLandlordRecord(
+          landlordResult.data as unknown as Record<string, unknown>,
+        );
+        if (baFromLandlord) {
+          syncPaymentFormFromBankAccount(baFromLandlord);
+        }
+        if (typeof window !== "undefined") {
+          console.info(PROFILE_SETTINGS_LOG, "GET /landlord/:id after save:", {
+            businessPhoneNumber: landlordResult.data.businessPhoneNumber,
+            bankAccount: baFromLandlord,
+          });
+        }
+      } else if (typeof window !== "undefined") {
+        console.warn(
+          PROFILE_SETTINGS_LOG,
+          "GET /landlord/:id after save — failed:",
+          landlordResult.error,
+        );
+      }
+
+      return { landlordResult };
+    },
+    [applyProfileFormFromLandlord, syncPaymentFormFromBankAccount, user?.email],
+  );
 
   const landlordId = landlord?.id as string | undefined;
   const isLandlordVerified = landlord?.isApproved === true;
@@ -147,21 +374,13 @@ const SettingsPage: NextPageWithLayout = () => {
           ).taxIdentificationNumberDocument,
         });
         setLandlord(result.data);
-        setProfileForm({
-          businessName:
-            result.data.businessName ?? result.data.landLordName ?? "",
-          businessEmail:
-            result.data.businessEmail ??
-            result.data.user?.email ??
-            user?.email ??
-            "",
-          businessPhoneNumber: result.data.businessPhoneNumber ?? "",
-          address: result.data.address?.address ?? "",
-          city: result.data.address?.city ?? "",
-          state: result.data.address?.state ?? "",
-          postalCode: result.data.address?.postalCode ?? "",
-          country: result.data.address?.country ?? "Nigeria",
-        });
+        applyProfileFormFromLandlord(result.data, user?.email);
+        const baFromLandlord = pickBankAccountFromLandlordRecord(
+          result.data as unknown as Record<string, unknown>,
+        );
+        if (baFromLandlord) {
+          syncPaymentFormFromBankAccount(baFromLandlord);
+        }
         setDocumentsForm({
           govermentIdDocumentId: result.data.govermentIdDocumentId ?? "",
           landSurveyDocumentId: result.data.landSurveyDocumentId ?? "",
@@ -176,38 +395,66 @@ const SettingsPage: NextPageWithLayout = () => {
     };
 
     fetchLandlord();
-  }, [user]);
+  }, [user, applyProfileFormFromLandlord, syncPaymentFormFromBankAccount]);
 
-  // Fetch settings payload and prefill forms where values exist
+  // Profile, phone, and bank account — GET /landlord/:id
+  React.useEffect(() => {
+    if (!landlordId) return;
+    let cancelled = false;
+    getLandlord(landlordId).then((result) => {
+      if (cancelled) return;
+      if (!result.success) {
+        if (typeof window !== "undefined") {
+          console.warn(
+            PROFILE_SETTINGS_LOG,
+            "GET /landlord/:id — failed:",
+            result.error,
+            "statusCode:",
+            result.statusCode,
+          );
+        }
+        return;
+      }
+      const data = result.data;
+      const dataRecord = data as unknown as Record<string, unknown>;
+      if (typeof window !== "undefined") {
+        console.info(PROFILE_SETTINGS_LOG, "GET /landlord/:id — success:", {
+          businessPhoneNumber: data.businessPhoneNumber,
+          bankAccount: dataRecord.bankAccount,
+        });
+      }
+      setLandlord(data);
+      applyProfileFormFromLandlord(data, user?.email);
+      const ba = pickBankAccountFromLandlordRecord(dataRecord);
+      if (typeof window !== "undefined") {
+        console.info(
+          PAYMENT_SETTINGS_LOG,
+          "GET /landlord/:id — picked bankAccount for form:",
+          ba ?? "(null — nothing to prefill)",
+        );
+      }
+      if (ba) {
+        syncPaymentFormFromBankAccount(ba);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    landlordId,
+    applyProfileFormFromLandlord,
+    syncPaymentFormFromBankAccount,
+    user?.email,
+  ]);
+
+  // Notification & platform preferences only — GET /landlord/:id/settings
   React.useEffect(() => {
     if (!landlordId) return;
     let cancelled = false;
     getLandlordSettings(landlordId).then((result) => {
-      if (cancelled || !result.success) return;
+      if (cancelled) return;
+      if (!result.success) return;
       const data = result.data;
-      setProfileForm((prev) => ({
-        ...prev,
-        businessName:
-          (data.businessName as string) ??
-          (data.landLordName as string) ??
-          prev.businessName,
-        businessEmail: (data.businessEmail as string) ?? prev.businessEmail,
-        businessPhoneNumber:
-          (data.businessPhoneNumber as string) ?? prev.businessPhoneNumber,
-        address:
-          (data.address as { address?: string } | undefined)?.address ??
-          prev.address,
-        city:
-          (data.address as { city?: string } | undefined)?.city ?? prev.city,
-        state:
-          (data.address as { state?: string } | undefined)?.state ?? prev.state,
-        postalCode:
-          (data.address as { postalCode?: string } | undefined)?.postalCode ??
-          prev.postalCode,
-        country:
-          (data.address as { country?: string } | undefined)?.country ??
-          prev.country,
-      }));
       setPlatformPrefsForm((prev) => ({
         defaultCurrency:
           (data.defaultCurrency as string) ?? prev.defaultCurrency,
@@ -242,6 +489,30 @@ const SettingsPage: NextPageWithLayout = () => {
     };
   }, [landlordId]);
 
+  React.useEffect(() => {
+    if (userRole !== "landlord" && activeTab === "payment-details") {
+      setActiveTab("profile");
+    }
+  }, [userRole, activeTab]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!landlordId || userRole !== "landlord") return;
+    setPaymentBanksLoading(true);
+    void getWithdrawalBanksByCurrency("NGN").then((result) => {
+      if (cancelled) return;
+      if (result.success) setPaymentBanks(result.data);
+      else {
+        setPaymentBanks([]);
+        showToast(result.error || "Failed to load banks", "error");
+      }
+      setPaymentBanksLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [landlordId, userRole, showToast]);
+
   const getInitials = (name: string) => {
     if (!name) return "JD";
     const parts = name.trim().split(/\s+/);
@@ -262,31 +533,331 @@ const SettingsPage: NextPageWithLayout = () => {
     user?.email ||
     "";
   const businessDisplayPhone =
-    profileForm.businessPhoneNumber || landlord?.businessPhoneNumber || "";
+    landlord?.businessPhoneNumber?.trim() ||
+    (isEditingProfile ? profileForm.businessPhoneNumber.trim() : "");
+  const needsBusinessPhonePrompt =
+    !landlord?.businessPhoneNumber?.trim() && !isEditingProfile;
   const profileName = businessDisplayName || user?.name || "Landlord";
   const profilePicture = landlord?.profilePicture?.url;
   const initials = getInitials(profileName);
 
-  const settingsTabs = [
-    { id: "profile" as SettingsTab, label: "Profile", icon: User },
-    { id: "documents" as SettingsTab, label: "Documents", icon: FileText },
-    { id: "notifications" as SettingsTab, label: "Notifications", icon: Bell },
-    {
-      id: "payment-details" as SettingsTab,
-      label: "Payment Details",
-      icon: CreditCard,
+  const settingsTabs = React.useMemo(() => {
+    const all: Array<{
+      id: SettingsTab;
+      label: string;
+      icon: React.ComponentType<{ className?: string }>;
+    }> = [
+      { id: "profile", label: "Profile", icon: User },
+      { id: "documents", label: "Documents", icon: FileText },
+      { id: "notifications", label: "Notifications", icon: Bell },
+      {
+        id: "payment-details",
+        label: "Payment Details",
+        icon: CreditCard,
+      },
+      { id: "preferences", label: "Preferences", icon: SettingsIcon },
+      {
+        id: "change-password",
+        label: "Change Password",
+        icon: Lock,
+      },
+    ];
+    if (userRole !== "landlord") {
+      return all.filter((t) => t.id !== "payment-details");
+    }
+    return all;
+  }, [userRole]);
+
+  const resolvePaymentAccount = React.useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      const digits = paymentForm.accountNumber.replace(/\D/g, "");
+      const code = paymentForm.bankCode.trim();
+      if (!code || digits.length !== PAY_ACCOUNT_LEN) {
+        if (!silent) {
+          showToast(
+            !code ? "Select a bank" : "Enter a valid 10-digit account number",
+            "error",
+          );
+        }
+        return false;
+      }
+      const signature = `${code}:${digits}`;
+      const reqId = ++paymentResolveRequestIdRef.current;
+      setPaymentResolveLoading(true);
+      const result = await resolveWithdrawalAccount({
+        bankCode: code,
+        accountNumber: digits,
+      });
+      if (reqId !== paymentResolveRequestIdRef.current) {
+        setPaymentResolveLoading(false);
+        return false;
+      }
+      setPaymentResolveLoading(false);
+
+      if (result.success) {
+        const name = result.data.accountName?.trim() ?? "";
+        paymentLastResolvedSignatureRef.current = signature;
+        paymentAutoResolveFailedSignatureRef.current = "";
+        setPaymentForm((prev) => ({
+          ...prev,
+          accountName: name || prev.accountName,
+        }));
+        setIsPaymentAccountResolved(Boolean(name));
+        if (!silent) {
+          if (name) showToast("Account verified", "success");
+          else {
+            showToast(
+              "Resolved, but the bank did not return an account holder name.",
+              "warning",
+            );
+          }
+        }
+        return Boolean(name);
+      }
+
+      paymentLastResolvedSignatureRef.current = "";
+      setIsPaymentAccountResolved(false);
+      if (silent) {
+        paymentAutoResolveFailedSignatureRef.current = signature;
+      } else {
+        showToast(result.error || "Failed to resolve account", "error");
+      }
+      return false;
     },
-    {
-      id: "preferences" as SettingsTab,
-      label: "Preferences",
-      icon: SettingsIcon,
+    [paymentForm.accountNumber, paymentForm.bankCode, showToast],
+  );
+
+  const handleResolvePaymentAccount = React.useCallback(async () => {
+    paymentAutoResolveFailedSignatureRef.current = "";
+    await resolvePaymentAccount({ silent: false });
+  }, [resolvePaymentAccount]);
+
+  React.useEffect(() => {
+    const digits = paymentForm.accountNumber.replace(/\D/g, "");
+    const code = paymentForm.bankCode.trim();
+
+    if (digits.length !== PAY_ACCOUNT_LEN || !code) {
+      paymentLastResolvedSignatureRef.current = "";
+      paymentAutoResolveFailedSignatureRef.current = "";
+      setIsPaymentAccountResolved(false);
+      return;
+    }
+
+    const signature = `${code}:${digits}`;
+    if (signature === paymentLastResolvedSignatureRef.current) {
+      return;
+    }
+    if (signature === paymentAutoResolveFailedSignatureRef.current) {
+      return;
+    }
+
+    if (paymentAutoResolveTimerRef.current) {
+      clearTimeout(paymentAutoResolveTimerRef.current);
+    }
+
+    paymentAutoResolveTimerRef.current = setTimeout(() => {
+      paymentAutoResolveTimerRef.current = null;
+      void resolvePaymentAccount({ silent: true });
+    }, 450);
+
+    return () => {
+      if (paymentAutoResolveTimerRef.current) {
+        clearTimeout(paymentAutoResolveTimerRef.current);
+        paymentAutoResolveTimerRef.current = null;
+      }
+    };
+  }, [paymentForm.accountNumber, paymentForm.bankCode, resolvePaymentAccount]);
+
+  const handlePaymentBankChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const code = event.target.value;
+      const idx = paymentBanks.findIndex(
+        (item) => bankOptionCode(item) === code,
+      );
+      const bank = idx >= 0 ? paymentBanks[idx] : undefined;
+      const name = bank ? bankOptionName(bank, idx) : "";
+      setPaymentForm((prev) => ({
+        ...prev,
+        bankCode: code,
+        bankName: name,
+        accountName: "",
+      }));
+      setIsPaymentAccountResolved(false);
+      paymentLastResolvedSignatureRef.current = "";
+      paymentAutoResolveFailedSignatureRef.current = "";
     },
-    {
-      id: "change-password" as SettingsTab,
-      label: "Change Password",
-      icon: Lock,
+    [paymentBanks],
+  );
+
+  const handlePaymentFieldChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = event.target;
+      if (name === "bvn") {
+        const next = value.replace(/\D/g, "").slice(0, PAY_BVN_LEN);
+        setPaymentForm((prev) => ({ ...prev, bvn: next }));
+        return;
+      }
+      if (name === "accountNumber") {
+        const next = value.replace(/\D/g, "").slice(0, PAY_ACCOUNT_LEN);
+        setIsPaymentAccountResolved(false);
+        paymentLastResolvedSignatureRef.current = "";
+        setPaymentForm((prev) => ({
+          ...prev,
+          accountNumber: next,
+          accountName: "",
+        }));
+        return;
+      }
+      if (name === "accountName") {
+        setPaymentForm((prev) => ({ ...prev, accountName: value }));
+        return;
+      }
     },
-  ];
+    [],
+  );
+
+  const handleSavePaymentDetails = React.useCallback(async () => {
+    if (!landlordId || userRole !== "landlord") {
+      showToast("Landlord account not found.", "error");
+      return;
+    }
+    const bvn = paymentForm.bvn.replace(/\D/g, "");
+    const bankCode = paymentForm.bankCode.trim();
+    const bankName = paymentForm.bankName.trim();
+    const digits = paymentForm.accountNumber.replace(/\D/g, "");
+    const accountName = paymentForm.accountName.trim();
+
+    if (bvn.length !== PAY_BVN_LEN) {
+      showToast(`BVN must be ${PAY_BVN_LEN} digits.`, "error");
+      return;
+    }
+    if (!bankCode || !bankName) {
+      showToast("Select your bank.", "error");
+      return;
+    }
+    if (digits.length !== PAY_ACCOUNT_LEN) {
+      showToast("Account number must be 10 digits.", "error");
+      return;
+    }
+    const sig = `${bankCode}:${digits}`;
+    if (
+      !isPaymentAccountResolved ||
+      !accountName ||
+      paymentLastResolvedSignatureRef.current !== sig
+    ) {
+      showToast(
+        "Verify your account number so the account name matches your bank records.",
+        "error",
+      );
+      return;
+    }
+
+    const payload = buildLandlordUpdatePayload(profileForm, landlord, userId, {
+      bankAccount: {
+        accountName,
+        accountNumber: digits,
+        bankName,
+        bankCode,
+        bvn,
+      },
+    });
+
+    if (typeof window !== "undefined") {
+      console.info(
+        PAYMENT_SETTINGS_LOG,
+        "PATCH /landlord/:id body (save payment):",
+        JSON.stringify(payload, null, 2),
+      );
+    }
+
+    setIsSaving(true);
+    const result = await updateLandlord(landlordId, payload);
+    setIsSaving(false);
+
+    if (typeof window !== "undefined") {
+      console.info(
+        PAYMENT_SETTINGS_LOG,
+        "PATCH /landlord/:id response:",
+        result.success ? { success: true, data: result.data } : result,
+      );
+    }
+
+    if (result.success) {
+      showToast("Bank details saved.", "success");
+      await refreshLandlordFromApi(landlordId);
+    } else {
+      showToast(result.error || "Failed to save bank details", "error");
+    }
+  }, [
+    isPaymentAccountResolved,
+    landlord,
+    landlordId,
+    paymentForm,
+    profileForm,
+    refreshLandlordFromApi,
+    showToast,
+    userId,
+    userRole,
+  ]);
+
+  const handleSaveBusinessPhone = React.useCallback(async () => {
+    if (!landlordId) return;
+    const phoneTrim = pendingBusinessPhone.trim();
+    if (!phoneTrim) {
+      showToast("Business phone number is required.", "error");
+      return;
+    }
+    if (!isValidPhoneNumber(phoneTrim)) {
+      showToast(
+        "Please enter a valid business phone number (including country code).",
+        "error",
+      );
+      return;
+    }
+
+    const payload = buildLandlordUpdatePayload(
+      { ...profileForm, businessPhoneNumber: phoneTrim },
+      landlord,
+      userId,
+    );
+
+    if (typeof window !== "undefined") {
+      console.info(
+        PROFILE_SETTINGS_LOG,
+        "PATCH /landlord/:id body (save phone):",
+        JSON.stringify(payload, null, 2),
+      );
+    }
+
+    setIsSaving(true);
+    const result = await updateLandlord(landlordId, payload);
+    setIsSaving(false);
+
+    if (typeof window !== "undefined") {
+      console.info(
+        PROFILE_SETTINGS_LOG,
+        "PATCH /landlord/:id response:",
+        result.success ? { success: true, data: result.data } : result,
+      );
+    }
+
+    if (result.success) {
+      showToast("Business phone saved.", "success");
+      setPendingBusinessPhone("");
+      await refreshLandlordFromApi(landlordId);
+    } else {
+      showToast(result.error || "Failed to save phone number", "error");
+    }
+  }, [
+    landlord,
+    landlordId,
+    pendingBusinessPhone,
+    profileForm,
+    refreshLandlordFromApi,
+    showToast,
+    userId,
+  ]);
 
   const handleNotificationChange = (
     category: keyof typeof notifications,
@@ -333,30 +904,39 @@ const SettingsPage: NextPageWithLayout = () => {
       );
       return;
     }
+    const phoneTrim = profileForm.businessPhoneNumber.trim();
+    if (phoneTrim && !isValidPhoneNumber(phoneTrim)) {
+      showToast(
+        "Please enter a valid business phone number (including country code).",
+        "error",
+      );
+      return;
+    }
     setIsSaving(true);
-    const result = await updateLandlordProfileSettings(landlordId, {
-      businessName: trimmedName,
-      businessEmail: trimmedEmail,
-      businessPhoneNumber: profileForm.businessPhoneNumber.trim() || undefined,
-      address: {
-        ...addr,
-        postalCode: profileForm.postalCode.trim() || undefined,
-      },
-    });
+    const payload = buildLandlordUpdatePayload(profileForm, landlord, userId);
+    if (typeof window !== "undefined") {
+      console.info(
+        PROFILE_SETTINGS_LOG,
+        "PATCH /landlord/:id body (save profile):",
+        JSON.stringify(payload, null, 2),
+      );
+    }
+    const result = await updateLandlord(landlordId, payload);
     if (result.success) {
-      const refreshedLandlord =
-        userId && userRole === "landlord"
-          ? await getLandlordByUser(userId)
-          : null;
-      if (refreshedLandlord?.success) {
-        setLandlord(refreshedLandlord.data);
-      }
+      await refreshLandlordFromApi(landlordId);
       setProfileSnapshot(profileForm);
       setIsEditingProfile(false);
       showToast("Profile updated successfully", "success");
     } else showToast(result.error || "Failed to update profile", "error");
     setIsSaving(false);
-  }, [landlordId, profileForm, showToast, userId, userRole]);
+  }, [
+    landlord,
+    landlordId,
+    profileForm,
+    refreshLandlordFromApi,
+    showToast,
+    userId,
+  ]);
 
   const toDocumentsPayload = React.useCallback(
     (documents: typeof documentsForm) => ({
@@ -707,7 +1287,7 @@ const SettingsPage: NextPageWithLayout = () => {
 
                     {!isEditingProfile ? (
                       <div className="space-y-4">
-                        {!businessDisplayPhone ? (
+                        {needsBusinessPhonePrompt ? (
                           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                             <p className="text-sm font-medium text-amber-900">
                               Business phone number is required.
@@ -715,27 +1295,26 @@ const SettingsPage: NextPageWithLayout = () => {
                             <p className="mt-1 text-xs text-amber-800">
                               Add it here so your landlord profile is complete.
                             </p>
-                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                              <input
-                                type="tel"
-                                value={profileForm.businessPhoneNumber}
-                                onChange={(e) =>
-                                  setProfileForm((prev) => ({
-                                    ...prev,
-                                    businessPhoneNumber: e.target.value,
-                                  }))
-                                }
-                                placeholder="Enter business phone number"
-                                className="h-11 w-full rounded-lg border border-amber-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                              />
+                            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                              <div className="min-w-0 flex-1">
+                                <PhoneInputWithCountry
+                                  value={pendingBusinessPhone || undefined}
+                                  onChange={(v) =>
+                                    setPendingBusinessPhone(v ?? "")
+                                  }
+                                  placeholder="Business phone"
+                                  className="border-amber-300 bg-white"
+                                />
+                              </div>
                               <button
                                 type="button"
-                                onClick={handleSaveProfile}
+                                onClick={handleSaveBusinessPhone}
                                 disabled={
                                   isSaving ||
-                                  !profileForm.businessPhoneNumber.trim()
+                                  !pendingBusinessPhone.trim() ||
+                                  !isValidPhoneNumber(pendingBusinessPhone)
                                 }
-                                className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-70"
+                                className="shrink-0 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-70"
                               >
                                 {isSaving ? "Saving..." : "Save"}
                               </button>
@@ -796,16 +1375,17 @@ const SettingsPage: NextPageWithLayout = () => {
                             <label className="mb-2 block text-sm font-medium text-gray-700">
                               Phone Number
                             </label>
-                            <input
-                              type="tel"
-                              value={profileForm.businessPhoneNumber}
-                              onChange={(e) =>
+                            <PhoneInputWithCountry
+                              value={
+                                profileForm.businessPhoneNumber || undefined
+                              }
+                              onChange={(v) =>
                                 setProfileForm((prev) => ({
                                   ...prev,
-                                  businessPhoneNumber: e.target.value,
+                                  businessPhoneNumber: v ?? "",
                                 }))
                               }
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                              placeholder="801 234 5678"
                             />
                           </div>
                           <div className="sm:col-span-2">
@@ -1342,58 +1922,126 @@ const SettingsPage: NextPageWithLayout = () => {
             )}
 
             {/* Payment Details Tab */}
-            {activeTab === "payment-details" && (
+            {activeTab === "payment-details" && userRole === "landlord" && (
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold text-gray-900">
                   Payment Payout Details
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Update your bank account information for receiving payments
+                  Select your bank and enter your account number. We verify the
+                  account name with your bank before you can save. This account
+                  receives withdrawals from your wallet.
                 </p>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Bank Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
+                {isLoadingLandlord || !landlordId ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-brand-main" />
                   </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Bank
+                      </label>
+                      <select
+                        value={paymentForm.bankCode}
+                        disabled={paymentBanksLoading}
+                        onChange={handlePaymentBankChange}
+                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                      >
+                        <option value="">
+                          {paymentBanksLoading
+                            ? "Loading banks..."
+                            : "Select bank"}
+                        </option>
+                        {paymentBanks.map((b, idx) => {
+                          const code = bankOptionCode(b);
+                          return (
+                            <option key={`${code}-${idx}`} value={code}>
+                              {bankOptionName(b, idx)}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Account Number
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Account number
+                      </label>
+                      <input
+                        name="accountNumber"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        value={paymentForm.accountNumber}
+                        onChange={handlePaymentFieldChange}
+                        placeholder="10-digit account number"
+                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="button"
+                        onClick={handleResolvePaymentAccount}
+                        disabled={paymentResolveLoading}
+                        className="rounded-lg border border-gray-300 bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                      >
+                        {paymentResolveLoading
+                          ? "Verifying…"
+                          : "Verify account"}
+                      </motion.button>
+                      <p className="text-xs text-gray-500">
+                        Names auto-fill after you pick a bank and enter 10
+                        digits (or tap Verify).
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Account name
+                      </label>
+                      <input
+                        name="accountName"
+                        type="text"
+                        readOnly
+                        value={paymentForm.accountName}
+                        placeholder="Verified from your bank"
+                        className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-900 placeholder:text-gray-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        BVN (Bank Verification Number)
+                      </label>
+                      <input
+                        name="bvn"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        value={paymentForm.bvn}
+                        onChange={handlePaymentFieldChange}
+                        placeholder="11 digits"
+                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                      />
+                    </div>
+
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="button"
+                      onClick={handleSavePaymentDetails}
+                      disabled={isSaving}
+                      className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                    >
+                      {isSaving ? "Saving…" : "Save bank details"}
+                    </motion.button>
                   </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      Account Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Placeholder"
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                    />
-                  </div>
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                >
-                  Save Bank Details
-                </motion.button>
+                )}
               </div>
             )}
 

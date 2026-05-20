@@ -162,6 +162,8 @@ const AdminTenantsPage: NextPageWithLayout = () => {
   >("All");
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [pageSize, setPageSize] = React.useState(10);
+  const [currentPage, setCurrentPage] = React.useState(1);
   const [actionMenu, setActionMenu] = React.useState<{
     tenantId: string;
     top: number;
@@ -228,6 +230,25 @@ const AdminTenantsPage: NextPageWithLayout = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const totalFiltered = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+
+  React.useEffect(() => {
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [totalPages]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
+
+  const paginatedRows = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, currentPage, pageSize]);
+
+  const showingFrom =
+    totalFiltered === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const showingTo = Math.min(currentPage * pageSize, totalFiltered);
   const handleToggleStatus = async (row: TenantTableRow) => {
     const nextActive = row.accountStatus !== "Active";
     const result = await patchTenantEntity(row.id, { isActive: nextActive });
@@ -318,13 +339,13 @@ const AdminTenantsPage: NextPageWithLayout = () => {
           ) : null}
 
           <div className="grid grid-cols-1 gap-2.5 rounded-[10px] border border-[#E2E8F0] bg-white p-2.5 sm:grid-cols-[1fr_210px_auto] sm:items-center">
-            <div className="flex items-center gap-2 rounded-md bg-[#F8FAFC] px-3 py-2">
+            <div className="flex items-center gap-2 rounded-md bg-white px-3 py-2">
               <Search className="h-4 w-4 text-[#94A3B8]" />
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search..."
-                className="w-full bg-transparent text-[12px] outline-none placeholder:text-[#94A3B8]"
+                className="w-full bg-white text-[12px] text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
               />
             </div>
             <button
@@ -404,13 +425,13 @@ const AdminTenantsPage: NextPageWithLayout = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row, idx) => (
+                  {paginatedRows.map((row, idx) => (
                     <tr
                       key={row.id}
                       className="border-t border-[#F1F5F9] hover:bg-[#F8FAFC]"
                     >
                       <td className="whitespace-nowrap py-2.5 text-center">
-                        {idx + 1}
+                        {(currentPage - 1) * pageSize + idx + 1}
                       </td>
                       <td className="py-2.5">
                         <div className="relative mx-auto h-7 w-7 overflow-hidden rounded-full bg-[#E2E8F0]">
@@ -495,17 +516,64 @@ const AdminTenantsPage: NextPageWithLayout = () => {
               </table>
             </div>
 
-            {!loading && filteredRows.length === 0 ? (
+            {!loading && totalFiltered === 0 ? (
               <p className="mt-4 text-center text-[12px] text-[#64748B]">
                 No tenants to display.
               </p>
             ) : null}
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[12px] text-[#64748B]">
-              <span>
-                Showing {filteredRows.length} row(s)
-                {searchQuery || statusFilter !== "All" ? " (filtered)" : ""}
-              </span>
+            <div className="mt-4 flex flex-col gap-3 border-t border-[#F1F5F9] pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-3 text-[12px] text-[#64748B]">
+                <span>
+                  {totalFiltered === 0
+                    ? "No rows"
+                    : `Showing ${showingFrom}–${showingTo} of ${totalFiltered}`}
+                  {searchQuery || statusFilter !== "All" ? " (filtered)" : ""}
+                </span>
+                <label className="inline-flex items-center gap-2">
+                  <span className="text-[#64748B]">Rows per page</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="rounded-md border border-[#E2E8F0] bg-white px-2 py-1 text-[12px] text-[#0F172A]"
+                  >
+                    {[10, 25, 50, 100].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1 || loading}
+                  className="rounded-md border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] font-medium text-[#0F172A] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="min-w-[100px] text-center text-[12px] text-[#64748B]">
+                  Page {totalFiltered === 0 ? 1 : currentPage} of{" "}
+                  {totalFiltered === 0 ? 1 : totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={
+                    currentPage >= totalPages || loading || totalFiltered === 0
+                  }
+                  className="rounded-md border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] font-medium text-[#0F172A] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </section>

@@ -35,14 +35,7 @@ export function mergeAnnouncementLists(
   previous: AnnouncementItemDTO[],
   incoming: AnnouncementItemDTO[],
 ): AnnouncementItemDTO[] {
-  console.log(
-    `[merge] mergeAnnouncementLists: previous=${previous.length}, incoming=${incoming.length}`,
-  );
-
   if (incoming.length === 0) {
-    console.log(
-      `[merge] incoming empty, returning previous (${previous.length} items)`,
-    );
     return previous;
   }
 
@@ -67,9 +60,20 @@ export function mergeAnnouncementLists(
   }
 
   const result = Array.from(map.values()).sort(sortByNewest);
-  console.log(
-    `[merge] mergeAnnouncementLists: result=${result.length} items`,
-    result,
-  );
+
+  if (
+    result.length === previous.length &&
+    result.every(
+      (item, index) => identityFor(item) === identityFor(previous[index]!),
+    )
+  ) {
+    return previous;
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[merge] mergeAnnouncementLists: result=${result.length} items`,
+    );
+  }
   return result;
 }

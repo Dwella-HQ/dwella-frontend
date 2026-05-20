@@ -40,6 +40,7 @@
     "react-dom": "19.2.0",
     "react-hook-form": "^7.66.0",
     "react-phone-number-input": "^3.4.14",
+    "recharts": "^3.8.1",
     "sass": "^1.93.3",
     "sharp": "^0.34.5",
     "socket.io-client": "^4.8.3",

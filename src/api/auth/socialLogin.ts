@@ -1,4 +1,8 @@
 import { apiPost } from "@/lib/apiClient";
+import {
+  extractRefreshTokenFromAuthPayload,
+  persistLoginSessionTokens,
+} from "@/lib/authRefresh";
 
 import type {
   SocialLoginRequestDTO,
@@ -43,10 +47,9 @@ export const googleLogin = async (
   try {
     console.log("POST /auth/google-login response (raw):", result.data);
     const parsed = newLoginResponseSchema.parse(result.data);
-    // Store access token in localStorage
     if (typeof window !== "undefined" && parsed.data.accessToken) {
-      localStorage.setItem("accessToken", parsed.data.accessToken);
-      localStorage.setItem("authToken", parsed.data.accessToken);
+      const refreshToken = extractRefreshTokenFromAuthPayload(result.data);
+      persistLoginSessionTokens(parsed.data.accessToken, refreshToken);
     }
     console.log("POST /auth/google-login response (parsed):", {
       success: parsed.success,
@@ -86,10 +89,9 @@ export const facebookLogin = async (
   // Validate response with Zod
   try {
     const parsed = newLoginResponseSchema.parse(result.data);
-    // Store access token in localStorage
     if (typeof window !== "undefined" && parsed.data.accessToken) {
-      localStorage.setItem("accessToken", parsed.data.accessToken);
-      localStorage.setItem("authToken", parsed.data.accessToken);
+      const refreshToken = extractRefreshTokenFromAuthPayload(result.data);
+      persistLoginSessionTokens(parsed.data.accessToken, refreshToken);
     }
     return { success: true, data: parsed };
   } catch (parseError) {

@@ -87,6 +87,8 @@ export const landlordSchema = z.object({
     .object({
       id: z.string().uuid(),
       email: z.string().email(),
+      fullName: z.string().optional(),
+      phoneNumber: z.string().nullable().optional(),
     })
     .optional(),
   address: z
@@ -99,6 +101,17 @@ export const landlordSchema = z.object({
       country: z.string(),
     })
     .optional(),
+  bankAccount: z
+    .object({
+      accountName: z.string().optional(),
+      accountNumber: z.string().optional(),
+      accountCode: z.string().optional(),
+      bankName: z.string().optional(),
+      bankCode: z.string().optional(),
+      bvn: z.string().optional(),
+    })
+    .optional()
+    .nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
   deletedAt: z.string().nullable().optional(),

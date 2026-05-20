@@ -78,7 +78,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   return (
     <ProfileProvider>
-      <div className="min-h-screen bg-brand-light-bg text-brand-black">
+      <div className="min-h-screen [color-scheme:light] bg-brand-light-bg text-brand-black">
         <div className="flex min-h-screen flex-col">
           <DashboardHeader
             restrictForUnverifiedLandlord={shouldRestrictLandlordNav}
