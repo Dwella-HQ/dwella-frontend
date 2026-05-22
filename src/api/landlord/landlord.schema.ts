@@ -23,8 +23,9 @@ export const createLandlordRequestSchema = z.object({
   }),
   bankAccount: z.object({
     accountName: z.string().min(1, "Account name is required"),
-    accountCode: z.string().min(1, "Account code is required"),
+    accountNumber: z.string().min(10).max(10),
     bankName: z.string().min(1, "Bank name is required"),
+    bankCode: z.string().min(1, "Bank code is required"),
     bvn: z.string().min(11, "BVN must be 11 digits").max(11),
   }),
 });

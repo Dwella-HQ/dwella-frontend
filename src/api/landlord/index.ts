@@ -2,6 +2,7 @@ export { createLandlord } from "./createLandlord";
 export { getLandlords } from "./getLandlords";
 export { getLandlord } from "./getLandlord";
 export { getLandlordByUser } from "./getLandlordByUser";
+export { resolveLandlordBusinessPhone } from "./parseLandlordApiResponse";
 export { updateLandlord } from "./updateLandlord";
 export type {
   LandlordBankAccountDTO,
@@ -15,6 +16,7 @@ export {
   updateLandlordPlatformPreferencesSettings,
   updateLandlordNotificationPreferencesSettings,
   updateLandlordGracePeriodsSettings,
+  updateLandlordLateFeeSettings,
 } from "./settings";
 export type {
   LandlordDTO,
@@ -23,9 +25,11 @@ export type {
   CreateLandlordRequestDTO,
 } from "./landlord.schema";
 export type {
+  LandlordSettingsDTO,
   LandlordSettingsProfileUpdateDTO,
   LandlordSettingsDocumentsUpdateDTO,
   LandlordPlatformPreferencesUpdateDTO,
   LandlordNotificationPreferencesUpdateDTO,
   LandlordGracePeriodsUpdateDTO,
+  LandlordLateFeeUpdateDTO,
 } from "./settings";

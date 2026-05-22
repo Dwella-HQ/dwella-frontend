@@ -26,15 +26,20 @@ import {
   getLandlord,
   getLandlordByUser,
   getLandlordSettings,
+  resolveLandlordBusinessPhone,
   updateLandlord,
   updateLandlordDocumentsSettings,
+  updateLandlordGracePeriodsSettings,
+  updateLandlordLateFeeSettings,
   updateLandlordNotificationPreferencesSettings,
   updateLandlordPlatformPreferencesSettings,
+  updateLandlordProfileSettings,
 } from "@/api/landlord";
 import type {
   LandlordBankAccountDTO,
   LandlordDTO,
-  UpdateLandlordDTO,
+  LandlordSettingsDTO,
+  LandlordSettingsProfileUpdateDTO,
 } from "@/api/landlord";
 import {
   getWithdrawalBanksByCurrency,
@@ -65,6 +70,16 @@ const bankOptionName = (bank: WithdrawalBankDTO, index: number) => {
 /** Console label for payment settings debugging (filter DevTools by this string). */
 const PAYMENT_SETTINGS_LOG = "[Dwella Settings · Payment]";
 const PROFILE_SETTINGS_LOG = "[Dwella Settings · Profile]";
+const LANDLORD_SETTINGS_LOG = "[Dwella Settings · Landlord settings]";
+
+const notificationChannelsToBooleans = (arr: unknown) => {
+  const list = Array.isArray(arr) ? arr : [];
+  return {
+    email: list.includes("EMAIL_NOTIFICATION"),
+    push: list.includes("PUSH_NOTIFICATION"),
+    sms: list.includes("APP_NOTIFICATION") || list.includes("SMS_NOTIFICATION"),
+  };
+};
 
 type ProfileFormState = {
   businessName: string;
@@ -86,77 +101,145 @@ type PaymentBankAccountFields = {
   bvn?: string;
 };
 
-/**
- * Read bank account from GET /landlord/:id (top-level `bankAccount`).
- */
-function pickBankAccountFromLandlordRecord(
-  landlord: Record<string, unknown>,
+function pickBankAccountFromSettings(
+  settings: LandlordSettingsDTO,
 ): PaymentBankAccountFields | null {
-  const top = landlord.bankAccount;
-  if (top && typeof top === "object") {
-    return top as PaymentBankAccountFields;
-  }
-  const settings = landlord.settings;
-  if (settings && typeof settings === "object") {
-    const nested = (settings as Record<string, unknown>).bankAccount;
-    if (nested && typeof nested === "object") {
-      return nested as PaymentBankAccountFields;
-    }
+  const ba = settings.bankAccount;
+  if (ba && typeof ba === "object") {
+    return ba as PaymentBankAccountFields;
   }
   return null;
 }
 
-/** Build PATCH /landlord/:id body from form + existing landlord (avoids wiping fields). */
-function buildLandlordUpdatePayload(
+/** PATCH /landlord/:id/profile — UpdateLadlordProfileDto */
+function buildLandlordProfilePayload(
   profileForm: ProfileFormState,
-  landlord: LandlordDTO | null,
-  userId: string | null,
-  extras?: { bankAccount?: LandlordBankAccountDTO },
-): UpdateLandlordDTO {
-  const payload: UpdateLandlordDTO = {
-    userId: userId ?? landlord?.userId ?? undefined,
+  landlord?: LandlordDTO | null,
+  phoneOverride?: string,
+): LandlordSettingsProfileUpdateDTO {
+  const phone = (phoneOverride ?? profileForm.businessPhoneNumber).trim();
+  return {
     businessName:
       profileForm.businessName.trim() ||
       landlord?.businessName ||
       landlord?.landLordName ||
-      undefined,
+      "",
     businessEmail:
-      profileForm.businessEmail.trim() || landlord?.businessEmail || undefined,
+      profileForm.businessEmail.trim() || landlord?.businessEmail || "",
     businessPhoneNumber:
-      profileForm.businessPhoneNumber.trim() ||
-      landlord?.businessPhoneNumber ||
-      undefined,
-    govermentIdDocumentId: landlord?.govermentIdDocumentId,
-    landSurveyDocumentId: landlord?.landSurveyDocumentId,
-    proofOfOwnershipDocumentId: landlord?.proofOfOwnershipDocumentId,
-    taxIdentificationNumberDocumentId:
-      landlord?.taxIdentificationNumberDocumentId,
-  };
-
-  const addressLine =
-    profileForm.address.trim() || landlord?.address?.address || "";
-  const city = profileForm.city.trim() || landlord?.address?.city || "";
-  const state = profileForm.state.trim() || landlord?.address?.state || "";
-  const country =
-    profileForm.country.trim() || landlord?.address?.country || "";
-  if (addressLine || city || state || country) {
-    payload.address = {
-      address: addressLine,
-      city,
-      state,
+      phoneOverride !== undefined
+        ? phoneOverride.trim()
+        : phone
+          ? phone
+          : undefined,
+    address: {
+      address: profileForm.address.trim() || landlord?.address?.address || "",
+      city: profileForm.city.trim() || landlord?.address?.city || "",
+      state: profileForm.state.trim() || landlord?.address?.state || "",
       postalCode:
         profileForm.postalCode.trim() ||
         landlord?.address?.postalCode ||
         undefined,
-      country: country || "Nigeria",
-    };
-  }
+      country:
+        profileForm.country.trim() || landlord?.address?.country || "Nigeria",
+    },
+  };
+}
 
-  if (extras?.bankAccount) {
-    payload.bankAccount = extras.bankAccount;
-  }
+const MONTHLY_GRACE_OPTIONS = [
+  "NO_GRACE_PERIOD",
+  "ONE_WEEK",
+  "TWO_WEEKS",
+] as const;
 
-  return payload;
+const QUARTERLY_GRACE_OPTIONS = [
+  "NO_GRACE_PERIOD",
+  "ONE_WEEK",
+  "TWO_WEEKS",
+  "THREE_WEEKS",
+  "ONE_MONTH",
+  "FIVE_WEEKS",
+  "SIX_WEEKS",
+] as const;
+
+const YEARLY_GRACE_OPTIONS = [
+  "NO_GRACE_PERIOD",
+  "ONE_MONTH",
+  "TWO_MONTHS",
+  "THREE_MONTHS",
+  "FOUR_MONTHS",
+  "FIVE_MONTHS",
+  "SIX_MONTHS",
+] as const;
+
+const formatGraceLabel = (value: string) =>
+  value
+    .split("_")
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(" ");
+
+type PaymentFormState = {
+  bankCode: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  bvn: string;
+};
+
+type PreferencesSnapshot = {
+  platformPrefsForm: {
+    defaultCurrency: string;
+    defaultLateFeeAmount: string;
+    language: string;
+  };
+  gracePeriodForm: {
+    monthlyRentGracePeriod: string;
+    quarterlyRentGracePeriod: string;
+    yearlyRentGracePeriod: string;
+  };
+  lateFeeForm: {
+    lateFeeAmount: string;
+    lateFeeType: "fixed" | "percentage";
+  };
+};
+
+const SETTINGS_FIELD_READONLY =
+  "h-11 w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-900";
+const SETTINGS_FIELD_EDITABLE =
+  "h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main";
+
+function SettingsSectionEditButton({
+  label = "Edit",
+  onClick,
+}: {
+  label?: string;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+    >
+      <Pencil className="h-4 w-4" />
+      {label}
+    </motion.button>
+  );
+}
+
+function SettingsSectionCancelButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+    >
+      <X className="h-4 w-4" />
+      Cancel
+    </button>
+  );
 }
 
 const SettingsPage: NextPageWithLayout = () => {
@@ -197,6 +280,15 @@ const SettingsPage: NextPageWithLayout = () => {
     defaultLateFeeAmount: "0",
     language: "en",
   });
+  const [gracePeriodForm, setGracePeriodForm] = React.useState({
+    monthlyRentGracePeriod: "NO_GRACE_PERIOD",
+    quarterlyRentGracePeriod: "NO_GRACE_PERIOD",
+    yearlyRentGracePeriod: "NO_GRACE_PERIOD",
+  });
+  const [lateFeeForm, setLateFeeForm] = React.useState({
+    lateFeeAmount: "0",
+    lateFeeType: "fixed" as "fixed" | "percentage",
+  });
   // Notification preferences state
   const [notifications, setNotifications] = React.useState({
     payment: { email: true, push: true, sms: false },
@@ -206,10 +298,46 @@ const SettingsPage: NextPageWithLayout = () => {
   });
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
   const [profileSnapshot, setProfileSnapshot] = React.useState(profileForm);
+  const [landlordSettingsLoaded, setLandlordSettingsLoaded] =
+    React.useState(false);
+  const [isEditingPayment, setIsEditingPayment] = React.useState(false);
+  const [isEditingNotifications, setIsEditingNotifications] =
+    React.useState(false);
+  const [isEditingPreferences, setIsEditingPreferences] = React.useState(false);
+  const [isEditingPassword, setIsEditingPassword] = React.useState(false);
+  const [paymentSnapshot, setPaymentSnapshot] =
+    React.useState<PaymentFormState>({
+      bankCode: "",
+      bankName: "",
+      accountNumber: "",
+      accountName: "",
+      bvn: "",
+    });
+  const [notificationsSnapshot, setNotificationsSnapshot] =
+    React.useState(notifications);
+  const [preferencesSnapshot, setPreferencesSnapshot] =
+    React.useState<PreferencesSnapshot>({
+      platformPrefsForm: {
+        defaultCurrency: "NGN",
+        defaultLateFeeAmount: "0",
+        language: "en",
+      },
+      gracePeriodForm: {
+        monthlyRentGracePeriod: "NO_GRACE_PERIOD",
+        quarterlyRentGracePeriod: "NO_GRACE_PERIOD",
+        yearlyRentGracePeriod: "NO_GRACE_PERIOD",
+      },
+      lateFeeForm: { lateFeeAmount: "0", lateFeeType: "fixed" },
+    });
+  const [passwordForm, setPasswordForm] = React.useState({
+    current: "",
+    new: "",
+    confirm: "",
+  });
   /** Draft phone in the yellow banner — not persisted until Save. */
   const [pendingBusinessPhone, setPendingBusinessPhone] = React.useState("");
 
-  const [paymentForm, setPaymentForm] = React.useState({
+  const [paymentForm, setPaymentForm] = React.useState<PaymentFormState>({
     bankCode: "",
     bankName: "",
     accountNumber: "",
@@ -268,7 +396,7 @@ const SettingsPage: NextPageWithLayout = () => {
         businessName: data.businessName ?? data.landLordName ?? "",
         businessEmail:
           data.businessEmail ?? data.user?.email ?? fallbackEmail ?? "",
-        businessPhoneNumber: data.businessPhoneNumber ?? "",
+        businessPhoneNumber: resolveLandlordBusinessPhone(data),
         address: data.address?.address ?? "",
         city: data.address?.city ?? "",
         state: data.address?.state ?? "",
@@ -279,43 +407,185 @@ const SettingsPage: NextPageWithLayout = () => {
       setProfileSnapshot(next);
       return next;
     },
-    [],
+    [resolveLandlordBusinessPhone],
+  );
+
+  const applyLandlordSettings = React.useCallback(
+    (settings: LandlordSettingsDTO) => {
+      const notif = settings.notificationPreferences;
+      if (notif) {
+        setNotifications({
+          payment: notificationChannelsToBooleans(notif.paymentNotifications),
+          maintenance: notificationChannelsToBooleans(
+            notif.maintenanceRequestNotifications,
+          ),
+          overdue: notificationChannelsToBooleans(notif.overDueNotifications),
+          reports: notificationChannelsToBooleans(
+            notif.weeklyReportsNotifications,
+          ),
+        });
+      }
+
+      const platform = settings.platformPreferences;
+      const lateFee = settings.lateFeeSettings;
+      const grace = settings.gracePeriodPeriods;
+      setPlatformPrefsForm({
+        defaultCurrency: platform?.defaultCurrency ?? "NGN",
+        defaultLateFeeAmount: String(
+          platform?.defaultLateFeeAmount ?? lateFee?.lateFeeAmount ?? 0,
+        ),
+        language: platform?.language ?? "en",
+      });
+      if (grace) {
+        setGracePeriodForm({
+          monthlyRentGracePeriod:
+            grace.monthlyRentDueDateGracePeriod ?? "NO_GRACE_PERIOD",
+          quarterlyRentGracePeriod:
+            grace.quarterlyRentDueDateGracePeriod ?? "NO_GRACE_PERIOD",
+          yearlyRentGracePeriod:
+            grace.yearlyRentDueDateGracePeriod ?? "NO_GRACE_PERIOD",
+        });
+      }
+      if (lateFee) {
+        setLateFeeForm({
+          lateFeeAmount: String(lateFee.lateFeeAmount ?? 0),
+          lateFeeType:
+            lateFee.lateFeeType === "percentage" ? "percentage" : "fixed",
+        });
+      }
+
+      const ba = pickBankAccountFromSettings(settings);
+      if (ba) {
+        syncPaymentFormFromBankAccount(ba);
+      }
+      setLandlordSettingsLoaded(true);
+    },
+    [syncPaymentFormFromBankAccount],
   );
 
   const refreshLandlordFromApi = React.useCallback(
     async (id: string) => {
-      const landlordResult = await getLandlord(id);
+      const landlordFetch =
+        userId != null ? getLandlordByUser(userId) : getLandlord(id);
+      const [landlordResult, settingsResult] = await Promise.all([
+        landlordFetch,
+        getLandlordSettings(id),
+      ]);
 
       if (landlordResult.success) {
         setLandlord(landlordResult.data);
         applyProfileFormFromLandlord(landlordResult.data, user?.email);
-        const baFromLandlord = pickBankAccountFromLandlordRecord(
-          landlordResult.data as unknown as Record<string, unknown>,
-        );
-        if (baFromLandlord) {
-          syncPaymentFormFromBankAccount(baFromLandlord);
-        }
         if (typeof window !== "undefined") {
-          console.info(PROFILE_SETTINGS_LOG, "GET /landlord/:id after save:", {
-            businessPhoneNumber: landlordResult.data.businessPhoneNumber,
-            bankAccount: baFromLandlord,
-          });
+          console.info(
+            PROFILE_SETTINGS_LOG,
+            userId != null
+              ? "GET /landlord/user/:userId after save:"
+              : "GET /landlord/:id after save:",
+            {
+              businessPhoneNumber: landlordResult.data.businessPhoneNumber,
+              userPhoneNumber: landlordResult.data.user?.phoneNumber ?? null,
+              resolvedBusinessPhone: resolveLandlordBusinessPhone(
+                landlordResult.data,
+              ),
+              landlord: landlordResult.data,
+            },
+          );
         }
       } else if (typeof window !== "undefined") {
         console.warn(
           PROFILE_SETTINGS_LOG,
-          "GET /landlord/:id after save — failed:",
+          userId != null
+            ? "GET /landlord/user/:userId after save — failed:"
+            : "GET /landlord/:id after save — failed:",
           landlordResult.error,
         );
       }
 
-      return { landlordResult };
+      if (settingsResult.success) {
+        applyLandlordSettings(settingsResult.data);
+        if (typeof window !== "undefined") {
+          console.info(LANDLORD_SETTINGS_LOG, "GET /landlord/:id/settings:", {
+            bankAccount: settingsResult.data.bankAccount,
+            notificationPreferences:
+              settingsResult.data.notificationPreferences,
+            platformPreferences: settingsResult.data.platformPreferences,
+          });
+        }
+      } else if (typeof window !== "undefined") {
+        console.warn(
+          LANDLORD_SETTINGS_LOG,
+          "GET /landlord/:id/settings after save — failed:",
+          settingsResult.error,
+        );
+      }
+
+      return { landlordResult, settingsResult };
     },
-    [applyProfileFormFromLandlord, syncPaymentFormFromBankAccount, user?.email],
+    [applyLandlordSettings, applyProfileFormFromLandlord, user?.email, userId],
+  );
+
+  const applyBusinessPhoneToState = React.useCallback((phone: string) => {
+    const trimmed = phone.trim();
+    setLandlord((prev) =>
+      prev
+        ? {
+            ...prev,
+            businessPhoneNumber: trimmed,
+            user: prev.user
+              ? { ...prev.user, phoneNumber: trimmed }
+              : prev.user,
+          }
+        : prev,
+    );
+    setProfileForm((prev) => ({ ...prev, businessPhoneNumber: trimmed }));
+    setProfileSnapshot((prev) => ({ ...prev, businessPhoneNumber: trimmed }));
+  }, []);
+
+  const loadLandlordData = React.useCallback(
+    async (id: string) => {
+      const landlordFetch =
+        userId != null ? getLandlordByUser(userId) : getLandlord(id);
+      const [landlordResult, settingsResult] = await Promise.all([
+        landlordFetch,
+        getLandlordSettings(id),
+      ]);
+
+      if (landlordResult.success) {
+        setLandlord(landlordResult.data);
+        applyProfileFormFromLandlord(landlordResult.data, user?.email);
+      }
+
+      if (settingsResult.success) {
+        applyLandlordSettings(settingsResult.data);
+      }
+
+      return { landlordResult, settingsResult };
+    },
+    [applyLandlordSettings, applyProfileFormFromLandlord, user?.email, userId],
   );
 
   const landlordId = landlord?.id as string | undefined;
   const isLandlordVerified = landlord?.isApproved === true;
+
+  const hasSavedBankAccount = React.useMemo(() => {
+    const digits = paymentForm.accountNumber.replace(/\D/g, "");
+    const bvn = paymentForm.bvn.replace(/\D/g, "");
+    return Boolean(
+      paymentForm.bankCode.trim() &&
+        digits.length === PAY_ACCOUNT_LEN &&
+        paymentForm.accountName.trim() &&
+        bvn.length === PAY_BVN_LEN,
+    );
+  }, [paymentForm]);
+
+  const hasSavedNotifications =
+    landlordSettingsLoaded && userRole === "landlord" && Boolean(landlordId);
+  const hasSavedPreferences = hasSavedNotifications;
+
+  const canEditPayment = !hasSavedBankAccount || isEditingPayment;
+  const canEditNotifications = !hasSavedNotifications || isEditingNotifications;
+  const canEditPreferences = !hasSavedPreferences || isEditingPreferences;
+  const canEditPassword = isEditingPassword;
 
   // Fetch landlord profile for landlords
   React.useEffect(() => {
@@ -375,12 +645,6 @@ const SettingsPage: NextPageWithLayout = () => {
         });
         setLandlord(result.data);
         applyProfileFormFromLandlord(result.data, user?.email);
-        const baFromLandlord = pickBankAccountFromLandlordRecord(
-          result.data as unknown as Record<string, unknown>,
-        );
-        if (baFromLandlord) {
-          syncPaymentFormFromBankAccount(baFromLandlord);
-        }
         setDocumentsForm({
           govermentIdDocumentId: result.data.govermentIdDocumentId ?? "",
           landSurveyDocumentId: result.data.landSurveyDocumentId ?? "",
@@ -395,98 +659,43 @@ const SettingsPage: NextPageWithLayout = () => {
     };
 
     fetchLandlord();
-  }, [user, applyProfileFormFromLandlord, syncPaymentFormFromBankAccount]);
+  }, [user, applyProfileFormFromLandlord]);
 
-  // Profile, phone, and bank account — GET /landlord/:id
+  // Profile from GET /landlord/:id; bank, notifications, prefs from GET /landlord/:id/settings
   React.useEffect(() => {
-    if (!landlordId) return;
+    if (!landlordId || userRole !== "landlord") return;
     let cancelled = false;
-    getLandlord(landlordId).then((result) => {
-      if (cancelled) return;
-      if (!result.success) {
-        if (typeof window !== "undefined") {
+    void loadLandlordData(landlordId).then(
+      ({ landlordResult, settingsResult }) => {
+        if (cancelled) return;
+        if (typeof window === "undefined") return;
+        if (!landlordResult.success) {
           console.warn(
             PROFILE_SETTINGS_LOG,
             "GET /landlord/:id — failed:",
-            result.error,
-            "statusCode:",
-            result.statusCode,
+            landlordResult.error,
           );
         }
-        return;
-      }
-      const data = result.data;
-      const dataRecord = data as unknown as Record<string, unknown>;
-      if (typeof window !== "undefined") {
-        console.info(PROFILE_SETTINGS_LOG, "GET /landlord/:id — success:", {
-          businessPhoneNumber: data.businessPhoneNumber,
-          bankAccount: dataRecord.bankAccount,
-        });
-      }
-      setLandlord(data);
-      applyProfileFormFromLandlord(data, user?.email);
-      const ba = pickBankAccountFromLandlordRecord(dataRecord);
-      if (typeof window !== "undefined") {
-        console.info(
-          PAYMENT_SETTINGS_LOG,
-          "GET /landlord/:id — picked bankAccount for form:",
-          ba ?? "(null — nothing to prefill)",
-        );
-      }
-      if (ba) {
-        syncPaymentFormFromBankAccount(ba);
-      }
-    });
+        if (!settingsResult.success) {
+          console.warn(
+            LANDLORD_SETTINGS_LOG,
+            "GET /landlord/:id/settings — failed:",
+            settingsResult.error,
+          );
+        }
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [
-    landlordId,
-    applyProfileFormFromLandlord,
-    syncPaymentFormFromBankAccount,
-    user?.email,
-  ]);
+  }, [landlordId, loadLandlordData, userRole]);
 
-  // Notification & platform preferences only — GET /landlord/:id/settings
   React.useEffect(() => {
-    if (!landlordId) return;
-    let cancelled = false;
-    getLandlordSettings(landlordId).then((result) => {
-      if (cancelled) return;
-      if (!result.success) return;
-      const data = result.data;
-      setPlatformPrefsForm((prev) => ({
-        defaultCurrency:
-          (data.defaultCurrency as string) ?? prev.defaultCurrency,
-        defaultLateFeeAmount: String(
-          (data.defaultLateFeeAmount as number | string | undefined) ??
-            prev.defaultLateFeeAmount,
-        ),
-        language: (data.language as string) ?? prev.language,
-      }));
-      setNotifications((prev) => {
-        const toBooleans = (arr: unknown) => {
-          const list = Array.isArray(arr) ? arr : [];
-          return {
-            email: list.includes("EMAIL_NOTIFICATION"),
-            push: list.includes("PUSH_NOTIFICATION"),
-            sms:
-              list.includes("APP_NOTIFICATION") ||
-              list.includes("SMS_NOTIFICATION"),
-          };
-        };
-        return {
-          ...prev,
-          payment: toBooleans(data.paymentNotifications),
-          maintenance: toBooleans(data.maintenanceRequestNotifications),
-          overdue: toBooleans(data.overDueNotifications),
-          reports: toBooleans(data.weeklyReportsNotifications),
-        };
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
+    setLandlordSettingsLoaded(false);
+    setIsEditingPayment(false);
+    setIsEditingNotifications(false);
+    setIsEditingPreferences(false);
+    setIsEditingPassword(false);
   }, [landlordId]);
 
   React.useEffect(() => {
@@ -533,10 +742,10 @@ const SettingsPage: NextPageWithLayout = () => {
     user?.email ||
     "";
   const businessDisplayPhone =
-    landlord?.businessPhoneNumber?.trim() ||
+    resolveLandlordBusinessPhone(landlord) ||
     (isEditingProfile ? profileForm.businessPhoneNumber.trim() : "");
   const needsBusinessPhonePrompt =
-    !landlord?.businessPhoneNumber?.trim() && !isEditingProfile;
+    !resolveLandlordBusinessPhone(landlord) && !isEditingProfile;
   const profileName = businessDisplayName || user?.name || "Landlord";
   const profilePicture = landlord?.profilePicture?.url;
   const initials = getInitials(profileName);
@@ -634,6 +843,8 @@ const SettingsPage: NextPageWithLayout = () => {
   }, [resolvePaymentAccount]);
 
   React.useEffect(() => {
+    if (hasSavedBankAccount && !isEditingPayment) return;
+
     const digits = paymentForm.accountNumber.replace(/\D/g, "");
     const code = paymentForm.bankCode.trim();
 
@@ -667,7 +878,13 @@ const SettingsPage: NextPageWithLayout = () => {
         paymentAutoResolveTimerRef.current = null;
       }
     };
-  }, [paymentForm.accountNumber, paymentForm.bankCode, resolvePaymentAccount]);
+  }, [
+    hasSavedBankAccount,
+    isEditingPayment,
+    paymentForm.accountNumber,
+    paymentForm.bankCode,
+    resolvePaymentAccount,
+  ]);
 
   const handlePaymentBankChange = React.useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -753,7 +970,7 @@ const SettingsPage: NextPageWithLayout = () => {
       return;
     }
 
-    const payload = buildLandlordUpdatePayload(profileForm, landlord, userId, {
+    const bankPayload: { bankAccount: LandlordBankAccountDTO } = {
       bankAccount: {
         accountName,
         accountNumber: digits,
@@ -761,18 +978,18 @@ const SettingsPage: NextPageWithLayout = () => {
         bankCode,
         bvn,
       },
-    });
+    };
 
     if (typeof window !== "undefined") {
       console.info(
         PAYMENT_SETTINGS_LOG,
-        "PATCH /landlord/:id body (save payment):",
-        JSON.stringify(payload, null, 2),
+        "PATCH /landlord/:id body (save bank):",
+        JSON.stringify(bankPayload, null, 2),
       );
     }
 
     setIsSaving(true);
-    const result = await updateLandlord(landlordId, payload);
+    const result = await updateLandlord(landlordId, bankPayload);
     setIsSaving(false);
 
     if (typeof window !== "undefined") {
@@ -785,19 +1002,17 @@ const SettingsPage: NextPageWithLayout = () => {
 
     if (result.success) {
       showToast("Bank details saved.", "success");
+      setIsEditingPayment(false);
       await refreshLandlordFromApi(landlordId);
     } else {
       showToast(result.error || "Failed to save bank details", "error");
     }
   }, [
     isPaymentAccountResolved,
-    landlord,
     landlordId,
     paymentForm,
-    profileForm,
     refreshLandlordFromApi,
     showToast,
-    userId,
     userRole,
   ]);
 
@@ -816,47 +1031,83 @@ const SettingsPage: NextPageWithLayout = () => {
       return;
     }
 
-    const payload = buildLandlordUpdatePayload(
-      { ...profileForm, businessPhoneNumber: phoneTrim },
+    const payload = buildLandlordProfilePayload(
+      profileForm,
       landlord,
-      userId,
+      phoneTrim,
     );
+    if (
+      !payload.businessName ||
+      !payload.businessEmail ||
+      !payload.address.address ||
+      !payload.address.city ||
+      !payload.address.state
+    ) {
+      showToast(
+        "Complete your business profile (name, email, address) before adding a phone number.",
+        "error",
+      );
+      return;
+    }
 
     if (typeof window !== "undefined") {
       console.info(
         PROFILE_SETTINGS_LOG,
-        "PATCH /landlord/:id body (save phone):",
-        JSON.stringify(payload, null, 2),
+        "PATCH /landlord/:id/profile — request",
+        {
+          landlordId,
+          url: `/landlord/${landlordId}/profile`,
+          body: payload,
+        },
       );
     }
 
     setIsSaving(true);
-    const result = await updateLandlord(landlordId, payload);
+    const result = await updateLandlordProfileSettings(landlordId, payload);
     setIsSaving(false);
 
     if (typeof window !== "undefined") {
       console.info(
         PROFILE_SETTINGS_LOG,
-        "PATCH /landlord/:id response:",
-        result.success ? { success: true, data: result.data } : result,
+        "PATCH /landlord/:id/profile — response",
+        result,
       );
     }
 
-    if (result.success) {
-      showToast("Business phone saved.", "success");
-      setPendingBusinessPhone("");
-      await refreshLandlordFromApi(landlordId);
-    } else {
+    if (!result.success) {
       showToast(result.error || "Failed to save phone number", "error");
+      return;
+    }
+
+    const patchPhone = result.data
+      ? resolveLandlordBusinessPhone(result.data)
+      : "";
+    if (patchPhone) {
+      applyBusinessPhoneToState(patchPhone);
+    }
+
+    setPendingBusinessPhone("");
+    const refreshed = await refreshLandlordFromApi(landlordId);
+    const serverPhone = refreshed.landlordResult.success
+      ? resolveLandlordBusinessPhone(refreshed.landlordResult.data)
+      : "";
+
+    if (serverPhone) {
+      applyBusinessPhoneToState(serverPhone);
+      showToast("Business phone saved.", "success");
+    } else if (payload.businessPhoneNumber) {
+      showToast("Business phone could not be verified after save.", "error");
+    } else {
+      showToast("Business phone could not be verified after save.", "error");
     }
   }, [
+    applyBusinessPhoneToState,
     landlord,
     landlordId,
     pendingBusinessPhone,
     profileForm,
     refreshLandlordFromApi,
     showToast,
-    userId,
   ]);
 
   const handleNotificationChange = (
@@ -913,16 +1164,33 @@ const SettingsPage: NextPageWithLayout = () => {
       return;
     }
     setIsSaving(true);
-    const payload = buildLandlordUpdatePayload(profileForm, landlord, userId);
+    const payload = buildLandlordProfilePayload(profileForm, landlord);
     if (typeof window !== "undefined") {
       console.info(
         PROFILE_SETTINGS_LOG,
-        "PATCH /landlord/:id body (save profile):",
-        JSON.stringify(payload, null, 2),
+        "PATCH /landlord/:id/profile — request",
+        {
+          landlordId,
+          url: `/landlord/${landlordId}/profile`,
+          body: payload,
+        },
       );
     }
-    const result = await updateLandlord(landlordId, payload);
+    const result = await updateLandlordProfileSettings(landlordId, payload);
+    if (typeof window !== "undefined") {
+      console.info(
+        PROFILE_SETTINGS_LOG,
+        "PATCH /landlord/:id/profile — response",
+        result,
+      );
+    }
     if (result.success) {
+      const patchPhone = result.data
+        ? resolveLandlordBusinessPhone(result.data)
+        : "";
+      if (patchPhone) {
+        applyBusinessPhoneToState(patchPhone);
+      }
       await refreshLandlordFromApi(landlordId);
       setProfileSnapshot(profileForm);
       setIsEditingProfile(false);
@@ -930,12 +1198,12 @@ const SettingsPage: NextPageWithLayout = () => {
     } else showToast(result.error || "Failed to update profile", "error");
     setIsSaving(false);
   }, [
+    applyBusinessPhoneToState,
     landlord,
     landlordId,
     profileForm,
     refreshLandlordFromApi,
     showToast,
-    userId,
   ]);
 
   const toDocumentsPayload = React.useCallback(
@@ -964,22 +1232,62 @@ const SettingsPage: NextPageWithLayout = () => {
       toDocumentsPayload(documentsForm),
     );
     setIsSaving(false);
-    if (result.success) showToast("Documents updated successfully", "success");
-    else showToast(result.error || "Failed to update documents", "error");
-  }, [documentsForm, landlordId, showToast, toDocumentsPayload]);
+    if (result.success) {
+      showToast("Documents updated successfully", "success");
+      if (userId) {
+        const refreshed = await getLandlordByUser(userId);
+        if (refreshed.success) setLandlord(refreshed.data);
+      }
+    } else showToast(result.error || "Failed to update documents", "error");
+  }, [documentsForm, landlordId, showToast, toDocumentsPayload, userId]);
 
   const handleSavePreferences = React.useCallback(async () => {
     if (!landlordId) return;
     setIsSaving(true);
-    const result = await updateLandlordPlatformPreferencesSettings(landlordId, {
-      defaultCurrency: platformPrefsForm.defaultCurrency,
-      defaultLateFeeAmount: Number(platformPrefsForm.defaultLateFeeAmount || 0),
-      language: platformPrefsForm.language,
-    });
+    const [platformResult, graceResult, lateFeeResult] = await Promise.all([
+      updateLandlordPlatformPreferencesSettings(landlordId, {
+        defaultCurrency: platformPrefsForm.defaultCurrency,
+        defaultLateFeeAmount: Number(
+          platformPrefsForm.defaultLateFeeAmount || 0,
+        ),
+        language: platformPrefsForm.language,
+      }),
+      updateLandlordGracePeriodsSettings(landlordId, {
+        monthlyRentGracePeriod: gracePeriodForm.monthlyRentGracePeriod,
+        quarterlyRentGracePeriod: gracePeriodForm.quarterlyRentGracePeriod,
+        yearlyRentGracePeriod: gracePeriodForm.yearlyRentGracePeriod,
+      }),
+      updateLandlordLateFeeSettings(landlordId, {
+        lateFeeAmount: Number(lateFeeForm.lateFeeAmount || 0),
+        lateFeeType: lateFeeForm.lateFeeType,
+      }),
+    ]);
     setIsSaving(false);
-    if (result.success) showToast("Platform preferences saved", "success");
-    else showToast(result.error || "Failed to save preferences", "error");
-  }, [landlordId, platformPrefsForm, showToast]);
+    if (
+      platformResult.success &&
+      graceResult.success &&
+      lateFeeResult.success
+    ) {
+      showToast("Preferences saved", "success");
+      setIsEditingPreferences(false);
+      const refreshed = await getLandlordSettings(landlordId);
+      if (refreshed.success) applyLandlordSettings(refreshed.data);
+    } else {
+      const err =
+        (!platformResult.success && platformResult.error) ||
+        (!graceResult.success && graceResult.error) ||
+        (!lateFeeResult.success && lateFeeResult.error) ||
+        "Failed to save preferences";
+      showToast(err, "error");
+    }
+  }, [
+    applyLandlordSettings,
+    gracePeriodForm,
+    landlordId,
+    lateFeeForm,
+    platformPrefsForm,
+    showToast,
+  ]);
 
   const handleSaveNotifications = React.useCallback(async () => {
     if (!landlordId) return;
@@ -996,9 +1304,19 @@ const SettingsPage: NextPageWithLayout = () => {
       },
     );
     setIsSaving(false);
-    if (result.success) showToast("Notification preferences saved", "success");
-    else showToast(result.error || "Failed to save notifications", "error");
-  }, [landlordId, notifications, showToast, toNotificationArray]);
+    if (result.success) {
+      showToast("Notification preferences saved", "success");
+      setIsEditingNotifications(false);
+      const refreshed = await getLandlordSettings(landlordId);
+      if (refreshed.success) applyLandlordSettings(refreshed.data);
+    } else showToast(result.error || "Failed to save notifications", "error");
+  }, [
+    applyLandlordSettings,
+    landlordId,
+    notifications,
+    showToast,
+    toNotificationArray,
+  ]);
 
   const handleUploadDocument = React.useCallback(
     async (
@@ -1748,6 +2066,16 @@ const SettingsPage: NextPageWithLayout = () => {
                   Choose how you want to receive notifications
                 </p>
 
+                {hasSavedNotifications && !isEditingNotifications ? (
+                  <SettingsSectionEditButton
+                    label="Edit notifications"
+                    onClick={() => {
+                      setNotificationsSnapshot(notifications);
+                      setIsEditingNotifications(true);
+                    }}
+                  />
+                ) : null}
+
                 <div className="space-y-6">
                   {/* Payment Notifications */}
                   <div className="border-b border-gray-200 pb-4">
@@ -1761,6 +2089,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.payment.email}
                           onChange={() =>
                             handleNotificationChange("payment", "email")
@@ -1772,6 +2101,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.payment.push}
                           onChange={() =>
                             handleNotificationChange("payment", "push")
@@ -1783,6 +2113,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.payment.sms}
                           onChange={() =>
                             handleNotificationChange("payment", "sms")
@@ -1806,6 +2137,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.maintenance.email}
                           onChange={() =>
                             handleNotificationChange("maintenance", "email")
@@ -1817,6 +2149,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.maintenance.push}
                           onChange={() =>
                             handleNotificationChange("maintenance", "push")
@@ -1828,6 +2161,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.maintenance.sms}
                           onChange={() =>
                             handleNotificationChange("maintenance", "sms")
@@ -1851,6 +2185,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.overdue.email}
                           onChange={() =>
                             handleNotificationChange("overdue", "email")
@@ -1862,6 +2197,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.overdue.push}
                           onChange={() =>
                             handleNotificationChange("overdue", "push")
@@ -1873,6 +2209,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.overdue.sms}
                           onChange={() =>
                             handleNotificationChange("overdue", "sms")
@@ -1896,6 +2233,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
+                          disabled={!canEditNotifications}
                           checked={notifications.reports.email}
                           onChange={() =>
                             handleNotificationChange("reports", "email")
@@ -1908,16 +2246,28 @@ const SettingsPage: NextPageWithLayout = () => {
                   </div>
                 </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  onClick={handleSaveNotifications}
-                  disabled={isSaving}
-                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                >
-                  {isSaving ? "Saving..." : "Save Preferences"}
-                </motion.button>
+                {canEditNotifications ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      type="button"
+                      onClick={handleSaveNotifications}
+                      disabled={isSaving}
+                      className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                    >
+                      {isSaving ? "Saving..." : "Save Preferences"}
+                    </motion.button>
+                    {hasSavedNotifications && isEditingNotifications ? (
+                      <SettingsSectionCancelButton
+                        onClick={() => {
+                          setNotifications(notificationsSnapshot);
+                          setIsEditingNotifications(false);
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -1933,6 +2283,16 @@ const SettingsPage: NextPageWithLayout = () => {
                   receives withdrawals from your wallet.
                 </p>
 
+                {hasSavedBankAccount && !isEditingPayment ? (
+                  <SettingsSectionEditButton
+                    label="Edit bank details"
+                    onClick={() => {
+                      setPaymentSnapshot(paymentForm);
+                      setIsEditingPayment(true);
+                    }}
+                  />
+                ) : null}
+
                 {isLoadingLandlord || !landlordId ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-brand-main" />
@@ -1945,9 +2305,13 @@ const SettingsPage: NextPageWithLayout = () => {
                       </label>
                       <select
                         value={paymentForm.bankCode}
-                        disabled={paymentBanksLoading}
+                        disabled={paymentBanksLoading || !canEditPayment}
                         onChange={handlePaymentBankChange}
-                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        className={
+                          canEditPayment
+                            ? SETTINGS_FIELD_EDITABLE
+                            : SETTINGS_FIELD_READONLY
+                        }
                       >
                         <option value="">
                           {paymentBanksLoading
@@ -1976,29 +2340,36 @@ const SettingsPage: NextPageWithLayout = () => {
                         autoComplete="off"
                         value={paymentForm.accountNumber}
                         onChange={handlePaymentFieldChange}
+                        readOnly={!canEditPayment}
                         placeholder="10-digit account number"
-                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        className={
+                          canEditPayment
+                            ? SETTINGS_FIELD_EDITABLE
+                            : SETTINGS_FIELD_READONLY
+                        }
                       />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        type="button"
-                        onClick={handleResolvePaymentAccount}
-                        disabled={paymentResolveLoading}
-                        className="rounded-lg border border-gray-300 bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
-                      >
-                        {paymentResolveLoading
-                          ? "Verifying…"
-                          : "Verify account"}
-                      </motion.button>
-                      <p className="text-xs text-gray-500">
-                        Names auto-fill after you pick a bank and enter 10
-                        digits (or tap Verify).
-                      </p>
-                    </div>
+                    {canEditPayment ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          type="button"
+                          onClick={handleResolvePaymentAccount}
+                          disabled={paymentResolveLoading}
+                          className="rounded-lg border border-gray-300 bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                        >
+                          {paymentResolveLoading
+                            ? "Verifying…"
+                            : "Verify account"}
+                        </motion.button>
+                        <p className="text-xs text-gray-500">
+                          Names auto-fill after you pick a bank and enter 10
+                          digits (or tap Verify).
+                        </p>
+                      </div>
+                    ) : null}
 
                     <div>
                       <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -2025,21 +2396,53 @@ const SettingsPage: NextPageWithLayout = () => {
                         autoComplete="off"
                         value={paymentForm.bvn}
                         onChange={handlePaymentFieldChange}
+                        readOnly={!canEditPayment}
                         placeholder="11 digits"
-                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        className={
+                          canEditPayment
+                            ? SETTINGS_FIELD_EDITABLE
+                            : SETTINGS_FIELD_READONLY
+                        }
                       />
                     </div>
 
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="button"
-                      onClick={handleSavePaymentDetails}
-                      disabled={isSaving}
-                      className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
-                    >
-                      {isSaving ? "Saving…" : "Save bank details"}
-                    </motion.button>
+                    {canEditPayment ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          type="button"
+                          onClick={handleSavePaymentDetails}
+                          disabled={isSaving}
+                          className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                        >
+                          {isSaving ? "Saving…" : "Save bank details"}
+                        </motion.button>
+                        {hasSavedBankAccount && isEditingPayment ? (
+                          <SettingsSectionCancelButton
+                            onClick={() => {
+                              setPaymentForm(paymentSnapshot);
+                              const digits = paymentSnapshot.accountNumber
+                                .replace(/\D/g, "")
+                                .slice(0, PAY_ACCOUNT_LEN);
+                              const code = paymentSnapshot.bankCode.trim();
+                              if (
+                                digits.length === PAY_ACCOUNT_LEN &&
+                                code &&
+                                paymentSnapshot.accountName.trim()
+                              ) {
+                                paymentLastResolvedSignatureRef.current = `${code}:${digits}`;
+                                setIsPaymentAccountResolved(true);
+                              } else {
+                                paymentLastResolvedSignatureRef.current = "";
+                                setIsPaymentAccountResolved(false);
+                              }
+                              setIsEditingPayment(false);
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -2052,6 +2455,20 @@ const SettingsPage: NextPageWithLayout = () => {
                   Platform Preferences
                 </h2>
 
+                {hasSavedPreferences && !isEditingPreferences ? (
+                  <SettingsSectionEditButton
+                    label="Edit preferences"
+                    onClick={() => {
+                      setPreferencesSnapshot({
+                        platformPrefsForm: { ...platformPrefsForm },
+                        gracePeriodForm: { ...gracePeriodForm },
+                        lateFeeForm: { ...lateFeeForm },
+                      });
+                      setIsEditingPreferences(true);
+                    }}
+                  />
+                ) : null}
+
                 <div className="space-y-4">
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -2060,13 +2477,18 @@ const SettingsPage: NextPageWithLayout = () => {
                     <input
                       type="text"
                       value={platformPrefsForm.defaultCurrency}
+                      readOnly={!canEditPreferences}
                       onChange={(e) =>
                         setPlatformPrefsForm((prev) => ({
                           ...prev,
                           defaultCurrency: e.target.value,
                         }))
                       }
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                      className={
+                        canEditPreferences
+                          ? SETTINGS_FIELD_EDITABLE
+                          : SETTINGS_FIELD_READONLY
+                      }
                     />
                   </div>
 
@@ -2078,7 +2500,7 @@ const SettingsPage: NextPageWithLayout = () => {
                       type="text"
                       value="N/A"
                       readOnly
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-gray-50 px-4 text-sm text-gray-900"
+                      className={SETTINGS_FIELD_READONLY}
                     />
                   </div>
 
@@ -2089,13 +2511,18 @@ const SettingsPage: NextPageWithLayout = () => {
                     <input
                       type="number"
                       value={platformPrefsForm.defaultLateFeeAmount}
+                      readOnly={!canEditPreferences}
                       onChange={(e) =>
                         setPlatformPrefsForm((prev) => ({
                           ...prev,
                           defaultLateFeeAmount: e.target.value,
                         }))
                       }
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                      className={
+                        canEditPreferences
+                          ? SETTINGS_FIELD_EDITABLE
+                          : SETTINGS_FIELD_READONLY
+                      }
                     />
                   </div>
 
@@ -2106,27 +2533,185 @@ const SettingsPage: NextPageWithLayout = () => {
                     <input
                       type="text"
                       value={platformPrefsForm.language}
+                      readOnly={!canEditPreferences}
                       onChange={(e) =>
                         setPlatformPrefsForm((prev) => ({
                           ...prev,
                           language: e.target.value,
                         }))
                       }
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                      className={
+                        canEditPreferences
+                          ? SETTINGS_FIELD_EDITABLE
+                          : SETTINGS_FIELD_READONLY
+                      }
                     />
                   </div>
                 </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  onClick={handleSavePreferences}
-                  disabled={isSaving}
-                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                >
-                  {isSaving ? "Saving..." : "Save Preferences"}
-                </motion.button>
+                <h3 className="text-base font-semibold text-gray-900">
+                  Rent grace periods
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Monthly rent
+                    </label>
+                    <select
+                      value={gracePeriodForm.monthlyRentGracePeriod}
+                      disabled={!canEditPreferences}
+                      onChange={(e) =>
+                        setGracePeriodForm((prev) => ({
+                          ...prev,
+                          monthlyRentGracePeriod: e.target.value,
+                        }))
+                      }
+                      className={
+                        canEditPreferences
+                          ? "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                          : SETTINGS_FIELD_READONLY
+                      }
+                    >
+                      {MONTHLY_GRACE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {formatGraceLabel(opt)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Quarterly rent
+                    </label>
+                    <select
+                      value={gracePeriodForm.quarterlyRentGracePeriod}
+                      disabled={!canEditPreferences}
+                      onChange={(e) =>
+                        setGracePeriodForm((prev) => ({
+                          ...prev,
+                          quarterlyRentGracePeriod: e.target.value,
+                        }))
+                      }
+                      className={
+                        canEditPreferences
+                          ? "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                          : SETTINGS_FIELD_READONLY
+                      }
+                    >
+                      {QUARTERLY_GRACE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {formatGraceLabel(opt)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Yearly rent
+                    </label>
+                    <select
+                      value={gracePeriodForm.yearlyRentGracePeriod}
+                      disabled={!canEditPreferences}
+                      onChange={(e) =>
+                        setGracePeriodForm((prev) => ({
+                          ...prev,
+                          yearlyRentGracePeriod: e.target.value,
+                        }))
+                      }
+                      className={
+                        canEditPreferences
+                          ? "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                          : SETTINGS_FIELD_READONLY
+                      }
+                    >
+                      {YEARLY_GRACE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {formatGraceLabel(opt)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <h3 className="text-base font-semibold text-gray-900">
+                  Late fee (settings)
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Late fee amount
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={lateFeeForm.lateFeeAmount}
+                      readOnly={!canEditPreferences}
+                      onChange={(e) =>
+                        setLateFeeForm((prev) => ({
+                          ...prev,
+                          lateFeeAmount: e.target.value,
+                        }))
+                      }
+                      className={
+                        canEditPreferences
+                          ? SETTINGS_FIELD_EDITABLE
+                          : SETTINGS_FIELD_READONLY
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Late fee type
+                    </label>
+                    <select
+                      value={lateFeeForm.lateFeeType}
+                      disabled={!canEditPreferences}
+                      onChange={(e) =>
+                        setLateFeeForm((prev) => ({
+                          ...prev,
+                          lateFeeType: e.target.value as "fixed" | "percentage",
+                        }))
+                      }
+                      className={
+                        canEditPreferences
+                          ? "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                          : SETTINGS_FIELD_READONLY
+                      }
+                    >
+                      <option value="fixed">Fixed</option>
+                      <option value="percentage">Percentage</option>
+                    </select>
+                  </div>
+                </div>
+
+                {canEditPreferences ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      type="button"
+                      onClick={handleSavePreferences}
+                      disabled={isSaving}
+                      className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                    >
+                      {isSaving ? "Saving..." : "Save Preferences"}
+                    </motion.button>
+                    {hasSavedPreferences && isEditingPreferences ? (
+                      <SettingsSectionCancelButton
+                        onClick={() => {
+                          setPlatformPrefsForm(
+                            preferencesSnapshot.platformPrefsForm,
+                          );
+                          setGracePeriodForm(
+                            preferencesSnapshot.gracePeriodForm,
+                          );
+                          setLateFeeForm(preferencesSnapshot.lateFeeForm);
+                          setIsEditingPreferences(false);
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -2136,6 +2721,20 @@ const SettingsPage: NextPageWithLayout = () => {
                 <h2 className="text-lg font-semibold text-gray-900">
                   Change Password
                 </h2>
+                <p className="text-sm text-gray-600">
+                  Update your sign-in password. Fields stay locked until you
+                  choose to edit.
+                </p>
+
+                {!isEditingPassword ? (
+                  <SettingsSectionEditButton
+                    label="Change password"
+                    onClick={() => {
+                      setPasswordForm({ current: "", new: "", confirm: "" });
+                      setIsEditingPassword(true);
+                    }}
+                  />
+                ) : null}
 
                 <div className="space-y-4">
                   <div>
@@ -2145,15 +2744,28 @@ const SettingsPage: NextPageWithLayout = () => {
                     <div className="relative">
                       <input
                         type={showCurrentPassword ? "text" : "password"}
+                        value={passwordForm.current}
+                        onChange={(e) =>
+                          setPasswordForm((prev) => ({
+                            ...prev,
+                            current: e.target.value,
+                          }))
+                        }
+                        readOnly={!canEditPassword}
                         placeholder="••••••••••"
-                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        className={
+                          canEditPassword
+                            ? `${SETTINGS_FIELD_EDITABLE} pr-10`
+                            : `${SETTINGS_FIELD_READONLY} pr-10`
+                        }
                       />
                       <button
                         type="button"
+                        disabled={!canEditPassword}
                         onClick={() =>
                           setShowCurrentPassword(!showCurrentPassword)
                         }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {showCurrentPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -2171,13 +2783,26 @@ const SettingsPage: NextPageWithLayout = () => {
                     <div className="relative">
                       <input
                         type={showNewPassword ? "text" : "password"}
+                        value={passwordForm.new}
+                        onChange={(e) =>
+                          setPasswordForm((prev) => ({
+                            ...prev,
+                            new: e.target.value,
+                          }))
+                        }
+                        readOnly={!canEditPassword}
                         placeholder="••••••••••"
-                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        className={
+                          canEditPassword
+                            ? `${SETTINGS_FIELD_EDITABLE} pr-10`
+                            : `${SETTINGS_FIELD_READONLY} pr-10`
+                        }
                       />
                       <button
                         type="button"
+                        disabled={!canEditPassword}
                         onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {showNewPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -2195,15 +2820,28 @@ const SettingsPage: NextPageWithLayout = () => {
                     <div className="relative">
                       <input
                         type={showConfirmPassword ? "text" : "password"}
+                        value={passwordForm.confirm}
+                        onChange={(e) =>
+                          setPasswordForm((prev) => ({
+                            ...prev,
+                            confirm: e.target.value,
+                          }))
+                        }
+                        readOnly={!canEditPassword}
                         placeholder="••••••••••"
-                        className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        className={
+                          canEditPassword
+                            ? `${SETTINGS_FIELD_EDITABLE} pr-10`
+                            : `${SETTINGS_FIELD_READONLY} pr-10`
+                        }
                       />
                       <button
                         type="button"
+                        disabled={!canEditPassword}
                         onClick={() =>
                           setShowConfirmPassword(!showConfirmPassword)
                         }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {showConfirmPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -2215,14 +2853,28 @@ const SettingsPage: NextPageWithLayout = () => {
                   </div>
                 </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                >
-                  Save Preferences
-                </motion.button>
+                {canEditPassword ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      type="button"
+                      disabled={isSaving}
+                      className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                    >
+                      {isSaving ? "Saving..." : "Update password"}
+                    </motion.button>
+                    <SettingsSectionCancelButton
+                      onClick={() => {
+                        setPasswordForm({ current: "", new: "", confirm: "" });
+                        setShowCurrentPassword(false);
+                        setShowNewPassword(false);
+                        setShowConfirmPassword(false);
+                        setIsEditingPassword(false);
+                      }}
+                    />
+                  </div>
+                ) : null}
               </div>
             )}
           </motion.div>
