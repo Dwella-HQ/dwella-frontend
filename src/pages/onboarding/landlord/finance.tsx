@@ -467,8 +467,9 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
       },
       bankAccount: {
         accountName,
-        accountCode,
+        accountNumber: accountCode,
         bankName,
+        bankCode,
         bvn,
       },
     };

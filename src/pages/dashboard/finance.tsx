@@ -4,11 +4,7 @@ import * as React from "react";
 import type { NextPageWithLayout } from "../_app";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useToast } from "@/components/Toast";
-import {
-  getWalletsByLandlord,
-  getWallet,
-  type WalletDTO,
-} from "@/api/wallet";
+import { getWalletsByLandlord, getWallet, type WalletDTO } from "@/api/wallet";
 import { ensureLandlordWallet } from "@/api/wallet";
 import {
   getWithdrawals,
@@ -16,6 +12,9 @@ import {
   type WithdrawalItemDTO,
   type WithdrawalCreateDTO,
 } from "@/api/withdrawal";
+import { getLandlordByUser, getLandlordSettings } from "@/api/landlord";
+import type { LandlordBankAccountDTO } from "@/api/landlord";
+import { resolvePayoutAccount } from "@/utils/payoutAccount";
 import {
   createDeposit,
   getDepositsByWallet,
@@ -71,15 +70,6 @@ function withdrawalRecipientLabel(w: WithdrawalItemDTO): string {
   return "—";
 }
 
-function isWalletPayoutConfigured(
-  d: WalletDTO["withdrawalDetails"],
-): boolean {
-  if (!d) return false;
-  const acc = String(d.accountNumber ?? "").replace(/\D/g, "");
-  const code = String(d.bankCode ?? "").trim();
-  return acc.length === 10 && code.length > 0;
-}
-
 const FinancePage: NextPageWithLayout = () => {
   const { showToast } = useToast();
 
@@ -94,15 +84,48 @@ const FinancePage: NextPageWithLayout = () => {
   );
   const [walletLoading, setWalletLoading] = React.useState(false);
 
-  const landlordId = React.useMemo(() => {
-    if (!user?.role) return null;
-    if (user.role === "property_manager") return selectedLandlord?.id ?? null;
-    if (user.role === "landlord" || user.role === "super_admin") {
-      if (typeof window === "undefined") return null;
-      return localStorage.getItem("landlordId");
+  const [resolvedLandlordId, setResolvedLandlordId] = React.useState<
+    string | null
+  >(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const resolveLandlordId = async () => {
+      if (!user?.role || user.role === "tenant") {
+        setResolvedLandlordId(null);
+        return;
+      }
+      if (user.role === "property_manager") {
+        setResolvedLandlordId(
+          selectedLandlord?.id ? String(selectedLandlord.id) : null,
+        );
+        return;
+      }
+      if (user.role === "landlord" || user.role === "super_admin") {
+        if (typeof window === "undefined") return;
+        let id = localStorage.getItem("landlordId");
+        if (!id && user.role === "landlord" && user.id) {
+          const lr = await getLandlordByUser(String(user.id));
+          if (lr.success && lr.data?.id) {
+            id = String(lr.data.id);
+            localStorage.setItem("landlordId", id);
+          }
+        }
+        if (!cancelled) setResolvedLandlordId(id);
+      }
+    };
+
+    if (!isUserLoading) {
+      void resolveLandlordId();
     }
-    return null;
-  }, [selectedLandlord?.id, user?.role]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isUserLoading, selectedLandlord?.id, user?.id, user?.role]);
+
+  const landlordId = resolvedLandlordId;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -151,6 +174,38 @@ const FinancePage: NextPageWithLayout = () => {
     null,
   );
   const [payoutWalletLoading, setPayoutWalletLoading] = React.useState(false);
+  const [landlordBankAccount, setLandlordBankAccount] =
+    React.useState<LandlordBankAccountDTO | null>(null);
+  const [landlordBankLoading, setLandlordBankLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!landlordId) {
+      setLandlordBankAccount(null);
+      return;
+    }
+    (async () => {
+      setLandlordBankLoading(true);
+      const res = await getLandlordSettings(landlordId);
+      if (cancelled) return;
+      setLandlordBankAccount(
+        res.success && res.data.bankAccount ? res.data.bankAccount : null,
+      );
+      setLandlordBankLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [landlordId]);
+
+  const payoutAccount = React.useMemo(
+    () =>
+      resolvePayoutAccount(
+        payoutWallet?.withdrawalDetails,
+        landlordBankAccount,
+      ),
+    [landlordBankAccount, payoutWallet?.withdrawalDetails],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -226,10 +281,7 @@ const FinancePage: NextPageWithLayout = () => {
       showToast("Wallet not ready", "error");
       return;
     }
-    const configured = isWalletPayoutConfigured(
-      payoutWallet?.withdrawalDetails,
-    );
-    if (!configured) {
+    if (!payoutAccount.configured) {
       showToast(
         "Add a verified bank account in Settings before withdrawing.",
         "error",
@@ -237,11 +289,7 @@ const FinancePage: NextPageWithLayout = () => {
       return;
     }
     const amt = Number(withdrawAmount);
-    if (
-      !withdrawAmount ||
-      Number.isNaN(amt) ||
-      amt < WITHDRAW_MIN
-    ) {
+    if (!withdrawAmount || Number.isNaN(amt) || amt < WITHDRAW_MIN) {
       showToast(`Enter an amount of at least ${WITHDRAW_MIN}`, "error");
       return;
     }
@@ -266,7 +314,7 @@ const FinancePage: NextPageWithLayout = () => {
     setWithdrawSubmitting(false);
   }, [
     activeWallet?.id,
-    payoutWallet?.withdrawalDetails,
+    payoutAccount.configured,
     refreshLists,
     showToast,
     withdrawAmount,
@@ -469,12 +517,12 @@ const FinancePage: NextPageWithLayout = () => {
                 .
               </p>
 
-              {payoutWalletLoading ? (
+              {payoutWalletLoading || landlordBankLoading ? (
                 <p className="text-sm text-gray-600">Loading payout details…</p>
               ) : (
                 <div
                   className={`rounded-lg border p-4 ${
-                    isWalletPayoutConfigured(payoutWallet?.withdrawalDetails)
+                    payoutAccount.configured
                       ? "border-emerald-200 bg-emerald-50/80"
                       : "border-amber-200 bg-amber-50"
                   }`}
@@ -482,21 +530,23 @@ const FinancePage: NextPageWithLayout = () => {
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
                     Payout account
                   </p>
-                  {isWalletPayoutConfigured(payoutWallet?.withdrawalDetails) ? (
+                  {payoutAccount.configured && payoutAccount.view ? (
                     <div className="mt-2 space-y-1 text-sm text-gray-900">
                       <p className="font-semibold">
-                        {payoutWallet?.withdrawalDetails?.fullName?.trim() ||
-                          payoutWallet?.withdrawalDetails?.email ||
+                        {payoutAccount.view.fullName?.trim() ||
                           "Linked account"}
                       </p>
                       <p className="text-gray-700">
-                        {payoutWallet?.withdrawalDetails?.bankName ||
-                          "Bank"}{" "}
-                        ·{" "}
+                        {payoutAccount.view.bankName || "Bank"} ·{" "}
                         <span className="font-mono">
-                          {payoutWallet?.withdrawalDetails?.accountNumber}
+                          {payoutAccount.view.accountNumber}
                         </span>
                       </p>
+                      {payoutAccount.view.source === "landlord_settings" ? (
+                        <p className="text-xs text-gray-600">
+                          From Settings → Payment Details
+                        </p>
+                      ) : null}
                     </div>
                   ) : (
                     <p className="mt-2 text-sm text-amber-900">
@@ -560,7 +610,8 @@ const FinancePage: NextPageWithLayout = () => {
                   disabled={
                     withdrawSubmitting ||
                     payoutWalletLoading ||
-                    !isWalletPayoutConfigured(payoutWallet?.withdrawalDetails)
+                    landlordBankLoading ||
+                    !payoutAccount.configured
                   }
                   className="rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white hover:bg-brand-main/90 transition disabled:opacity-60"
                 >

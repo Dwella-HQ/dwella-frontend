@@ -8,19 +8,13 @@ import { useToast } from "@/components/Toast";
 import { getWallets, getWalletsByLandlord, getWallet } from "@/api/wallet";
 import type { WalletDTO } from "@/api/wallet";
 import { createWithdrawal } from "@/api/withdrawal";
+import { getLandlordByUser, getLandlordSettings } from "@/api/landlord";
+import type { LandlordBankAccountDTO } from "@/api/landlord";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
+import { resolvePayoutAccount } from "@/utils/payoutAccount";
 
 const WITHDRAW_MIN = 0.01;
-
-function isWalletPayoutConfigured(
-  d: WalletDTO["withdrawalDetails"],
-): boolean {
-  if (!d) return false;
-  const acc = String(d.accountNumber ?? "").replace(/\D/g, "");
-  const code = String(d.bankCode ?? "").trim();
-  return acc.length === 10 && code.length > 0;
-}
 
 const WithdrawalsNewPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -38,19 +32,78 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
   const [selectedWalletDetail, setSelectedWalletDetail] =
     React.useState<WalletDTO | null>(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
+  const [resolvedLandlordId, setResolvedLandlordId] = React.useState<
+    string | null
+  >(null);
+  const [landlordBankAccount, setLandlordBankAccount] =
+    React.useState<LandlordBankAccountDTO | null>(null);
+  const [landlordBankLoading, setLandlordBankLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const resolveLandlordId = async (): Promise<string | null> => {
+      if (user?.role === "property_manager") {
+        return selectedLandlord?.id ? String(selectedLandlord.id) : null;
+      }
+      if (user?.role === "landlord" || user?.role === "super_admin") {
+        if (typeof window === "undefined") return null;
+        let id = localStorage.getItem("landlordId");
+        if (!id && user.role === "landlord" && user.id) {
+          const lr = await getLandlordByUser(String(user.id));
+          if (lr.success && lr.data?.id) {
+            id = String(lr.data.id);
+            localStorage.setItem("landlordId", id);
+          }
+        }
+        return id;
+      }
+      return null;
+    };
+
+    void resolveLandlordId().then((id) => {
+      if (!cancelled) setResolvedLandlordId(id);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedLandlord?.id, user?.id, user?.role]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!resolvedLandlordId) {
+      setLandlordBankAccount(null);
+      return;
+    }
+    (async () => {
+      setLandlordBankLoading(true);
+      const res = await getLandlordSettings(resolvedLandlordId);
+      if (cancelled) return;
+      setLandlordBankAccount(
+        res.success && res.data.bankAccount ? res.data.bankAccount : null,
+      );
+      setLandlordBankLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedLandlordId]);
+
+  const payoutAccount = React.useMemo(
+    () =>
+      resolvePayoutAccount(
+        selectedWalletDetail?.withdrawalDetails,
+        landlordBankAccount,
+      ),
+    [landlordBankAccount, selectedWalletDetail?.withdrawalDetails],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
     const loadWallets = async () => {
       setWalletsLoading(true);
-      const landlordId =
-        user?.role === "property_manager"
-          ? selectedLandlord?.id
-          : user?.role === "landlord" || user?.role === "super_admin"
-            ? typeof window !== "undefined"
-              ? localStorage.getItem("landlordId")
-              : null
-            : null;
+      const landlordId = resolvedLandlordId;
 
       if (user?.role === "property_manager" && !landlordId) {
         showToast("Select a landlord to continue.", "error");
@@ -78,7 +131,7 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [showToast, user, selectedLandlord?.id]);
+  }, [resolvedLandlordId, showToast, user?.role]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -103,7 +156,7 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
       showToast("Wallet is required", "error");
       return;
     }
-    if (!isWalletPayoutConfigured(selectedWalletDetail?.withdrawalDetails)) {
+    if (!payoutAccount.configured) {
       showToast(
         "Add a verified bank account in Settings before withdrawing.",
         "error",
@@ -134,11 +187,16 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
       showToast(result.error || "Failed to create withdrawal", "error");
     }
     setIsSubmitting(false);
-  }, [amount, narration, router, selectedWalletDetail, showToast, walletId]);
+  }, [
+    amount,
+    narration,
+    payoutAccount.configured,
+    router,
+    showToast,
+    walletId,
+  ]);
 
-  const payoutOk = isWalletPayoutConfigured(
-    selectedWalletDetail?.withdrawalDetails,
-  );
+  const payoutOk = payoutAccount.configured;
 
   return (
     <>
@@ -199,7 +257,7 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
               </select>
             </div>
 
-            {detailLoading ? (
+            {detailLoading || landlordBankLoading ? (
               <p className="text-sm text-gray-600">Loading payout details…</p>
             ) : (
               <div
@@ -212,21 +270,22 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
                   Payout account
                 </p>
-                {payoutOk ? (
+                {payoutOk && payoutAccount.view ? (
                   <div className="mt-2 space-y-1 text-sm text-gray-900">
                     <p className="font-semibold">
-                      {selectedWalletDetail?.withdrawalDetails?.fullName?.trim() ||
-                        selectedWalletDetail?.withdrawalDetails?.email ||
-                        "Linked account"}
+                      {payoutAccount.view.fullName?.trim() || "Linked account"}
                     </p>
                     <p className="text-gray-700">
-                      {selectedWalletDetail?.withdrawalDetails?.bankName ||
-                        "Bank"}{" "}
-                      ·{" "}
+                      {payoutAccount.view.bankName || "Bank"} ·{" "}
                       <span className="font-mono">
-                        {selectedWalletDetail?.withdrawalDetails?.accountNumber}
+                        {payoutAccount.view.accountNumber}
                       </span>
                     </p>
+                    {payoutAccount.view.source === "landlord_settings" ? (
+                      <p className="text-xs text-gray-600">
+                        From Settings → Payment Details
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="mt-2 text-sm text-amber-900">
@@ -286,7 +345,11 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
                 type="button"
                 onClick={handleSubmit}
                 disabled={
-                  isSubmitting || detailLoading || !payoutOk || !walletId
+                  isSubmitting ||
+                  detailLoading ||
+                  landlordBankLoading ||
+                  !payoutOk ||
+                  !walletId
                 }
                 className="rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white hover:bg-brand-main/90 transition disabled:opacity-60"
               >
