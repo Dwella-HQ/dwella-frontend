@@ -7,6 +7,11 @@ export {
   createPropertyManager,
   invitePropertyManager,
 } from "./createPropertyManager";
+export {
+  acceptPropertyManagerInvite,
+  rejectPropertyManagerInvite,
+} from "./respondPropertyManagerInvite";
+export type { RespondPropertyManagerInviteResult } from "./respondPropertyManagerInvite";
 export { updatePropertyManager } from "./updatePropertyManager";
 export type {
   PropertyManagerDTO,

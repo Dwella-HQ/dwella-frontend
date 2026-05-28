@@ -10,6 +10,11 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
+    "test": "npm run test:api",
+    "test:api": "node --test tests/api/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:all": "npm run test:api && npm run test:e2e",
     "lint": "eslint",
     "heroku-postbuild": "npm run build"
   },
@@ -50,6 +55,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "eslint": "^9",
     "eslint-config-next": "^16.0.7",
     "eslint-config-prettier": "^10.1.8",

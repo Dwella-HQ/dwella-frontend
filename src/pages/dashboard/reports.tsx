@@ -1,109 +1,517 @@
 import Head from "next/head";
 import * as React from "react";
 import { motion } from "framer-motion";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import {
-  DollarSign,
-  TrendingUp,
-  Home,
-  Wrench,
-  Download,
+  AlertCircle,
   BarChart3,
+  Download,
   FileDown,
+  Home,
+  RefreshCw,
+  TrendingUp,
+  Wrench,
 } from "lucide-react";
-import { mockProperties } from "@/data/mockLandlordData";
+
+import { getLandlordByUser } from "@/api/landlord";
+import {
+  getProperties,
+  getPropertiesByLandlord,
+  type PropertyDTO,
+} from "@/api/properties";
+import { getRentPaymentItems } from "@/api/rent-payment";
+import type { RentPaymentItemDTO } from "@/api/rent-payment/rentPayment.schema";
+import { getMaintenanceRequests } from "@/api/maintenance";
+import { getTransactions, type TransactionDTO } from "@/api/transaction";
+import { getUnitsByProperty, type UnitDTO } from "@/api/units";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
+import { useUser } from "@/contexts/UserContext";
+import type { MaintenanceRequestWithDetails } from "@/data/mockLandlordData";
 import type { NextPageWithLayout } from "../_app";
 
+type ReportProperty = Omit<PropertyDTO, "units"> & { units: UnitDTO[] };
+
+type MonthBucket = {
+  month: string;
+  revenue: number;
+  transactions: number;
+};
+
+type RentBucket = {
+  property: string;
+  collected: number;
+  outstanding: number;
+};
+
+type MaintenanceBucket = {
+  category: string;
+  count: number;
+};
+
+type ReportsState = {
+  properties: ReportProperty[];
+  rentPayments: RentPaymentItemDTO[];
+  transactions: TransactionDTO[];
+  maintenance: MaintenanceRequestWithDetails[];
+};
+
+const LAST_12_MONTHS = 12;
+
+function asNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^\d.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function parseDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function monthKey(date: Date): string {
+  return date.toLocaleString("en", { month: "short" });
+}
+
+function getPaymentAmount(payment: RentPaymentItemDTO): number {
+  return (
+    asNumber(payment.paidAmount) ||
+    asNumber(payment.paid_amount) ||
+    asNumber(payment.total) ||
+    asNumber(payment.amount)
+  );
+}
+
+function getPaymentDate(payment: RentPaymentItemDTO): Date | null {
+  return (
+    parseDate(payment.paidAt) ||
+    parseDate(payment.paid_at) ||
+    parseDate(payment.paymentDate) ||
+    parseDate(payment.payment_date) ||
+    parseDate(payment.createdAt) ||
+    parseDate(payment.created_at)
+  );
+}
+
+function getTransactionAmount(transaction: TransactionDTO): number {
+  return asNumber(transaction.amount);
+}
+
+function getTransactionDate(transaction: TransactionDTO): Date | null {
+  return parseDate(transaction.createdAt) || parseDate(transaction.updatedAt);
+}
+
+function getNestedString(value: unknown, keys: string[]): string {
+  if (!value || typeof value !== "object") return "";
+  const source = value as Record<string, unknown>;
+  for (const key of keys) {
+    const current = source[key];
+    if (typeof current === "string" && current.trim()) return current;
+  }
+  return "";
+}
+
+function getPaymentPropertyId(payment: RentPaymentItemDTO): string {
+  return (
+    payment.propertyId ||
+    payment.property_id ||
+    getNestedString(payment.property, ["id"]) ||
+    getNestedString(payment.unit, ["propertyId", "property_id"]) ||
+    ""
+  );
+}
+
+function getPaymentPropertyName(payment: RentPaymentItemDTO): string {
+  return (
+    payment.propertyName ||
+    payment.property_name ||
+    getNestedString(payment.property, ["name", "propertyName"]) ||
+    getNestedString(payment.unit, ["propertyName", "property_name"]) ||
+    "Unassigned"
+  );
+}
+
+function getPropertyName(property: ReportProperty): string {
+  return typeof property.name === "string" && property.name
+    ? property.name
+    : "Untitled property";
+}
+
+function getPropertyId(property: ReportProperty): string {
+  return typeof property.id === "string" ? property.id : String(property.id || "");
+}
+
+function getUnitPropertyId(unit: UnitDTO): string {
+  if (unit.propertyId) return unit.propertyId;
+  if (unit.property && typeof unit.property === "object") {
+    return getNestedString(unit.property, ["id"]);
+  }
+  return "";
+}
+
+function isUnitOccupied(unit: UnitDTO): boolean {
+  return Boolean(unit.tenant) || unit.isAvailable === false;
+}
+
+function formatCurrency(amount: number): string {
+  return `NGN ${Math.round(amount).toLocaleString()}`;
+}
+
+function formatNumber(amount: number): string {
+  return Math.round(amount).toLocaleString();
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(value % 1 === 0 ? 0 : 1)}%`;
+}
+
+function getSelectedLandlordFromStorage(): string {
+  if (typeof window === "undefined") return "";
+  return (
+    localStorage.getItem("selectedLandlordId") ||
+    localStorage.getItem("landlordId") ||
+    ""
+  );
+}
+
+function isWithinLastMonths(date: Date, months: number): boolean {
+  const start = new Date();
+  start.setMonth(start.getMonth() - (months - 1));
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+  return date >= start;
+}
+
 const ReportsPage: NextPageWithLayout = () => {
+  const { user, isLoading: isUserLoading } = useUser();
+  const { selectedLandlord } = useSelectedLandlord();
   const [selectedReportType, setSelectedReportType] =
     React.useState("Rent Collection");
   const [selectedDateRange, setSelectedDateRange] =
-    React.useState("Last 3 Months");
+    React.useState("Last 12 Months");
   const [selectedProperty, setSelectedProperty] =
     React.useState("All Properties");
-  const [selectedExportFormat, setSelectedExportFormat] = React.useState("PDF");
+  const [selectedExportFormat, setSelectedExportFormat] = React.useState("CSV");
+  const [reportsState, setReportsState] = React.useState<ReportsState>({
+    properties: [],
+    rentPayments: [],
+    transactions: [],
+    maintenance: [],
+  });
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = React.useState(0);
 
-  // Calculate summary stats
-  const totalRevenue = 1250000;
-  const avgOccupancyRate = 84.5;
-  const maintenanceCost = 85000;
+  React.useEffect(() => {
+    if (isUserLoading || !user) return;
 
-  // Mock chart data - matching the design
-  const revenueExpensesData = [
-    { month: "Jan", revenue: 850000, expenses: 140000 },
-    { month: "Feb", revenue: 910000, expenses: 150000 },
-    { month: "Mar", revenue: 970000, expenses: 120000 },
-    { month: "Apr", revenue: 1040000, expenses: 170000 },
-    { month: "May", revenue: 1090000, expenses: 130000 },
-    { month: "Jun", revenue: 1140000, expenses: 140000 },
-    { month: "Jul", revenue: 1200000, expenses: 150000 },
-    { month: "Aug", revenue: 1180000, expenses: 170000 },
-    { month: "Sep", revenue: 1230000, expenses: 140000 },
-    { month: "Oct", revenue: 1190000, expenses: 150000 },
-    { month: "Nov", revenue: 1270000, expenses: 140000 },
-    { month: "Dec", revenue: 1330000, expenses: 160000 },
-  ];
+    let cancelled = false;
 
-  const rentCollectionData = [
-    { property: "Harmony Court", collected: 450000, pending: 50000 },
-    { property: "Garden View", collected: 380000, pending: 30000 },
-    { property: "Palm Estate", collected: 320000, pending: 40000 },
-    { property: "Ocean View", collected: 280000, pending: 20000 },
-  ];
+    async function loadReports() {
+      setIsLoading(true);
+      setError(null);
 
-  const occupancyData = {
-    occupied: 42,
-    vacant: 8,
-  };
+      try {
+        let landlordId =
+          user?.role === "property_manager"
+            ? selectedLandlord?.id || getSelectedLandlordFromStorage()
+            : getSelectedLandlordFromStorage();
 
-  const maintenanceCostsData = [
-    { category: "Plumbing", cost: 26000 },
-    { category: "Electrical", cost: 20000 },
-    { category: "HVAC", cost: 22000 },
-    { category: "Painting", cost: 12000 },
-    { category: "Other", cost: 5000 },
-  ];
+        if (user?.role === "landlord" && !landlordId) {
+          const landlordResult = await getLandlordByUser(String(user.id));
+          if (landlordResult.success) {
+            landlordId = landlordResult.data.id;
+            if (typeof window !== "undefined") {
+              localStorage.setItem("landlordId", landlordId);
+            }
+          }
+        }
+
+        const propertiesResult = landlordId
+          ? await getPropertiesByLandlord(landlordId)
+          : await getProperties();
+
+        if (!propertiesResult.success) {
+          throw new Error(propertiesResult.error);
+        }
+
+        const unitsResults = await Promise.all(
+          propertiesResult.data.map(async (property) => {
+            const propertyId = typeof property.id === "string" ? property.id : String(property.id || "");
+            const result = await getUnitsByProperty(propertyId);
+            return {
+              propertyId,
+              units: result.success ? result.data : [],
+            };
+          }),
+        );
+        const unitsByProperty = new Map(
+          unitsResults.map((result) => [result.propertyId, result.units]),
+        );
+        const properties = propertiesResult.data.map((property) => ({
+          ...property,
+          units: unitsByProperty.get(typeof property.id === "string" ? property.id : String(property.id || "")) || [],
+        }));
+
+        const [paymentsResult, maintenanceResult, transactionsResult] =
+          await Promise.all([
+            getRentPaymentItems({ limit: 500 }),
+            getMaintenanceRequests({
+              limit: 500,
+              landlordId: landlordId || undefined,
+            }),
+            getTransactions(),
+          ]);
+
+        if (cancelled) return;
+
+        setReportsState({
+          properties,
+          rentPayments: paymentsResult.success ? paymentsResult.data : [],
+          maintenance: maintenanceResult.success ? maintenanceResult.data : [],
+          transactions: transactionsResult.success ? transactionsResult.data : [],
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setReportsState({
+            properties: [],
+            rentPayments: [],
+            maintenance: [],
+            transactions: [],
+          });
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to load report data right now.",
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    void loadReports();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isUserLoading,
+    refreshKey,
+    selectedLandlord?.id,
+    user,
+  ]);
+
+  const propertyOptions = reportsState.properties;
+
+  const scopedProperties = React.useMemo(() => {
+    if (selectedProperty === "All Properties") return reportsState.properties;
+    return reportsState.properties.filter(
+      (property) => getPropertyId(property) === selectedProperty,
+    );
+  }, [reportsState.properties, selectedProperty]);
+
+  const propertyIdSet = React.useMemo(
+    () => new Set(scopedProperties.map(getPropertyId)),
+    [scopedProperties],
+  );
+
+  const propertyNameSet = React.useMemo(
+    () =>
+      new Set(
+        scopedProperties.map((property) => getPropertyName(property).toLowerCase()),
+      ),
+    [scopedProperties],
+  );
+
+  const scopedPayments = React.useMemo(() => {
+    if (scopedProperties.length === 0) return [];
+    return reportsState.rentPayments.filter((payment) => {
+      const propertyId = getPaymentPropertyId(payment);
+      const propertyName = getPaymentPropertyName(payment).toLowerCase();
+      return propertyIdSet.has(propertyId) || propertyNameSet.has(propertyName);
+    });
+  }, [
+    propertyIdSet,
+    propertyNameSet,
+    reportsState.rentPayments,
+    scopedProperties.length,
+  ]);
+
+  const scopedMaintenance = React.useMemo(() => {
+    if (scopedProperties.length === 0) return [];
+    return reportsState.maintenance.filter((item) => {
+      const maybe = item as { propertyId?: string; property_id?: string };
+      const propertyId = maybe.propertyId || maybe.property_id || "";
+      const propertyName = (item.propertyName || "").toLowerCase();
+      return propertyIdSet.has(propertyId) || propertyNameSet.has(propertyName);
+    });
+  }, [
+    propertyIdSet,
+    propertyNameSet,
+    reportsState.maintenance,
+    scopedProperties.length,
+  ]);
+
+  const scopedUnits = React.useMemo<UnitDTO[]>(() => {
+    return scopedProperties.flatMap((property) => property.units || []);
+  }, [scopedProperties]);
+
+  const totalUnits = scopedUnits.length;
+  const occupiedUnits = scopedUnits.filter(isUnitOccupied).length;
+  const vacantUnits = Math.max(totalUnits - occupiedUnits, 0);
+  const avgOccupancyRate =
+    totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0;
+
+  const currentMonthRevenue = React.useMemo(() => {
+    const now = new Date();
+    return scopedPayments.reduce((sum, payment) => {
+      const date = getPaymentDate(payment);
+      if (
+        date &&
+        date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth()
+      ) {
+        return sum + getPaymentAmount(payment);
+      }
+      return sum;
+    }, 0);
+  }, [scopedPayments]);
+
+  const previousMonthRevenue = React.useMemo(() => {
+    const previous = new Date();
+    previous.setMonth(previous.getMonth() - 1);
+    return scopedPayments.reduce((sum, payment) => {
+      const date = getPaymentDate(payment);
+      if (
+        date &&
+        date.getFullYear() === previous.getFullYear() &&
+        date.getMonth() === previous.getMonth()
+      ) {
+        return sum + getPaymentAmount(payment);
+      }
+      return sum;
+    }, 0);
+  }, [scopedPayments]);
+
+  const monthlyChange =
+    previousMonthRevenue > 0
+      ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) *
+        100
+      : 0;
+
+  const activeMaintenanceCount = scopedMaintenance.filter(
+    (item) => item.status !== "resolved",
+  ).length;
+
+  const revenueTrend = React.useMemo<MonthBucket[]>(() => {
+    const months = Array.from({ length: LAST_12_MONTHS }, (_, index) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - (LAST_12_MONTHS - 1 - index));
+      return {
+        key: `${date.getFullYear()}-${date.getMonth()}`,
+        month: monthKey(date),
+        revenue: 0,
+        transactions: 0,
+      };
+    });
+    const buckets = new Map(months.map((bucket) => [bucket.key, bucket]));
+
+    for (const payment of scopedPayments) {
+      const date = getPaymentDate(payment);
+      if (!date || !isWithinLastMonths(date, LAST_12_MONTHS)) continue;
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const bucket = buckets.get(key);
+      if (bucket) bucket.revenue += getPaymentAmount(payment);
+    }
+
+    for (const transaction of reportsState.transactions) {
+      const date = getTransactionDate(transaction);
+      if (!date || !isWithinLastMonths(date, LAST_12_MONTHS)) continue;
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const bucket = buckets.get(key);
+      if (bucket) bucket.transactions += getTransactionAmount(transaction);
+    }
+
+    return months;
+  }, [reportsState.transactions, scopedPayments]);
+
+  const rentCollectionData = React.useMemo<RentBucket[]>(() => {
+    return scopedProperties.map((property) => {
+      const units = property.units || [];
+      const collected = scopedPayments
+        .filter((payment) => {
+          const paymentPropertyId = getPaymentPropertyId(payment);
+          const paymentPropertyName = getPaymentPropertyName(payment);
+          return (
+            paymentPropertyId === getPropertyId(property) ||
+            paymentPropertyName.toLowerCase() === getPropertyName(property).toLowerCase()
+          );
+        })
+        .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+      const monthlyPotential = units.reduce(
+        (sum, unit) => sum + asNumber(unit.rentAmount),
+        0,
+      );
+      return {
+        property: getPropertyName(property),
+        collected,
+        outstanding: Math.max(monthlyPotential - collected, 0),
+      };
+    });
+  }, [scopedPayments, scopedProperties]);
+
+  const maintenanceActivityData = React.useMemo<MaintenanceBucket[]>(() => {
+    const counts = new Map<string, number>();
+    for (const item of scopedMaintenance) {
+      const key = item.type || item.subType || "Other";
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return Array.from(counts, ([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [scopedMaintenance]);
 
   const availableReports = [
     {
       id: "rent-collection",
       title: "Rent Collection Summary",
-      description:
-        "Overview of rent collected, pending, and overdue for a selected period.",
-      lastGenerated: "06 Dec 2025",
-      icon: DollarSign,
-      iconColor: "bg-blue-100 text-blue-600",
-    },
-    {
-      id: "overdue",
-      title: "Overdue Report (Ageing)",
-      description:
-        "Detailed breakdown of overdue payments by tenant and property.",
-      lastGenerated: "05 Dec 2025",
+      description: "Rent collected by property using /rent-payment records.",
+      lastGenerated: scopedPayments.length
+        ? "Updated from live payments"
+        : "No payments yet",
       icon: TrendingUp,
-      iconColor: "bg-red-100 text-red-600",
+      iconColor: "bg-blue-100 text-blue-600",
     },
     {
       id: "occupancy",
       title: "Occupancy Report",
-      description: "Current occupancy rates across all properties and units.",
-      lastGenerated: "01 Dec 2025",
+      description: "Unit occupancy and vacancy from property unit records.",
+      lastGenerated: totalUnits ? "Updated from live units" : "No units yet",
       icon: Home,
       iconColor: "bg-green-100 text-green-600",
     },
     {
       id: "maintenance",
-      title: "Maintenance Cost Report",
-      description: "Summary of maintenance expenses by property and category.",
-      lastGenerated: "30 Nov 2025",
+      title: "Maintenance Activity",
+      description:
+        "Request volume by type and status. Cost is not exposed by the API.",
+      lastGenerated: scopedMaintenance.length
+        ? "Updated from live requests"
+        : "No requests yet",
       icon: Wrench,
       iconColor: "bg-yellow-100 text-yellow-600",
     },
     {
       id: "revenue",
       title: "Revenue Trends",
-      description: "Month-over-month revenue analysis and projections.",
-      lastGenerated: "01 Dec 2025",
+      description: "Month-by-month revenue from rent payments and transactions.",
+      lastGenerated: revenueTrend.some((item) => item.revenue > 0)
+        ? "Updated from live finance data"
+        : "No revenue yet",
       icon: BarChart3,
       iconColor: "bg-purple-100 text-purple-600",
     },
@@ -111,31 +519,35 @@ const ReportsPage: NextPageWithLayout = () => {
 
   const recentExports = [
     {
-      fileName: "Rent Collection - November 2025.pdf",
-      date: "05 Dec 2025",
-      size: "245 KB",
-    },
-    {
-      fileName: "Occupancy Report - Q4 2025.xlsx",
-      date: "01 Dec 2025",
-      size: "128 KB",
-    },
-    {
-      fileName: "Maintenance Costs - October 2025.csv",
-      date: "01 Nov 2025",
-      size: "87 KB",
+      fileName: `${selectedReportType} - ${selectedDateRange}.${selectedExportFormat.toLowerCase()}`,
+      date: new Date().toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+      size: "Generated locally",
     },
   ];
 
-  const formatCurrency = (amount: number) => {
-    return `₦${amount.toLocaleString()}`;
-  };
+  const maxTrend = Math.max(
+    1,
+    ...revenueTrend.flatMap((d) => [d.revenue, d.transactions]),
+  );
+  const maxRent = Math.max(
+    1,
+    ...rentCollectionData.flatMap((d) => [d.collected, d.outstanding]),
+  );
+  const maxMaintenance = Math.max(
+    1,
+    ...maintenanceActivityData.map((d) => d.count),
+  );
 
-  const maxRevenue = 1_400_000; // fixed scale to match design
-  const maxMaintenance = Math.max(...maintenanceCostsData.map((d) => d.cost));
-
-  const formatNumber = (num: number) =>
-    num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const emptyState =
+    !isLoading &&
+    !error &&
+    reportsState.properties.length === 0 &&
+    reportsState.rentPayments.length === 0 &&
+    reportsState.maintenance.length === 0;
 
   return (
     <>
@@ -144,35 +556,64 @@ const ReportsPage: NextPageWithLayout = () => {
       </Head>
 
       <section className="relative space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Reports & Analytics
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Generate and download property management reports.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Reports & Analytics
+            </h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Live summaries derived from properties, rent payments,
+              transactions, and maintenance requests.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRefreshKey((value) => value + 1)}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
         </div>
 
-        {/* KPI Cards */}
+        {error ? (
+          <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <p>{error}</p>
+          </div>
+        ) : null}
+
+        {emptyState ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm">
+            No report data is available yet. Add properties, units, rent
+            payments, or maintenance requests to populate this page.
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 shadow-sm overflow-hidden"
+            className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
           >
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 flex-1 min-w-0 truncate">
-                Total Revenue (Dec)
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="min-w-0 flex-1 truncate text-xs font-medium text-gray-600 sm:text-sm">
+                Revenue This Month
               </p>
-              <TrendingUp className="h-4 w-4 text-green-600 flex-shrink-0" />
+              <TrendingUp className="h-4 w-4 flex-shrink-0 text-green-600" />
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">
-              {formatCurrency(totalRevenue)}
+            <p className="break-words text-xl font-bold leading-tight text-gray-900 sm:text-2xl">
+              {isLoading ? "Loading..." : formatCurrency(currentMonthRevenue)}
             </p>
-            <p className="mt-1 sm:mt-2 text-xs sm:text-sm font-medium text-green-600">
-              +12% from last month
+            <p
+              className={`mt-1 text-xs font-medium sm:mt-2 sm:text-sm ${
+                monthlyChange >= 0 ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              {previousMonthRevenue > 0
+                ? `${monthlyChange >= 0 ? "+" : ""}${formatPercent(monthlyChange)} from last month`
+                : "No previous month baseline"}
             </p>
           </motion.div>
 
@@ -180,22 +621,19 @@ const ReportsPage: NextPageWithLayout = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 shadow-sm overflow-hidden"
+            className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
           >
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 flex-1 min-w-0 truncate">
-                Avg Occupancy Rate
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="min-w-0 flex-1 truncate text-xs font-medium text-gray-600 sm:text-sm">
+                Occupancy Rate
               </p>
-              <Home
-                className="h-4 w-4 flex-shrink-0"
-                style={{ color: "#228CC6" }}
-              />
+              <Home className="h-4 w-4 flex-shrink-0 text-blue-600" />
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">
-              {avgOccupancyRate}%
+            <p className="break-words text-xl font-bold leading-tight text-gray-900 sm:text-2xl">
+              {isLoading ? "Loading..." : formatPercent(avgOccupancyRate)}
             </p>
-            <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">
-              Across all properties
+            <p className="mt-1 text-xs text-gray-600 sm:mt-2 sm:text-sm">
+              {occupiedUnits} occupied / {totalUnits} total units
             </p>
           </motion.div>
 
@@ -203,350 +641,210 @@ const ReportsPage: NextPageWithLayout = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 shadow-sm overflow-hidden"
+            className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
           >
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 flex-1 min-w-0 truncate">
-                Maintenance Costs
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="min-w-0 flex-1 truncate text-xs font-medium text-gray-600 sm:text-sm">
+                Active Maintenance
               </p>
-              <Wrench
-                className="h-4 w-4 flex-shrink-0"
-                style={{ color: "#D08700" }}
-              />
+              <Wrench className="h-4 w-4 flex-shrink-0 text-amber-600" />
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words leading-tight">
-              {formatCurrency(maintenanceCost)}
+            <p className="break-words text-xl font-bold leading-tight text-gray-900 sm:text-2xl">
+              {isLoading ? "Loading..." : activeMaintenanceCount}
             </p>
-            <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-600">
-              This month
+            <p className="mt-1 text-xs text-gray-600 sm:mt-2 sm:text-sm">
+              {scopedMaintenance.length} total requests
             </p>
           </motion.div>
         </div>
 
-        {/* Charts Row 1 */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Revenue vs Expenses Trend */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
             className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
           >
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">
-              Revenue vs Expenses Trend
+            <h3 className="mb-6 text-xl font-bold text-gray-900">
+              Revenue vs Transactions
             </h3>
-            <div className="h-80 relative">
-              {/* Y-axis labels */}
-              <div className="absolute left-0 top-0 bottom-0 w-16 flex flex-col justify-between text-sm text-gray-600 pr-3 text-right">
-                {[1_400_000, 1_050_000, 700_000, 350_000, 0].map((tick) => (
-                  <span key={tick}>{formatNumber(tick)}</span>
+            <div className="h-80">
+              <div className="flex h-64 items-end gap-2 border-b border-l border-gray-200 px-2">
+                {revenueTrend.map((item) => (
+                  <div
+                    key={item.month}
+                    className="flex h-full flex-1 items-end justify-center gap-1"
+                  >
+                    <div
+                      className="w-full rounded-t bg-blue-500"
+                      style={{
+                        height: `${Math.max((item.revenue / maxTrend) * 100, item.revenue ? 3 : 0)}%`,
+                      }}
+                      title={`${item.month} revenue: ${formatCurrency(item.revenue)}`}
+                    />
+                    <div
+                      className="w-full rounded-t bg-slate-400"
+                      style={{
+                        height: `${Math.max((item.transactions / maxTrend) * 100, item.transactions ? 3 : 0)}%`,
+                      }}
+                      title={`${item.month} transactions: ${formatCurrency(item.transactions)}`}
+                    />
+                  </div>
                 ))}
               </div>
-              {/* Chart area */}
-              <div className="ml-16 h-full relative">
-                <svg
-                  className="w-full h-full"
-                  viewBox="0 0 400 100"
-                  preserveAspectRatio="none"
-                >
-                  {/* Horizontal grid lines */}
-                  {[0, 25, 50, 75, 100].map((y) => (
-                    <line
-                      key={y}
-                      x1="0"
-                      y1={y}
-                      x2="400"
-                      y2={y}
-                      stroke="#E5E7EB"
-                      strokeWidth="0.6"
-                      strokeDasharray="2 4"
-                    />
-                  ))}
-                  {/* Vertical grid lines */}
-                  {revenueExpensesData.map((_, i) => (
-                    <line
-                      key={`vx-${i}`}
-                      x1={(i / (revenueExpensesData.length - 1)) * 400}
-                      y1="0"
-                      x2={(i / (revenueExpensesData.length - 1)) * 400}
-                      y2="100"
-                      stroke="#E5E7EB"
-                      strokeWidth="0.6"
-                      strokeDasharray="2 4"
-                    />
-                  ))}
-                  {/* Revenue line */}
-                  <polyline
-                    points={revenueExpensesData
-                      .map(
-                        (d, i) =>
-                          `${(i / (revenueExpensesData.length - 1)) * 400},${
-                            100 - (d.revenue / maxRevenue) * 100
-                          }`,
-                      )
-                      .join(" ")}
-                    fill="none"
-                    stroke="#3B82F6"
-                    strokeWidth="1.5"
-                  />
-                  {/* Revenue points (open circles) */}
-                  {revenueExpensesData.map((d, i) => (
-                    <circle
-                      key={`revenue-${i}`}
-                      cx={(i / (revenueExpensesData.length - 1)) * 400}
-                      cy={100 - (d.revenue / maxRevenue) * 100}
-                      r="2"
-                      fill="white"
-                      stroke="#3B82F6"
-                      strokeWidth="1.5"
-                    />
-                  ))}
-                  {/* Expenses line */}
-                  <polyline
-                    points={revenueExpensesData
-                      .map(
-                        (d, i) =>
-                          `${(i / (revenueExpensesData.length - 1)) * 400},${
-                            100 - (d.expenses / maxRevenue) * 100
-                          }`,
-                      )
-                      .join(" ")}
-                    fill="none"
-                    stroke="#EF4444"
-                    strokeWidth="1.5"
-                  />
-                  {/* Expenses points (open circles) */}
-                  {revenueExpensesData.map((d, i) => (
-                    <circle
-                      key={`expenses-${i}`}
-                      cx={(i / (revenueExpensesData.length - 1)) * 400}
-                      cy={100 - (d.expenses / maxRevenue) * 100}
-                      r="2"
-                      fill="white"
-                      stroke="#EF4444"
-                      strokeWidth="1.5"
-                    />
-                  ))}
-                </svg>
-                {/* X-axis labels - show every month */}
-                <div className="absolute bottom-0 left-0 right-0 flex justify-between text-sm text-gray-600 mt-3">
-                  {revenueExpensesData.map((d, i) => (
-                    <span key={i}>{d.month}</span>
-                  ))}
-                </div>
+              <div className="mt-3 flex justify-between text-xs text-gray-600">
+                {revenueTrend.map((item) => (
+                  <span key={item.month}>{item.month}</span>
+                ))}
               </div>
             </div>
-            {/* Legend */}
-            <div className="flex items-center justify-center gap-6 mt-6">
+            <div className="mt-4 flex items-center justify-center gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full border-2 border-blue-500 bg-white"></div>
-                <span className="text-sm text-gray-700">Revenue</span>
+                <div className="h-3 w-3 rounded bg-blue-500" />
+                <span className="text-sm text-gray-700">Rent payments</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full border-2 border-red-500 bg-white"></div>
-                <span className="text-sm text-gray-700">Expenses</span>
+                <div className="h-3 w-3 rounded bg-slate-400" />
+                <span className="text-sm text-gray-700">Transactions</span>
               </div>
             </div>
           </motion.div>
 
-          {/* Rent Collection by Property */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
             className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
           >
-            <h3 className="text-xl font-bold text-gray-900 mb-6">
+            <h3 className="mb-6 text-xl font-bold text-gray-900">
               Rent Collection by Property
             </h3>
-            <div className="h-72 relative">
-              {/* Y-axis labels */}
-              <div className="absolute left-0 top-0 bottom-8 w-16 flex flex-col justify-between text-sm text-gray-600 pr-3 text-right">
-                <span>600000</span>
-                <span>450000</span>
-                <span>300000</span>
-                <span>150000</span>
-                <span>0</span>
-              </div>
-              {/* Chart area */}
-              <div className="ml-16 h-full relative pb-8">
-                <div className="h-full w-full relative">
-                  {/* Grid lines */}
-                  <div className="absolute inset-0 flex flex-col justify-between">
-                    {[0, 1, 2, 3, 4].map((i) => (
-                      <div
-                        key={i}
-                        className="border-t border-gray-200 border-dashed"
-                      ></div>
-                    ))}
-                  </div>
-                  {/* Bars */}
-                  <div className="absolute inset-0 flex items-end justify-around gap-4 px-4">
-                    {rentCollectionData.map((item, index) => {
-                      const collectedHeight = (item.collected / 600000) * 100;
-                      const pendingHeight = (item.pending / 600000) * 100;
-                      return (
-                        <div
-                          key={index}
-                          className="flex-1 flex items-end justify-center gap-1 h-full max-w-[100px]"
-                        >
-                          {/* Collected bar (blue, left) */}
-                          <div
-                            className="flex-1 bg-blue-500 rounded"
-                            style={{
-                              height: `${collectedHeight}%`,
-                            }}
-                          ></div>
-                          {/* Pending bar (orange, right) */}
-                          <div
-                            className="flex-1 bg-orange-500 rounded"
-                            style={{
-                              height: `${pendingHeight}%`,
-                            }}
-                          ></div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                {/* X-axis labels */}
-                <div className="absolute bottom-0 left-0 right-0 flex justify-around text-xs text-gray-600 px-4">
-                  {rentCollectionData.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex-1 text-center max-w-[80px]"
-                    >
-                      {item.property}
+            <div className="space-y-4">
+              {rentCollectionData.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No property rent data available yet.
+                </p>
+              ) : (
+                rentCollectionData.slice(0, 8).map((item) => (
+                  <div key={item.property}>
+                    <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                      <span className="font-medium text-gray-700">
+                        {item.property}
+                      </span>
+                      <span className="text-gray-500">
+                        {formatCurrency(item.collected)}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="flex h-3 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="bg-blue-500"
+                        style={{
+                          width: `${(item.collected / maxRent) * 100}%`,
+                        }}
+                      />
+                      <div
+                        className="bg-orange-400"
+                        style={{
+                          width: `${(item.outstanding / maxRent) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-            {/* Legend */}
-            <div className="flex items-center justify-center gap-6 mt-4">
+            <div className="mt-6 flex items-center justify-center gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-blue-500"></div>
+                <div className="h-3 w-3 rounded bg-blue-500" />
                 <span className="text-sm text-gray-700">Collected</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-orange-500"></div>
-                <span className="text-sm text-gray-700">Pending</span>
+                <div className="h-3 w-3 rounded bg-orange-400" />
+                <span className="text-sm text-gray-700">
+                  Outstanding estimate
+                </span>
               </div>
             </div>
           </motion.div>
         </div>
 
-        {/* Charts Row 2 */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Unit Occupancy Overview */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
             className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
           >
-            <h3 className="text-xl font-bold text-gray-900 mb-6">
+            <h3 className="mb-6 text-xl font-bold text-gray-900">
               Unit Occupancy Overview
             </h3>
-            <div className="flex items-center justify-center h-64 relative px-8">
-              {/* Left label */}
-              <div className="absolute left-8 top-1/2 -translate-y-1/2 text-sm font-medium text-blue-700">
-                Occupied: {occupancyData.occupied} units
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg bg-blue-50 p-4">
+                <p className="text-sm font-medium text-blue-700">Occupied</p>
+                <p className="mt-2 text-3xl font-bold text-blue-900">
+                  {occupiedUnits}
+                </p>
               </div>
-
-              {/* Pie chart */}
-              <div className="relative w-56 h-56">
-                <svg className="w-full h-full" viewBox="0 0 200 200">
-                  {(() => {
-                    const total = occupancyData.occupied + occupancyData.vacant;
-                    const occupiedPercentage = occupancyData.occupied / total;
-
-                    // Calculate the angle in radians (starting from top, going clockwise)
-                    const angle = occupiedPercentage * 2 * Math.PI;
-
-                    // Calculate end point (start from top: 100, 0)
-                    // For clockwise: x = cx + r * sin(angle), y = cy - r * cos(angle)
-                    const endX = 100 + 100 * Math.sin(angle);
-                    const endY = 100 - 100 * Math.cos(angle);
-
-                    // Use large arc flag if percentage > 50%
-                    const largeArcFlag = occupiedPercentage > 0.5 ? 1 : 0;
-
-                    return (
-                      <>
-                        {/* Occupied slice (blue) */}
-                        <path
-                          d={`M 100 100 L 100 0 A 100 100 0 ${largeArcFlag} 1 ${endX} ${endY} Z`}
-                          fill="#3B82F6"
-                        />
-                        {/* Vacant slice (gray) */}
-                        <path
-                          d={`M 100 100 L ${endX} ${endY} A 100 100 0 ${1 - largeArcFlag} 1 100 0 Z`}
-                          fill="#D1D5DB"
-                        />
-                      </>
-                    );
-                  })()}
-                </svg>
+              <div className="rounded-lg bg-gray-50 p-4">
+                <p className="text-sm font-medium text-gray-600">Vacant</p>
+                <p className="mt-2 text-3xl font-bold text-gray-900">
+                  {vacantUnits}
+                </p>
               </div>
-
-              {/* Right label */}
-              <div className="absolute right-8 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-600">
-                Vacant: {occupancyData.vacant} units
-              </div>
+            </div>
+            <div className="mt-6 h-4 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full bg-blue-500"
+                style={{ width: `${avgOccupancyRate}%` }}
+              />
             </div>
           </motion.div>
 
-          {/* Maintenance Costs by Category */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7 }}
             className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
           >
-            <h3 className="text-xl font-bold text-gray-900 mb-6">
-              Maintenance Costs by Category
+            <h3 className="mb-6 text-xl font-bold text-gray-900">
+              Maintenance Activity by Category
             </h3>
-            <div className="h-64 relative">
-              {/* Y-axis labels (categories) */}
-              <div className="absolute left-0 top-0 bottom-0 w-20 flex flex-col justify-around text-sm text-gray-600 pr-3">
-                {maintenanceCostsData.map((item, index) => (
-                  <span key={index}>{item.category}</span>
-                ))}
-              </div>
-              {/* Chart area */}
-              <div className="ml-20 h-full relative">
-                <div className="h-full w-full flex flex-col justify-around">
-                  {maintenanceCostsData.map((item, index) => (
-                    <div key={index} className="h-8 relative">
-                      <div
-                        className="h-full bg-orange-500 rounded"
-                        style={{
-                          width: `${(item.cost / maxMaintenance) * 100}%`,
-                        }}
-                      ></div>
+            <div className="space-y-4">
+              {maintenanceActivityData.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No maintenance requests available yet.
+                </p>
+              ) : (
+                maintenanceActivityData.map((item) => (
+                  <div key={item.category}>
+                    <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                      <span className="font-medium text-gray-700">
+                        {item.category}
+                      </span>
+                      <span className="text-gray-500">
+                        {formatNumber(item.count)}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-              {/* X-axis labels */}
-              <div className="ml-20 mt-2 flex justify-between text-xs text-gray-500">
-                <span>0</span>
-                <span>6500</span>
-                <span>13000</span>
-                <span>19500</span>
-                <span>26000</span>
-              </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full bg-amber-500"
+                        style={{
+                          width: `${(item.count / maxMaintenance) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </motion.div>
         </div>
 
-        {/* Available Reports Section */}
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
+          <h2 className="mb-4 text-xl font-bold text-gray-900">
             Available Reports
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {availableReports.map((report, index) => {
               const Icon = report.icon;
               return (
@@ -555,46 +853,35 @@ const ReportsPage: NextPageWithLayout = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8 + index * 0.1 }}
-                  className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+                  className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
                 >
-                  <div className="flex items-start gap-4">
-                    <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-full ${report.iconColor} flex-shrink-0`}
-                    >
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-base font-semibold text-gray-900 mb-1">
-                        {report.title}
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-3">
-                        {report.description}
-                      </p>
-                      <p className="text-xs text-gray-500 mb-3">
-                        Last generated: {report.lastGenerated}
-                      </p>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-main/90"
-                      >
-                        Generate
-                      </button>
-                    </div>
+                  <div
+                    className={`mb-4 flex h-11 w-11 items-center justify-center rounded-full ${report.iconColor}`}
+                  >
+                    <Icon className="h-5 w-5" />
                   </div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    {report.title}
+                  </h3>
+                  <p className="mt-2 text-sm text-gray-600">
+                    {report.description}
+                  </p>
+                  <p className="mt-3 text-xs text-gray-500">
+                    {report.lastGenerated}
+                  </p>
                 </motion.div>
               );
             })}
           </div>
         </div>
 
-        {/* Custom Report Builder */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.3 }}
+          transition={{ delay: 1.2 }}
           className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
         >
-          <h2 className="text-xl font-bold text-gray-900 mb-6">
+          <h2 className="mb-6 text-xl font-bold text-gray-900">
             Custom Report Builder
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -605,11 +892,11 @@ const ReportsPage: NextPageWithLayout = () => {
               <select
                 value={selectedReportType}
                 onChange={(e) => setSelectedReportType(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option>Rent Collection</option>
                 <option>Occupancy Report</option>
-                <option>Maintenance Costs</option>
+                <option>Maintenance Activity</option>
                 <option>Revenue Trends</option>
               </select>
             </div>
@@ -620,12 +907,11 @@ const ReportsPage: NextPageWithLayout = () => {
               <select
                 value={selectedDateRange}
                 onChange={(e) => setSelectedDateRange(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option>Last 3 Months</option>
                 <option>Last 6 Months</option>
                 <option>Last 12 Months</option>
-                <option>Custom Range</option>
               </select>
             </div>
             <div>
@@ -635,12 +921,12 @@ const ReportsPage: NextPageWithLayout = () => {
               <select
                 value={selectedProperty}
                 onChange={(e) => setSelectedProperty(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option>All Properties</option>
-                {mockProperties.map((prop) => (
-                  <option key={prop.id} value={prop.id}>
-                    {prop.name}
+                {propertyOptions.map((property) => (
+                  <option key={getPropertyId(property)} value={getPropertyId(property)}>
+                    {getPropertyName(property)}
                   </option>
                 ))}
               </select>
@@ -652,90 +938,85 @@ const ReportsPage: NextPageWithLayout = () => {
               <select
                 value={selectedExportFormat}
                 onChange={(e) => setSelectedExportFormat(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
+                <option>CSV</option>
                 <option>PDF</option>
                 <option>Excel</option>
-                <option>CSV</option>
               </select>
             </div>
           </div>
           <div className="mt-6">
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
               className="inline-flex items-center gap-2 rounded-lg bg-brand-main px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-main/90"
             >
               <FileDown className="h-4 w-4" />
               Generate Custom Report
-            </motion.button>
+            </button>
           </div>
         </motion.div>
 
-        {/* Recent Exports */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.4 }}
+          transition={{ delay: 1.3 }}
           className="rounded-lg border border-gray-200 bg-white shadow-sm"
         >
           <div className="border-b border-gray-200 px-6 py-4">
-            <h2 className="text-xl font-bold text-gray-900">Recent Exports</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              Recent Report Snapshot
+            </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full table-auto">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
                     File Name
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
                     Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Size
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
+                    Source
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {recentExports.map((exportItem, index) => (
-                  <motion.tr
-                    key={index}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 1.5 + index * 0.1 }}
-                    className="hover:bg-gray-50 transition"
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {recentExports.map((exportItem) => (
+                  <tr
+                    key={exportItem.fileName}
+                    className="transition hover:bg-gray-50"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
                       {exportItem.fileName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                       {exportItem.date}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
                       {exportItem.size}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="whitespace-nowrap px-6 py-4">
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 text-sm font-medium text-brand-main hover:text-brand-main/80 transition"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-brand-main transition hover:text-brand-main/80"
                       >
                         <Download className="h-4 w-4" />
                         Download
                       </button>
                     </td>
-                  </motion.tr>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </motion.div>
 
-        {/* Coming soon overlay: blocks interaction but keeps page scrollable */}
         <div
           aria-hidden="true"
           className="absolute inset-0 z-30 rounded-xl bg-white/60 backdrop-blur-[1px]"

@@ -11,25 +11,40 @@ import { useUser } from "@/contexts/UserContext";
 const sendAnnouncementSchema = z.object({
   title: z.string().min(1, "Title is required"),
   message: z.string().min(1, "Message is required"),
+  propertyIds: z.array(z.string()),
   // API requires `fileIds` (can be empty); keep as plain strings so upload IDs always validate.
   fileIds: z.array(z.string()),
 });
 
-type SendAnnouncementFormValues = z.infer<typeof sendAnnouncementSchema>;
+export type SendAnnouncementFormValues = z.infer<typeof sendAnnouncementSchema>;
+
+export type AnnouncementPropertyOption = {
+  id: string;
+  name: string;
+  address?: string;
+};
 
 export type SendAnnouncementModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSend?: (data: SendAnnouncementFormValues) => Promise<void> | void;
+  propertyOptions?: AnnouncementPropertyOption[];
+  requirePropertySelection?: boolean;
 };
 
 export const SendAnnouncementModal = ({
   isOpen,
   onClose,
   onSend,
+  propertyOptions = [],
+  requirePropertySelection = false,
 }: SendAnnouncementModalProps) => {
   const { user } = useUser();
   const [isSending, setIsSending] = React.useState(false);
+  const [propertyError, setPropertyError] = React.useState("");
+  const [selectedPropertyIds, setSelectedPropertyIds] = React.useState<
+    string[]
+  >([]);
   const [attachments, setAttachments] = React.useState<
     {
       localId: string;
@@ -51,9 +66,18 @@ export const SendAnnouncementModal = ({
     defaultValues: {
       title: "",
       message: "",
+      propertyIds: [],
       fileIds: [],
     },
   });
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const nextPropertyIds = propertyOptions.map((property) => property.id);
+    setSelectedPropertyIds(nextPropertyIds);
+    setValue("propertyIds", nextPropertyIds);
+    setPropertyError("");
+  }, [isOpen, propertyOptions, setValue]);
 
   const uploadedFileIds = React.useMemo(() => {
     return attachments
@@ -64,6 +88,29 @@ export const SendAnnouncementModal = ({
   React.useEffect(() => {
     setValue("fileIds", uploadedFileIds);
   }, [setValue, uploadedFileIds]);
+
+  React.useEffect(() => {
+    setValue("propertyIds", selectedPropertyIds);
+    if (selectedPropertyIds.length > 0) {
+      setPropertyError("");
+    }
+  }, [selectedPropertyIds, setValue]);
+
+  const toggleProperty = React.useCallback((propertyId: string) => {
+    setSelectedPropertyIds((prev) =>
+      prev.includes(propertyId)
+        ? prev.filter((id) => id !== propertyId)
+        : [...prev, propertyId],
+    );
+  }, []);
+
+  const toggleAllProperties = React.useCallback(() => {
+    setSelectedPropertyIds((prev) =>
+      prev.length === propertyOptions.length
+        ? []
+        : propertyOptions.map((property) => property.id),
+    );
+  }, [propertyOptions]);
 
   const handleFilesSelected = React.useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,6 +178,11 @@ export const SendAnnouncementModal = ({
       return;
     }
 
+    if (requirePropertySelection && selectedPropertyIds.length === 0) {
+      setPropertyError("Select at least one property.");
+      return;
+    }
+
     // Prevent sending while uploads are in-flight or failed
     const hasUploading = attachments.some((a) => a.isUploading);
     const hasFailed = attachments.some((a) => a.error);
@@ -140,8 +192,9 @@ export const SendAnnouncementModal = ({
 
     setIsSending(true);
     try {
-      await onSend(data);
+      await onSend({ ...data, propertyIds: selectedPropertyIds });
       reset();
+      setSelectedPropertyIds([]);
       setAttachments([]);
       onClose();
     } catch {
@@ -220,6 +273,75 @@ export const SendAnnouncementModal = ({
                   </p>
                 )}
               </div>
+
+              {(propertyOptions.length > 0 || requirePropertySelection) && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Properties
+                    </label>
+                    {propertyOptions.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={toggleAllProperties}
+                        disabled={isSending}
+                        className="text-xs font-semibold text-brand-main transition hover:text-brand-main/80 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {selectedPropertyIds.length === propertyOptions.length
+                          ? "Clear all"
+                          : "Select all"}
+                      </button>
+                    ) : null}
+                  </div>
+                  {propertyOptions.length > 0 ? (
+                    <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+                      {propertyOptions.map((property) => {
+                        const checked = selectedPropertyIds.includes(
+                          property.id,
+                        );
+                        return (
+                          <label
+                            key={property.id}
+                            className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 transition hover:bg-gray-50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleProperty(property.id)}
+                              disabled={isSending}
+                              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+                            />
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-gray-900">
+                                {property.name}
+                              </span>
+                              {property.address ? (
+                                <span className="block truncate text-xs text-gray-500">
+                                  {property.address}
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                      No properties available.
+                    </div>
+                  )}
+                  {propertyError ? (
+                    <p className="mt-1 text-xs text-red-600">
+                      {propertyError}
+                    </p>
+                  ) : null}
+                  {errors.propertyIds && (
+                    <p className="mt-1 text-xs text-red-600">
+                      Invalid property selection
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Attachments */}
               <div>

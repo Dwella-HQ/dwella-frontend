@@ -8,6 +8,7 @@ export type CreateAnnouncementPayload = {
   title: string;
   content: string;
   fileIds: string[];
+  propertyIds: string[];
 };
 
 export type CreateAnnouncementLandlordResult =
@@ -25,6 +26,7 @@ export const createAnnouncementLandlord = async (
   const body = {
     ...payload,
     fileIds: Array.isArray(payload.fileIds) ? payload.fileIds : [],
+    propertyIds: Array.isArray(payload.propertyIds) ? payload.propertyIds : [],
   };
   const result = await apiPost<AnnouncementActionResponseDTO>(
     `/announcement/landlord/${landlordId}`,

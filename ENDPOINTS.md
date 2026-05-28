@@ -268,8 +268,10 @@ This file reflects the backend OpenAPI JSON shared on 2026-04-30.
 
 - `POST /announcement/landlord/{landlordId}`
 - `POST /announcement/property/{propertyId}`
-- `GET /announcement`
-- `GET /announcement/{id}`
+- Create body: `{ title, content, fileIds, propertyIds }` (`fileIds` and `propertyIds` are arrays of UUIDs)
+- Announcement feed is socket-based on namespace `/announcement`; emit/listen for `announcements:load` to fetch announcements for the logged-in user.
+- Do not use `GET /announcement` or `GET /announcement/query` for the app feed.
+- `GET /announcement/{id}` _(details only, not the feed)_
 - `PATCH /announcement/{id}/landlord`
 - `DELETE /announcement/{id}/landlord`
 - `PATCH /announcement/{id}/property`

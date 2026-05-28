@@ -170,16 +170,11 @@ const WithdrawalsNewPage: NextPageWithLayout = () => {
     }
 
     setIsSubmitting(true);
-    const result = await createWithdrawal(
-      {
-        walletId,
-        amount: amt,
-        narration: narration || undefined,
-      },
-      {
-        idempotencyKey: undefined,
-      },
-    );
+    const result = await createWithdrawal({
+      walletId,
+      amount: amt,
+      narration: narration || undefined,
+    });
     if (result.success) {
       showToast("Withdrawal request created", "success");
       router.push("/dashboard/withdrawals");

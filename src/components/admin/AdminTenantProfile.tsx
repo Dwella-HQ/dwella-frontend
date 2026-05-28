@@ -1,5 +1,4 @@
 import Head from "next/head";
-import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -11,10 +10,17 @@ import {
   MessageSquare,
   Phone,
 } from "lucide-react";
+
+import { getMaintenanceRequests } from "@/api/maintenance";
+import type { RentPaymentItemDTO } from "@/api/rent-payment/rentPayment.schema";
+import { getRentPaymentItems } from "@/api/rent-payment";
+import { getTenant, type TenantRecordDTO } from "@/api/tenants";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
+import type { MaintenanceRequestWithDetails } from "@/data/mockLandlordData";
 
 export type AdminTenantProfileProps = {
+  tenantId?: string;
   /** Shown in the shell header */
   layoutTitle: string;
   /** Primary back navigation (tenant list vs property detail) */
@@ -22,8 +28,156 @@ export type AdminTenantProfileProps = {
   backLabel: string;
 };
 
-/** Shared admin tenant profile UI — used from `/admin/tenants/[id]` and nested property routes. */
+type LeaseLike = Record<string, unknown>;
+type UnitLike = Record<string, unknown>;
+type UserLike = Record<string, unknown>;
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" && value.trim() ? value : "";
+}
+
+function numberValue(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^\d.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function formatCurrency(value: unknown): string {
+  const amount = numberValue(value);
+  return amount > 0 ? `NGN ${amount.toLocaleString()}` : "Not available";
+}
+
+function formatDate(value: unknown): string {
+  const raw = stringValue(value);
+  if (!raw) return "Not available";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("en", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatFullDate(value: unknown): string {
+  const raw = stringValue(value);
+  if (!raw) return "Not available";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("en", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getNestedName(value: unknown): string {
+  const obj = objectValue(value);
+  if (!obj) return stringValue(value);
+  return (
+    stringValue(obj.fullName) ||
+    stringValue(obj.name) ||
+    stringValue(obj.email) ||
+    ""
+  );
+}
+
+function getActiveLease(tenant: TenantRecordDTO): LeaseLike | null {
+  const rawLeases = (tenant as { leases?: unknown }).leases;
+  const leases = Array.isArray(rawLeases) ? (rawLeases as LeaseLike[]) : [];
+  return (
+    leases.find((lease) => lease.isActive === true) ||
+    leases[0] ||
+    null
+  );
+}
+
+function getTenantUser(tenant: TenantRecordDTO): UserLike {
+  return objectValue((tenant as { user?: unknown }).user) || {};
+}
+
+function getTenantUnit(
+  tenant: TenantRecordDTO,
+  activeLease: LeaseLike | null,
+): UnitLike {
+  return (
+    objectValue((tenant as { currentUnit?: unknown }).currentUnit) ||
+    objectValue(activeLease?.unit) ||
+    {}
+  );
+}
+
+function getUnitImage(unit: UnitLike): string {
+  const images = Array.isArray(unit.images) ? unit.images : [];
+  const first = objectValue(images[0]);
+  return stringValue(first?.url);
+}
+
+function getAmenities(unit: UnitLike): string[] {
+  const amenities = Array.isArray(unit.amenities) ? unit.amenities : [];
+  return amenities
+    .map((item) => (typeof item === "string" ? item : getNestedName(item)))
+    .filter(Boolean);
+}
+
+function getPaymentTenantId(payment: RentPaymentItemDTO): string {
+  return (
+    payment.tenantId ||
+    payment.tenant_id ||
+    stringValue(objectValue(payment.tenant)?.id) ||
+    ""
+  );
+}
+
+function getPaymentTenantName(payment: RentPaymentItemDTO): string {
+  return (
+    payment.tenantName ||
+    payment.tenant_name ||
+    getNestedName(payment.tenant) ||
+    ""
+  );
+}
+
+function getPaymentAmount(payment: RentPaymentItemDTO): number {
+  return (
+    numberValue(payment.paidAmount) ||
+    numberValue(payment.paid_amount) ||
+    numberValue(payment.total) ||
+    numberValue(payment.amount)
+  );
+}
+
+function getPaymentDate(payment: RentPaymentItemDTO): string {
+  return formatFullDate(
+    payment.paidAt ||
+      payment.paid_at ||
+      payment.paymentDate ||
+      payment.payment_date ||
+      payment.createdAt ||
+      payment.created_at,
+  );
+}
+
+function getPaymentStatus(payment: RentPaymentItemDTO): string {
+  const status = stringValue((payment as { status?: unknown }).status);
+  return status || "Completed";
+}
+
+function getNextOfKin(tenant: TenantRecordDTO): Record<string, unknown> {
+  return objectValue((tenant as { nextOfKinDetails?: unknown }).nextOfKinDetails) || {};
+}
+
+/** Shared admin tenant profile UI - used from `/admin/tenants/[id]` and nested property routes. */
 export function AdminTenantProfile({
+  tenantId,
   layoutTitle,
   backHref,
   backLabel,
@@ -31,6 +185,77 @@ export function AdminTenantProfile({
   const [tab, setTab] = React.useState<
     "overview" | "payments" | "maintenance" | "communications"
   >("overview");
+  const [tenant, setTenant] = React.useState<TenantRecordDTO | null>(null);
+  const [payments, setPayments] = React.useState<RentPaymentItemDTO[]>([]);
+  const [maintenance, setMaintenance] = React.useState<
+    MaintenanceRequestWithDetails[]
+  >([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!tenantId) return;
+
+    let cancelled = false;
+
+    async function loadTenantProfile() {
+      setLoading(true);
+      setError(null);
+      try {
+        if (!tenantId) return;
+        const tenantResult = await getTenant(tenantId);
+        if (!tenantResult.success) {
+          throw new Error(tenantResult.error);
+        }
+
+        const user = getTenantUser(tenantResult.data);
+        const tenantName =
+          stringValue(user.fullName) ||
+          stringValue((tenantResult.data as { fullName?: unknown }).fullName) ||
+          stringValue((tenantResult.data as { email?: unknown }).email);
+
+        const [paymentsResult, maintenanceResult] = await Promise.all([
+          getRentPaymentItems({ limit: 500 }),
+          getMaintenanceRequests({ tenantId, limit: 500 }),
+        ]);
+
+        if (cancelled) return;
+
+        const matchingPayments = paymentsResult.success
+          ? paymentsResult.data.filter((payment) => {
+              const paymentTenantId = getPaymentTenantId(payment);
+              const paymentTenantName = getPaymentTenantName(payment);
+              return (
+                paymentTenantId === tenantId ||
+                (!!tenantName &&
+                  paymentTenantName.toLowerCase() === tenantName.toLowerCase())
+              );
+            })
+          : [];
+
+        setTenant(tenantResult.data);
+        setPayments(matchingPayments);
+        setMaintenance(maintenanceResult.success ? maintenanceResult.data : []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load tenant profile",
+          );
+          setTenant(null);
+          setPayments([]);
+          setMaintenance([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadTenantProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   const tabLabels: Record<typeof tab, string> = {
     overview: "Overview",
@@ -39,10 +264,37 @@ export function AdminTenantProfile({
     communications: "Communications",
   };
 
+  const activeLease = tenant ? getActiveLease(tenant) : null;
+  const tenantUser = tenant ? getTenantUser(tenant) : {};
+  const unit = tenant ? getTenantUnit(tenant, activeLease) : {};
+  const nextOfKin = tenant ? getNextOfKin(tenant) : {};
+  const tenantName =
+    stringValue(tenantUser.fullName) ||
+    stringValue((tenant as { fullName?: unknown } | null)?.fullName) ||
+    stringValue((tenant as { email?: unknown } | null)?.email) ||
+    "Tenant";
+  const email =
+    stringValue(tenantUser.email) ||
+    stringValue((tenant as { email?: unknown } | null)?.email) ||
+    "Not available";
+  const phone =
+    stringValue(tenantUser.phoneNumber) ||
+    stringValue((tenant as { phoneNumber?: unknown } | null)?.phoneNumber) ||
+    "Not available";
+  const unitName = stringValue(unit.name) || "No unit assigned";
+  const rentAmount =
+    activeLease?.rentAmount ?? unit.rentAmount ?? (tenant as { rentAmount?: unknown } | null)?.rentAmount;
+  const leaseStart = activeLease?.startDate ?? (tenant as { leaseStartDate?: unknown } | null)?.leaseStartDate;
+  const leaseEnd = activeLease?.endDate ?? (tenant as { leaseEndDate?: unknown } | null)?.leaseEndDate;
+  const totalPaid = payments.reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+  const paymentStatus = payments.length > 0 ? "Paid" : "No payments";
+  const unitImage = getUnitImage(unit);
+  const amenities = getAmenities(unit);
+
   return (
     <>
       <Head>
-        <title>DWELLA NG · Tenant Profile</title>
+        <title>DWELLA NG - Tenant Profile</title>
       </Head>
       <AdminLayout title={layoutTitle}>
         <section className="space-y-4">
@@ -76,39 +328,51 @@ export function AdminTenantProfile({
             </div>
           </div>
 
+          {error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+
           <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex items-start gap-4">
-                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg">
-                  <Image
-                    src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400"
-                    alt="Tenant"
-                    fill
-                    className="object-cover"
-                  />
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#E0F2FE] text-xl font-bold text-[#0369A1]">
+                  {tenantName
+                    .split(" ")
+                    .map((part) => part[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase() || "T"}
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-[#0F172A]">
-                    Ada Emmanuel
+                    {loading ? "Loading tenant..." : tenantName}
                   </h2>
                   <p className="mt-1 text-sm text-[#64748B]">
-                    Tenant • Unit A101
+                    Tenant - {unitName}
                   </p>
                 </div>
               </div>
-              <span className="rounded-full bg-[#DCFCE7] px-3 py-1 text-xs font-medium text-[#166534]">
-                Paid
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  payments.length > 0
+                    ? "bg-[#DCFCE7] text-[#166534]"
+                    : "bg-[#F1F5F9] text-[#475569]"
+                }`}
+              >
+                {paymentStatus}
               </span>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 text-sm text-[#334155]">
+            <div className="mt-6 grid grid-cols-1 gap-6 text-sm text-[#334155] sm:grid-cols-3">
               <div className="flex items-center gap-3">
                 <Phone className="h-4 w-4 shrink-0 text-[#2563EB]" />
                 <div>
                   <p className="text-[10px] uppercase tracking-wide text-[#94A3B8]">
                     Phone
                   </p>
-                  <p className="font-medium">+234 812 345 6789</p>
+                  <p className="font-medium">{phone}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -117,7 +381,7 @@ export function AdminTenantProfile({
                   <p className="text-[10px] uppercase tracking-wide text-[#94A3B8]">
                     Email
                   </p>
-                  <p className="font-medium">ada.emmanuel@email.com</p>
+                  <p className="font-medium">{email}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -126,86 +390,42 @@ export function AdminTenantProfile({
                   <p className="text-[10px] uppercase tracking-wide text-[#94A3B8]">
                     Unit
                   </p>
-                  <p className="font-medium">Unit A101</p>
+                  <p className="font-medium">{unitName}</p>
                 </div>
               </div>
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <div
-                className="rounded-xl p-4"
-                style={{ backgroundColor: ADMIN_STAT_BG.blue }}
-              >
-                <p
-                  className="text-[10px] font-semibold uppercase tracking-wide"
-                  style={{ color: ADMIN_STAT_LABEL.blue }}
-                >
-                  Monthly rent
-                </p>
-                <p className="mt-2 text-2xl font-bold text-[#0F172A] lg:text-3xl">
-                  ₦120,000
-                </p>
-              </div>
-              <div
-                className="rounded-xl p-4"
-                style={{ backgroundColor: ADMIN_STAT_BG.green }}
-              >
-                <p
-                  className="text-[10px] font-semibold uppercase tracking-wide"
-                  style={{ color: ADMIN_STAT_LABEL.green }}
-                >
-                  Move-in date
-                </p>
-                <p className="mt-2 text-2xl font-bold text-[#0F172A] lg:text-3xl">
-                  Jan 2024
-                </p>
-              </div>
-              <div
-                className="rounded-xl p-4"
-                style={{ backgroundColor: ADMIN_STAT_BG.purple }}
-              >
-                <p
-                  className="text-[10px] font-semibold uppercase tracking-wide"
-                  style={{ color: ADMIN_STAT_LABEL.purple }}
-                >
-                  Rent/Lease ends
-                </p>
-                <p className="mt-2 text-2xl font-bold text-[#0F172A] lg:text-3xl">
-                  Jan 2026
-                </p>
-              </div>
-              <div
-                className="rounded-xl p-4"
-                style={{ backgroundColor: ADMIN_STAT_BG.orange }}
-              >
-                <p
-                  className="text-[10px] font-semibold uppercase tracking-wide"
-                  style={{ color: ADMIN_STAT_LABEL.orange }}
-                >
-                  Total paid
-                </p>
-                <p className="mt-2 text-2xl font-bold text-[#0F172A] lg:text-3xl">
-                  ₦1,440,000
-                </p>
-              </div>
+              <StatCard color="blue" label="Monthly rent" value={formatCurrency(rentAmount)} />
+              <StatCard color="green" label="Move-in date" value={formatDate(leaseStart)} />
+              <StatCard color="purple" label="Rent/Lease ends" value={formatDate(leaseEnd)} />
+              <StatCard color="orange" label="Total paid" value={formatCurrency(totalPaid)} />
             </div>
           </div>
 
           <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
             <div className="grid gap-6 lg:grid-cols-[minmax(0,280px)_1fr]">
-              <div className="relative h-[220px] overflow-hidden rounded-xl lg:h-[260px]">
-                <Image
-                  src="https://images.unsplash.com/photo-1616594039964-3f4a8ac8c30f?w=1200"
-                  alt="Unit room"
-                  fill
-                  className="object-cover"
-                />
+              <div className="relative h-[220px] overflow-hidden rounded-xl bg-[#E2E8F0] lg:h-[260px]">
+                {unitImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={unitImage}
+                    alt={unitName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-sm font-medium text-[#64748B]">
+                    No unit image
+                  </div>
+                )}
                 <div className="absolute left-3 top-3 rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-[10px] font-medium text-[#166534]">
-                  Occupied
+                  {unit.isAvailable === true ? "Available" : "Occupied"}
                 </div>
                 <div className="absolute bottom-3 left-3 text-white drop-shadow-md">
-                  <p className="text-2xl font-semibold">Unit A101</p>
-                  <p className="text-sm">2BR Apt</p>
+                  <p className="text-2xl font-semibold">{unitName}</p>
+                  <p className="text-sm">
+                    {numberValue(unit.numberOfBedrooms) || "No"}BR Apt
+                  </p>
                 </div>
               </div>
               <div>
@@ -215,73 +435,15 @@ export function AdminTenantProfile({
                       Unit Information
                     </h3>
                     <p className="mt-1 text-xs text-[#64748B]">
-                      Complete details and management
+                      Details from the tenant record and assigned unit.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className="rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-xs font-medium text-[#0F172A]"
-                  >
-                    Landlord Profile
-                  </button>
                 </div>
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <div
-                    className="rounded-xl p-3"
-                    style={{ backgroundColor: ADMIN_STAT_BG.blue }}
-                  >
-                    <p
-                      className="text-[10px] font-semibold uppercase tracking-wide"
-                      style={{ color: ADMIN_STAT_LABEL.blue }}
-                    >
-                      Bedrooms
-                    </p>
-                    <p className="mt-1 text-2xl font-bold text-[#0F172A] lg:text-[28px]">
-                      2
-                    </p>
-                  </div>
-                  <div
-                    className="rounded-xl p-3"
-                    style={{ backgroundColor: ADMIN_STAT_BG.green }}
-                  >
-                    <p
-                      className="text-[10px] font-semibold uppercase tracking-wide"
-                      style={{ color: ADMIN_STAT_LABEL.green }}
-                    >
-                      Bathrooms
-                    </p>
-                    <p className="mt-1 text-2xl font-bold text-[#0F172A] lg:text-[28px]">
-                      2
-                    </p>
-                  </div>
-                  <div
-                    className="rounded-xl p-3"
-                    style={{ backgroundColor: ADMIN_STAT_BG.purple }}
-                  >
-                    <p
-                      className="text-[10px] font-semibold uppercase tracking-wide"
-                      style={{ color: ADMIN_STAT_LABEL.purple }}
-                    >
-                      Size
-                    </p>
-                    <p className="mt-1 text-2xl font-bold leading-none text-[#0F172A] lg:text-[28px]">
-                      850 <span className="text-lg font-bold">sqft</span>
-                    </p>
-                  </div>
-                  <div
-                    className="rounded-xl p-3"
-                    style={{ backgroundColor: ADMIN_STAT_BG.orange }}
-                  >
-                    <p
-                      className="text-[10px] font-semibold uppercase tracking-wide"
-                      style={{ color: ADMIN_STAT_LABEL.orange }}
-                    >
-                      Floor
-                    </p>
-                    <p className="mt-1 text-xl font-bold text-[#0F172A] lg:text-[28px]">
-                      1st Floor
-                    </p>
-                  </div>
+                  <StatCard color="blue" label="Bedrooms" value={String(numberValue(unit.numberOfBedrooms) || "N/A")} compact />
+                  <StatCard color="green" label="Bathrooms" value={String(numberValue(unit.numberOfBathrooms) || "N/A")} compact />
+                  <StatCard color="purple" label="Rent amount" value={formatCurrency(unit.rentAmount)} compact />
+                  <StatCard color="orange" label="Status" value={unit.isAvailable === true ? "Available" : "Occupied"} compact />
                 </div>
                 <div className="mt-4">
                   <div className="mb-2 flex items-center gap-2">
@@ -291,14 +453,16 @@ export function AdminTenantProfile({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {["AC", "Balcony", "Water Heater"].map((a) => (
-                      <span
-                        key={a}
-                        className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1 text-xs text-[#64748B]"
-                      >
-                        {a}
-                      </span>
-                    ))}
+                    {(amenities.length ? amenities : ["No amenities listed"]).map(
+                      (amenity) => (
+                        <span
+                          key={amenity}
+                          className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1 text-xs text-[#64748B]"
+                        >
+                          {amenity}
+                        </span>
+                      ),
+                    )}
                   </div>
                 </div>
               </div>
@@ -314,18 +478,18 @@ export function AdminTenantProfile({
                   "maintenance",
                   "communications",
                 ] as const
-              ).map((t) => (
+              ).map((item) => (
                 <button
-                  key={t}
+                  key={item}
                   type="button"
-                  onClick={() => setTab(t)}
+                  onClick={() => setTab(item)}
                   className={`relative border-b-2 pb-3 text-sm font-medium transition ${
-                    tab === t
+                    tab === item
                       ? "border-[#2563EB] text-[#2563EB]"
                       : "border-transparent text-[#64748B] hover:text-[#0F172A]"
                   }`}
                 >
-                  {tabLabels[t]}
+                  {tabLabels[item]}
                 </button>
               ))}
             </div>
@@ -337,46 +501,16 @@ export function AdminTenantProfile({
                     Rent/Lease Information
                   </p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-                        Rent/Lease start
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-[#64748B]" />
-                        <p className="text-sm font-semibold text-[#0F172A]">
-                          Jan 2024
-                        </p>
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-                        Rent/Lease end
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-[#64748B]" />
-                        <p className="text-sm font-semibold text-[#0F172A]">
-                          Jan 2026
-                        </p>
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-                        Monthly rent
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-[#64748B]" />
-                        <p className="text-sm font-semibold text-[#0F172A]">
-                          ₦120,000
-                        </p>
-                      </div>
-                    </div>
+                    <InfoTile icon={Calendar} label="Rent/Lease start" value={formatDate(leaseStart)} />
+                    <InfoTile icon={Calendar} label="Rent/Lease end" value={formatDate(leaseEnd)} />
+                    <InfoTile icon={DollarSign} label="Monthly rent" value={formatCurrency(rentAmount)} />
                     <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
                         Payment status
                       </p>
                       <div className="mt-2">
                         <span className="inline-flex rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-xs font-medium text-[#166534]">
-                          Paid
+                          {paymentStatus}
                         </span>
                       </div>
                     </div>
@@ -388,16 +522,19 @@ export function AdminTenantProfile({
                   </p>
                   <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
                     <p className="text-sm font-semibold text-[#0F172A]">
-                      John Emmanuel (Brother)
+                      {stringValue(nextOfKin.fullName) || "Not available"}
+                      {stringValue(nextOfKin.relationship)
+                        ? ` (${stringValue(nextOfKin.relationship)})`
+                        : ""}
                     </p>
                     <div className="mt-3 flex flex-col gap-2 text-sm text-[#334155]">
                       <p className="inline-flex items-center gap-2">
                         <Phone className="h-4 w-4 text-[#94A3B8]" />
-                        +234 812 345 6789
+                        {stringValue(nextOfKin.contactNumber) || "Not available"}
                       </p>
                       <p className="inline-flex items-center gap-2">
                         <Mail className="h-4 w-4 text-[#94A3B8]" />
-                        john.emmanuel@email.com
+                        {stringValue(nextOfKin.email) || "Not available"}
                       </p>
                     </div>
                   </div>
@@ -410,29 +547,35 @@ export function AdminTenantProfile({
                 <p className="text-base font-semibold text-[#0F172A]">
                   Payment History
                 </p>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between rounded-xl border border-[#E2E8F0] p-4"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-[#0F172A]">
-                        Bank Transfer
-                      </p>
-                      <p className="mt-1 text-xs text-[#64748B]">
-                        05 Dec 2025 · TXN-2025-00{i + 1}
-                      </p>
+                {payments.length === 0 ? (
+                  <EmptyTab text="No payments found for this tenant." />
+                ) : (
+                  payments.slice(0, 20).map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="flex items-center justify-between rounded-xl border border-[#E2E8F0] p-4"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-[#0F172A]">
+                          {stringValue((payment as { paymentMethod?: unknown }).paymentMethod) ||
+                            stringValue((payment as { narration?: unknown }).narration) ||
+                            "Rent payment"}
+                        </p>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          {getPaymentDate(payment)} - {payment.id}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-[#0F172A]">
+                          {formatCurrency(getPaymentAmount(payment))}
+                        </p>
+                        <span className="mt-1 inline-flex rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[10px] font-medium text-[#166534]">
+                          {getPaymentStatus(payment)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-[#0F172A]">
-                        ₦120,000
-                      </p>
-                      <span className="mt-1 inline-flex rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[10px] font-medium text-[#166534]">
-                        Completed
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             ) : null}
 
@@ -441,22 +584,29 @@ export function AdminTenantProfile({
                 <p className="text-base font-semibold text-[#0F172A]">
                   Maintenance Requests
                 </p>
-                {["HVAC", "Plumbing"].map((m) => (
-                  <div
-                    key={m}
-                    className="flex items-center justify-between rounded-xl border border-[#E2E8F0] p-4"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-[#0F172A]">{m}</p>
-                      <p className="mt-1 text-xs text-[#64748B]">
-                        Reported: 05 Dec 2023 · Resolved: 06 Dec 2023
-                      </p>
+                {maintenance.length === 0 ? (
+                  <EmptyTab text="No maintenance requests found for this tenant." />
+                ) : (
+                  maintenance.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between rounded-xl border border-[#E2E8F0] p-4"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-[#0F172A]">
+                          {item.title || item.type || "Maintenance request"}
+                        </p>
+                        <p className="mt-1 text-xs text-[#64748B]">
+                          Reported: {formatFullDate(item.reportedTime)} -{" "}
+                          {item.description || item.subType || "No description"}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-[#DBEAFE] px-2.5 py-0.5 text-[10px] font-medium text-[#1D4ED8]">
+                        {item.status}
+                      </span>
                     </div>
-                    <span className="rounded-full bg-[#DBEAFE] px-2.5 py-0.5 text-[10px] font-medium text-[#1D4ED8]">
-                      Resolved
-                    </span>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             ) : null}
 
@@ -465,36 +615,75 @@ export function AdminTenantProfile({
                 <p className="text-base font-semibold text-[#0F172A]">
                   Communication History
                 </p>
-                {[
-                  "AC Issue",
-                  "Rent Payment Confirmation",
-                  "Parking Inquiry",
-                ].map((msg) => (
-                  <div
-                    key={msg}
-                    className="flex items-center justify-between rounded-xl border border-[#E2E8F0] p-4"
-                  >
-                    <div className="flex items-center gap-3">
-                      <MessageSquare className="h-4 w-4 shrink-0 text-[#2563EB]" />
-                      <div>
-                        <p className="text-sm font-medium text-[#0F172A]">
-                          {msg}
-                        </p>
-                        <p className="mt-0.5 text-xs text-[#64748B]">
-                          The AC in my unit is not cooling properly...
-                        </p>
-                      </div>
-                    </div>
-                    <p className="shrink-0 text-xs text-[#64748B]">
-                      05 Dec 2025
-                    </p>
-                  </div>
-                ))}
+                <EmptyTab text="No communication endpoint is available for this tenant profile yet." />
               </div>
             ) : null}
           </div>
         </section>
       </AdminLayout>
     </>
+  );
+}
+
+function StatCard({
+  color,
+  label,
+  value,
+  compact = false,
+}: {
+  color: "blue" | "green" | "purple" | "orange";
+  label: string;
+  value: string;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl ${compact ? "p-3" : "p-4"}`}
+      style={{ backgroundColor: ADMIN_STAT_BG[color] }}
+    >
+      <p
+        className="text-[10px] font-semibold uppercase tracking-wide"
+        style={{ color: ADMIN_STAT_LABEL[color] }}
+      >
+        {label}
+      </p>
+      <p
+        className={`mt-2 font-bold text-[#0F172A] ${
+          compact ? "text-xl lg:text-2xl" : "text-2xl lg:text-3xl"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function InfoTile({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+        {label}
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <Icon className="h-4 w-4 text-[#64748B]" />
+        <p className="text-sm font-semibold text-[#0F172A]">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyTab({ text }: { text: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-4 text-sm text-[#64748B]">
+      {text}
+    </div>
   );
 }

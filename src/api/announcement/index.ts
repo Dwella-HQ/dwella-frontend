@@ -15,6 +15,7 @@ export type {
 } from "./createAnnouncementLandlord";
 export type { CreateAnnouncementPropertyResult } from "./createAnnouncementProperty";
 export type { UpdateAnnouncementLandlordResult } from "./updateAnnouncementLandlord";
+export type { UpdateAnnouncementPayload } from "./updateAnnouncementLandlord";
 export type { UpdateAnnouncementPropertyResult } from "./updateAnnouncementProperty";
 export type { GetAnnouncementsResult } from "./getAnnouncements";
 export type { GetAnnouncementByIdResult } from "./getAnnouncementById";

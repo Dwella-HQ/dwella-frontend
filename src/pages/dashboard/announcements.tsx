@@ -14,10 +14,14 @@ import {
 } from "@/api/announcement";
 import { AnnouncementDetailsModal } from "@/components/AnnouncementDetailsModal";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
+import {
+  SendAnnouncementModal,
+  type AnnouncementPropertyOption,
+  type SendAnnouncementFormValues,
+} from "@/components/SendAnnouncementModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
-import { getPropertiesByLandlord } from "@/api/properties";
+import { getPropertiesByLandlord, type PropertyDTO } from "@/api/properties";
 import {
   isBroadcastAnnouncement,
   useAnnouncementsFeed,
@@ -31,6 +35,20 @@ const formatDateValue = (value?: string) => {
     return value;
   }
 };
+
+const mapAnnouncementPropertyOption = (
+  property: PropertyDTO,
+): AnnouncementPropertyOption => ({
+  id: property.id,
+  name: property.name,
+  address: [
+    property.address?.street,
+    property.address?.city,
+    property.address?.state,
+  ]
+    .filter(Boolean)
+    .join(", "),
+});
 
 const AnnouncementsPage: NextPageWithLayout = () => {
   const { user } = useUser();
@@ -67,11 +85,49 @@ const AnnouncementsPage: NextPageWithLayout = () => {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [pendingDelete, setPendingDelete] =
     React.useState<AnnouncementItemDTO | null>(null);
+  const [announcementProperties, setAnnouncementProperties] = React.useState<
+    AnnouncementPropertyOption[]
+  >([]);
 
   const canDeleteAnnouncements =
     user?.role === "landlord" || user?.role === "property_manager";
   const canCreateAnnouncements =
     user?.role === "landlord" || user?.role === "property_manager";
+
+  React.useEffect(() => {
+    if (!canCreateAnnouncements) {
+      setAnnouncementProperties([]);
+      return;
+    }
+
+    const landlordId =
+      user?.role === "property_manager"
+        ? selectedLandlord?.id ||
+          (typeof window !== "undefined"
+            ? localStorage.getItem("landlordId") ||
+              localStorage.getItem("selectedLandlordId")
+            : "")
+        : typeof window !== "undefined"
+          ? localStorage.getItem("landlordId") || ""
+          : "";
+
+    if (!landlordId) {
+      setAnnouncementProperties([]);
+      return;
+    }
+
+    let cancelled = false;
+    getPropertiesByLandlord(landlordId).then((result) => {
+      if (cancelled) return;
+      setAnnouncementProperties(
+        result.success ? result.data.map(mapAnnouncementPropertyOption) : [],
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canCreateAnnouncements, selectedLandlord?.id, user?.role]);
 
   const resolveManagerPropertyId = React.useCallback(async () => {
     const selectedPropertyId = selectedLandlord?.properties?.[0]?.id;
@@ -95,13 +151,16 @@ const AnnouncementsPage: NextPageWithLayout = () => {
   }, [selectedLandlord]);
 
   const handleCreateAnnouncement = React.useCallback(
-    async (data: { title: string; message: string; fileIds?: string[] }) => {
+    async (data: SendAnnouncementFormValues) => {
       const fileIds = Array.isArray(data.fileIds) ? data.fileIds : [];
       const createdAt = new Date().toISOString();
 
       if (user?.role === "property_manager") {
-        const propertyId = await resolveManagerPropertyId();
-        if (!propertyId) {
+        const propertyIds =
+          data.propertyIds.length > 0
+            ? data.propertyIds
+            : [await resolveManagerPropertyId()].filter(Boolean);
+        if (propertyIds.length === 0) {
           showToast(
             "No property found to send this announcement. Select a landlord with properties first.",
             "error",
@@ -109,29 +168,38 @@ const AnnouncementsPage: NextPageWithLayout = () => {
           throw new Error("Missing property");
         }
 
-        const result = await createAnnouncementProperty(propertyId, {
-          title: data.title,
-          content: data.message,
-          fileIds,
-        });
+        const results = await Promise.all(
+          propertyIds.map((propertyId) =>
+            createAnnouncementProperty(propertyId, {
+              title: data.title,
+              content: data.message,
+              fileIds,
+              propertyIds: [propertyId],
+            }),
+          ),
+        );
+        const failed = results.find((result) => !result.success);
 
-        if (!result.success) {
-          showToast(result.error || "Failed to send announcement", "error");
-          throw new Error(result.error || "Failed to send announcement");
+        if (failed) {
+          showToast(failed.error || "Failed to send announcement", "error");
+          throw new Error(failed.error || "Failed to send announcement");
         }
 
+        const firstResult = results.find((result) => result.success);
         setAnnouncements((prev) => [
           {
             id:
-              typeof result.data.data === "object" &&
-              result.data.data &&
-              "id" in result.data.data
-                ? String((result.data.data as { id?: unknown }).id || "")
+              firstResult &&
+              typeof firstResult.data.data === "object" &&
+              firstResult.data.data &&
+              "id" in firstResult.data.data
+                ? String((firstResult.data.data as { id?: unknown }).id || "")
                 : undefined,
             title: data.title,
             content: data.message,
             level: "PROPERTY",
             fileIds,
+            propertyIds,
             createdAt,
             updatedAt: createdAt,
           },
@@ -152,10 +220,24 @@ const AnnouncementsPage: NextPageWithLayout = () => {
         throw new Error("Missing landlord account");
       }
 
+      const propertyIds =
+        data.propertyIds.length > 0
+          ? data.propertyIds
+          : announcementProperties.map((property) => property.id);
+
+      if (propertyIds.length === 0) {
+        showToast(
+          "Select at least one property for this announcement.",
+          "error",
+        );
+        throw new Error("Missing announcement properties");
+      }
+
       const result = await createAnnouncementLandlord(landlordId, {
         title: data.title,
         content: data.message,
         fileIds,
+        propertyIds,
       });
 
       if (!result.success) {
@@ -174,6 +256,7 @@ const AnnouncementsPage: NextPageWithLayout = () => {
         content: data.message,
         level: "LANDLORD",
         fileIds,
+        propertyIds,
         createdAt,
         updatedAt: createdAt,
       };
@@ -191,7 +274,13 @@ const AnnouncementsPage: NextPageWithLayout = () => {
       });
       showToast("Announcement sent", "success");
     },
-    [resolveManagerPropertyId, showToast, user?.role],
+    [
+      announcementProperties,
+      resolveManagerPropertyId,
+      setAnnouncements,
+      showToast,
+      user?.role,
+    ],
   );
 
   const canDeleteAnnouncement = React.useCallback(
@@ -244,7 +333,7 @@ const AnnouncementsPage: NextPageWithLayout = () => {
       setDeletingId(null);
       return false;
     },
-    [canDeleteAnnouncement, showToast],
+    [canDeleteAnnouncement, setAnnouncements, showToast],
   );
 
   const requestDeleteAnnouncement = React.useCallback(
@@ -386,6 +475,8 @@ const AnnouncementsPage: NextPageWithLayout = () => {
         isOpen={isSendAnnouncementOpen}
         onClose={() => setIsSendAnnouncementOpen(false)}
         onSend={handleCreateAnnouncement}
+        propertyOptions={announcementProperties}
+        requirePropertySelection={canCreateAnnouncements}
       />
     </>
   );

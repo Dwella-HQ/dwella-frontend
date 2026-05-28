@@ -3,7 +3,13 @@ import {
   announcementActionResponseSchema,
   type AnnouncementActionResponseDTO,
 } from "./announcement.schema";
-import type { CreateAnnouncementPayload } from "./createAnnouncementLandlord";
+
+export type UpdateAnnouncementPayload = {
+  title?: string;
+  content?: string;
+  fileIds?: string[];
+  propertyIds?: string[];
+};
 
 export type UpdateAnnouncementLandlordResult =
   | { success: true; data: AnnouncementActionResponseDTO }
@@ -11,7 +17,7 @@ export type UpdateAnnouncementLandlordResult =
 
 export const updateAnnouncementLandlord = async (
   id: string,
-  payload: CreateAnnouncementPayload,
+  payload: UpdateAnnouncementPayload,
 ): Promise<UpdateAnnouncementLandlordResult> => {
   const result = await apiPatch<AnnouncementActionResponseDTO>(
     `/announcement/${id}/landlord`,

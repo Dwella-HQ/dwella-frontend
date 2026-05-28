@@ -11,6 +11,11 @@ export { getTenantByUser } from "./getTenantByUser";
 export type { TenantByUserDTO } from "./getTenantByUser";
 export { createTenant } from "./createTenant";
 export { inviteTenant } from "./inviteTenant";
+export {
+  acceptTenantInvite,
+  rejectTenantInvite,
+} from "./respondTenantInvite";
+export type { RespondTenantInviteResult } from "./respondTenantInvite";
 export type {
   IdType,
   RentFrequency,

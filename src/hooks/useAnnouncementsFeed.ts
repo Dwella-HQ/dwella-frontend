@@ -34,7 +34,7 @@ export type UseAnnouncementsFeedOptions = {
 };
 
 /**
- * Socket-only announcements feed via `load:announcements` on `/announcement`.
+ * Socket-only announcements feed via `announcements:load` on `/announcement`.
  */
 export function useAnnouncementsFeed({
   userId,
@@ -50,15 +50,21 @@ export function useAnnouncementsFeed({
   const [isLoading, setIsLoading] = React.useState(false);
 
   const filterIncomingRef = React.useRef(filterIncoming);
-  filterIncomingRef.current = filterIncoming;
 
   const hasReceivedSocketLoadRef = React.useRef(false);
+
+  React.useEffect(() => {
+    filterIncomingRef.current = filterIncoming;
+  }, [filterIncoming]);
 
   const applySocketLoad = React.useCallback((items: AnnouncementItemDTO[]) => {
     const filtered = filterIncomingRef.current(items);
     hasReceivedSocketLoadRef.current = true;
     setIsLoading(false);
-    setAnnouncements(sortAnnouncementList(filtered));
+    setAnnouncements((prev) => {
+      if (prev.length === 0) return sortAnnouncementList(filtered);
+      return mergeAnnouncementLists(prev, filtered);
+    });
   }, []);
 
   React.useEffect(() => {
@@ -88,7 +94,7 @@ export function useAnnouncementsFeed({
       token: socketToken,
       onLoad: (items) => {
         if (process.env.NODE_ENV === "development") {
-          console.log(`[${logLabel}] load:announcements`, {
+          console.log(`[${logLabel}] announcements:load`, {
             role: userRole,
             count: items.length,
           });

@@ -12,6 +12,8 @@ export const announcementItemSchema = z.preprocess(
     const raw = value as {
       fileIds?: unknown;
       files?: unknown;
+      properties?: unknown;
+      propertyIds?: unknown;
       content?: unknown;
       message?: unknown;
       body?: unknown;
@@ -22,7 +24,30 @@ export const announcementItemSchema = z.preprocess(
       content: raw.content ?? raw.message ?? raw.body,
     };
 
-    if (Array.isArray(raw.fileIds)) return normalized;
+    const withPropertyIds = (() => {
+      if (Array.isArray(raw.propertyIds)) return normalized;
+
+      if (Array.isArray(raw.properties)) {
+        const propertyIds = raw.properties
+          .map((property) => {
+            if (typeof property === "string") return property;
+            if (property && typeof property === "object") {
+              return (property as { id?: unknown }).id;
+            }
+            return undefined;
+          })
+          .filter((id): id is string => typeof id === "string");
+
+        return {
+          ...normalized,
+          propertyIds,
+        };
+      }
+
+      return normalized;
+    })();
+
+    if (Array.isArray(raw.fileIds)) return withPropertyIds;
 
     if (Array.isArray(raw.files)) {
       const fileIds = raw.files
@@ -36,12 +61,12 @@ export const announcementItemSchema = z.preprocess(
         .filter((id): id is string => typeof id === "string");
 
       return {
-        ...normalized,
+        ...withPropertyIds,
         fileIds,
       };
     }
 
-    return normalized;
+    return withPropertyIds;
   },
   z
     .object({
@@ -63,6 +88,7 @@ export const announcementItemSchema = z.preprocess(
         )
         .optional(),
       fileIds: z.array(z.string()).optional().default([]),
+      propertyIds: z.array(z.string()).optional().default([]),
       createdAt: z.string().optional(),
       updatedAt: z.string().optional(),
     })

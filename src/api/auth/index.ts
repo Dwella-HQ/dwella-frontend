@@ -4,6 +4,8 @@ export { resendVerificationEmail } from "./resendVerificationEmail";
 export { googleLogin, facebookLogin } from "./socialLogin";
 export { verifyEmail } from "./verifyEmail";
 export { logout } from "./logout";
+export { refreshToken } from "./refreshToken";
+export type { RefreshTokenResult } from "./refreshToken";
 export { requestPasswordReset } from "./passwordReset";
 export { resetPassword } from "./resetPassword";
 export { getProfile } from "./getProfile";
