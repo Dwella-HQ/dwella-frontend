@@ -10,7 +10,15 @@ type CreateAddressResult =
 export const createAddress = async (
   data: CreateAddressRequestDTO
 ): Promise<CreateAddressResult> => {
-  const result = await apiPost<AddressResponseDTO>("/address", data);
+  const { userId, street, ...rest } = data;
+  const result = await apiPost<AddressResponseDTO>(
+    `/address/user/${encodeURIComponent(userId)}`,
+    {
+      ...rest,
+      address: street,
+      street,
+    },
+  );
 
   if (!result.success) {
     return result;

@@ -6,6 +6,19 @@ export { updateMaintenanceRequest } from "./updateMaintenanceRequest";
 export { deleteMaintenanceRequest } from "./deleteMaintenanceRequest";
 export { updateMaintenanceRequestStatus } from "./updateMaintenanceRequestStatus";
 export { getMaintenanceRequestTypes } from "./getMaintenanceRequestTypes";
+export {
+  addMaintenanceRequestSubType,
+  createMaintenanceRequestType,
+  deleteMaintenanceRequestSubType,
+  deleteMaintenanceRequestSubTypesByTypeId,
+  deleteMaintenanceRequestType,
+  getMaintenanceRequestSubTypes,
+  getMaintenanceRequestType,
+  getMaintenanceRequestTypeByName,
+  updateMaintenanceRequestSubType,
+  updateMaintenanceRequestType,
+} from "./maintenanceRequestTypes";
+export type { MaintenanceTypeBody } from "./maintenanceRequestTypes";
 export type {
   MaintenanceRequestsResponseDTO,
   MaintenanceRequestItemDTO,

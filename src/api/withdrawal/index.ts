@@ -1,8 +1,15 @@
-export { createWithdrawal } from "./createWithdrawal";
+export {
+  createWithdrawal,
+  generateWithdrawalIdempotencyKey,
+  WITHDRAWAL_CREATE_LOG,
+} from "./createWithdrawal";
 export type { CreateWithdrawalResult } from "./createWithdrawal";
 
 export { getWithdrawals } from "./getWithdrawals";
 export type { GetWithdrawalsResult } from "./getWithdrawals";
+
+export { getWithdrawalQueues } from "./getWithdrawalQueue";
+export type { GetWithdrawalQueuesResult } from "./getWithdrawalQueue";
 
 export {
   getWithdrawalBanks,

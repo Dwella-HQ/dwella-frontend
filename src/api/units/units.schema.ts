@@ -36,7 +36,7 @@ const unitTenantSchema = z
   .object({
     id: z.string().nullable().optional(),
     email: z.string().nullable().optional(),
-    user: unitTenantUserSchema.optional(),
+    user: unitTenantUserSchema.nullable().optional(),
   })
   .passthrough();
 

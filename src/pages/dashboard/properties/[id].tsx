@@ -1837,6 +1837,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
             title: data.title,
             content: data.message,
             fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+            propertyIds: [id],
           });
           console.log("Property announcement API result", result);
 

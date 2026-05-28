@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import * as React from "react";
 import type { NextPageWithLayout } from "../_app";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -8,6 +9,7 @@ import { getWalletsByLandlord, getWallet, type WalletDTO } from "@/api/wallet";
 import { ensureLandlordWallet } from "@/api/wallet";
 import {
   getWithdrawals,
+  getWithdrawalQueues,
   createWithdrawal,
   type WithdrawalItemDTO,
   type WithdrawalCreateDTO,
@@ -57,6 +59,9 @@ const extractWithdrawalList = (payload: unknown): WithdrawalItemDTO[] => {
 
 const WITHDRAW_MIN = 0.01;
 
+/** Filter DevTools console by this string to inspect withdrawal queue API probes. */
+const WITHDRAWAL_QUEUE_LOG = "[Dwella Finance · Withdrawal queue]";
+
 function withdrawalRecipientLabel(w: WithdrawalItemDTO): string {
   const r = w.recipientDetails;
   if (!r) return "—";
@@ -72,11 +77,19 @@ function withdrawalRecipientLabel(w: WithdrawalItemDTO): string {
 
 const FinancePage: NextPageWithLayout = () => {
   const { showToast } = useToast();
+  const router = useRouter();
 
   const [tab, setTab] = React.useState<FinanceTab>("overview");
 
   const { user, isLoading: isUserLoading } = useUser();
   const { selectedLandlord } = useSelectedLandlord();
+
+  React.useEffect(() => {
+    if (isUserLoading) return;
+    if (user?.role === "property_manager") {
+      void router.replace("/dashboard");
+    }
+  }, [isUserLoading, router, user?.role]);
 
   const [wallets, setWallets] = React.useState<WalletDTO[]>([]);
   const [activeWallet, setActiveWallet] = React.useState<WalletDTO | null>(
@@ -266,6 +279,23 @@ const FinancePage: NextPageWithLayout = () => {
     } else {
       setWithdrawals([]);
     }
+
+    if (typeof window !== "undefined") {
+      const walletId = activeWallet.id;
+      const queuesResult = await getWithdrawalQueues(walletId);
+      console.info(WITHDRAWAL_QUEUE_LOG, "GET /queues", {
+        walletId,
+        success: queuesResult.success,
+        statusCode: queuesResult.success ? undefined : queuesResult.statusCode,
+        error: queuesResult.success ? undefined : queuesResult.error,
+        data: queuesResult.success ? queuesResult.data : null,
+      });
+      console.info(WITHDRAWAL_QUEUE_LOG, "GET /withdrawal (current list)", {
+        success: wResult.success,
+        data: wResult.success ? wResult.data : wResult,
+      });
+    }
+
     setDepositsLoading(false);
     setWithdrawalsLoading(false);
   }, [activeWallet?.id]);
@@ -410,7 +440,7 @@ const FinancePage: NextPageWithLayout = () => {
     );
   }
 
-  if (!user || user.role === "tenant") {
+  if (!user || user.role === "tenant" || user.role === "property_manager") {
     return (
       <>
         <Head>
@@ -418,7 +448,7 @@ const FinancePage: NextPageWithLayout = () => {
         </Head>
         <section className="space-y-6">
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            Finance page is not available for tenants.
+            Finance page is not available for this account.
           </div>
         </section>
       </>

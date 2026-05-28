@@ -1,3 +1,11 @@
+export { createAmenity } from "./createAmenity";
+export type { AmenityBody, AmenityMutationResult } from "./createAmenity";
+export { getAmenity } from "./getAmenity";
+export type { GetAmenityResult } from "./getAmenity";
 export { getAmenities } from "./getAmenities";
 export type { GetAmenitiesResult, GetAmenitiesOptions } from "./getAmenities";
+export { updateAmenity } from "./updateAmenity";
+export type { UpdateAmenityResult } from "./updateAmenity";
+export { deleteAmenity } from "./deleteAmenity";
+export type { DeleteAmenityResult } from "./deleteAmenity";
 export type { AmenityDTO } from "./amenities.schema";

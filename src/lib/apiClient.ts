@@ -45,6 +45,7 @@ async function handle401Response<T>(
   skipAuth: boolean | undefined,
   isRetry: boolean,
   retryRequest: () => Promise<ApiResult<T>>,
+  refreshTokenFromHeader?: string | null,
 ): Promise<ApiResult<T>> {
   if (skipAuth) {
     return {
@@ -62,8 +63,10 @@ async function handle401Response<T>(
     };
   }
 
-  if (!isRetry && getStoredRefreshToken()) {
-    const refreshed = await tryRefreshAccessToken();
+  const refreshToken = refreshTokenFromHeader || getStoredRefreshToken();
+
+  if (!isRetry && refreshToken) {
+    const refreshed = await tryRefreshAccessToken(refreshToken);
     if (refreshed) {
       return retryRequest();
     }
@@ -101,15 +104,20 @@ export const apiClient = async <T>(
     return null;
   };
 
-  const persistRefreshTokenFromResponse = (responseHeaders?: unknown): void => {
-    if (typeof window === "undefined" || !responseHeaders) return;
+  const readRefreshTokenHeader = (responseHeaders?: unknown): string | null => {
+    if (!responseHeaders) return null;
     const headers = responseHeaders as Record<
       string,
       string | string[] | undefined
     >;
-    const refreshFromHeader = normalizeHeaderValue(
+    return normalizeHeaderValue(
       headers["x-refresh-token"] ?? headers["X-Refresh-Token"],
     );
+  };
+
+  const persistRefreshTokenFromResponse = (responseHeaders?: unknown): void => {
+    if (typeof window === "undefined" || !responseHeaders) return;
+    const refreshFromHeader = readRefreshTokenHeader(responseHeaders);
     if (refreshFromHeader) {
       setStoredRefreshToken(refreshFromHeader);
     }
@@ -203,7 +211,12 @@ export const apiClient = async <T>(
         | undefined;
 
       if (response.status === 401) {
-        return handle401Response(skipAuth, isRetry, () => run(true));
+        return handle401Response(
+          skipAuth,
+          isRetry,
+          () => run(true),
+          readRefreshTokenHeader(response.headers),
+        );
       }
 
       if (response.status === 413) {
@@ -244,7 +257,12 @@ export const apiClient = async <T>(
           | undefined;
 
         if (statusCode === 401) {
-          return handle401Response(options.skipAuth, isRetry, () => run(true));
+          return handle401Response(
+            options.skipAuth,
+            isRetry,
+            () => run(true),
+            readRefreshTokenHeader(axiosError.response.headers),
+          );
         }
 
         if (statusCode === 413) {

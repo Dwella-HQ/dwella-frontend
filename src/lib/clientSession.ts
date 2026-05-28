@@ -8,6 +8,7 @@ export function resetClientSession(): void {
     "user",
     "authToken",
     "accessToken",
+    "refreshToken",
     "userId",
     "landlordId",
     "tenantId",

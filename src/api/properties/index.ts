@@ -1,5 +1,9 @@
 export { getProperties } from "./getProperties";
 export { getPropertiesQuery } from "./getPropertiesQuery";
+export { getBulkUploadTemplate } from "./getBulkUploadTemplate";
+export type { GetBulkUploadTemplateResult } from "./getBulkUploadTemplate";
+export { bulkUploadProperties } from "./bulkUploadProperties";
+export type { BulkUploadPropertiesResult } from "./bulkUploadProperties";
 export { getPropertiesByLandlord } from "./getPropertiesByLandlord";
 export { getProperty } from "./getProperty";
 export { createProperty } from "./createProperty";

@@ -9,7 +9,8 @@ import {
 
 const announcementArrayPayloadSchema = z.array(announcementItemSchema);
 
-export const LOAD_ANNOUNCEMENTS_EVENT = "load:announcements";
+export const LOAD_ANNOUNCEMENTS_EVENT = "announcements:load";
+const LOAD_ACK_TIMEOUT_MS = 5000;
 
 type SubscribeAnnouncementsOptions = {
   token?: string;
@@ -64,7 +65,7 @@ const readFreshToken = (fallback?: string): string => {
 
 /**
  * Subscribe to announcements on `/announcement`: emit and listen for
- * `load:announcements` on connect (all roles).
+ * `announcements:load` on connect (all roles).
  */
 export const subscribeAnnouncements = (
   options: SubscribeAnnouncementsOptions,
@@ -111,6 +112,21 @@ export const subscribeAnnouncements = (
     socket.io.opts.query = { token: fresh };
   });
 
+  const handleAnnouncementLoad = (payload: unknown) => {
+    options.onRaw?.(payload);
+    const items = extractAnnouncementList(payload);
+    if (items) {
+      options.onLoad(items);
+      return;
+    }
+
+    console.warn(
+      "[announcements] payload received but could not be parsed as announcement list",
+      payload,
+    );
+    options.onError?.("Unable to read announcements");
+  };
+
   socket.on("connect", () => {
     if (process.env.NODE_ENV === "development") {
       console.log("[announcements] socket connected", {
@@ -118,7 +134,20 @@ export const subscribeAnnouncements = (
         socketId: socket.id,
       });
     }
-    socket.emit(LOAD_ANNOUNCEMENTS_EVENT);
+    socket.timeout(LOAD_ACK_TIMEOUT_MS).emit(
+      LOAD_ANNOUNCEMENTS_EVENT,
+      (error: Error | null, payload: unknown) => {
+        if (error) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[announcements] load ack timed out", {
+              event: LOAD_ANNOUNCEMENTS_EVENT,
+            });
+          }
+          return;
+        }
+        handleAnnouncementLoad(payload);
+      },
+    );
   });
 
   socket.on("disconnect", (reason: string) => {
@@ -143,21 +172,6 @@ export const subscribeAnnouncements = (
     stopReconnectIfAuthRejected(message);
     options.onError?.(message);
   });
-
-  const handleAnnouncementLoad = (payload: unknown) => {
-    options.onRaw?.(payload);
-    const items = extractAnnouncementList(payload);
-    if (items) {
-      options.onLoad(items);
-      return;
-    }
-
-    console.warn(
-      "[announcements] payload received but could not be parsed as announcement list",
-      payload,
-    );
-    options.onError?.("Unable to read announcements");
-  };
 
   socket.on(LOAD_ANNOUNCEMENTS_EVENT, handleAnnouncementLoad);
 

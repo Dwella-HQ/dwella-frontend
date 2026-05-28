@@ -6,7 +6,7 @@ export { getWalletsByLandlord } from "./getWalletsByLandlord";
 export { ensureLandlordWallet } from "./ensureLandlordWallet";
 export { getWallet } from "./getWallet";
 export { disableWallet } from "./disableWallet";
-export { submitWalletBvn } from "./submitWalletBvn";
+export { createWalletVba, submitWalletBvn } from "./submitWalletBvn";
 export type { WalletTransactionWithMetadata } from "./mapWalletTransaction";
 export type {
   WalletTransactionDTO,

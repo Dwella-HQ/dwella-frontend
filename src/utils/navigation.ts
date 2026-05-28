@@ -109,7 +109,6 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
           icon: Megaphone,
         },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
-        { name: "Finance", href: "/dashboard/finance", icon: ArrowDownToLine },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
     case "tenant":

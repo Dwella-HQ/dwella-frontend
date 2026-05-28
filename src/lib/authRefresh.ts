@@ -82,10 +82,12 @@ let refreshInFlight: Promise<boolean> | null = null;
  * GET /auth/refresh-token with credentials + x-refresh-token header.
  * Returns true if a new access token was stored.
  */
-export async function tryRefreshAccessToken(): Promise<boolean> {
+export async function tryRefreshAccessToken(
+  refreshTokenOverride?: string | null,
+): Promise<boolean> {
   if (typeof window === "undefined") return false;
 
-  const refresh = getStoredRefreshToken();
+  const refresh = refreshTokenOverride || getStoredRefreshToken();
   if (!refresh) return false;
 
   if (refreshInFlight) {
@@ -95,11 +97,16 @@ export async function tryRefreshAccessToken(): Promise<boolean> {
   refreshInFlight = (async () => {
     try {
       const url = createUrl("/auth/refresh-token");
+      const currentAccessToken =
+        localStorage.getItem("authToken") || localStorage.getItem("accessToken");
       const res = await axios.get(url, {
         withCredentials: true,
         headers: {
           "ngrok-skip-browser-warning": "true",
           "x-refresh-token": refresh,
+          ...(currentAccessToken
+            ? { Authorization: `Bearer ${currentAccessToken}` }
+            : {}),
         },
         validateStatus: () => true,
         maxRedirects: 0,

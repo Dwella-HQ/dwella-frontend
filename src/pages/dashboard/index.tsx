@@ -11,7 +11,10 @@ import { RecentPayments } from "@/components/RecentPayments";
 import { MaintenanceRequests } from "@/components/MaintenanceRequests";
 import { MyProperties } from "@/components/MyProperties";
 import { AddTenantModal } from "@/components/AddTenantModal";
-import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
+import {
+  SendAnnouncementModal,
+  type SendAnnouncementFormValues,
+} from "@/components/SendAnnouncementModal";
 import { AnnouncementDetailsModal } from "@/components/AnnouncementDetailsModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/Toast";
@@ -398,7 +401,7 @@ const ManagerDashboard = () => {
       setDeletingAnnouncementId(null);
       return false;
     },
-    [canDeleteManagerAnnouncement, showToast],
+    [canDeleteManagerAnnouncement, setLiveAnnouncements, showToast],
   );
 
   const requestDeleteManagerAnnouncement = React.useCallback(
@@ -416,9 +419,12 @@ const ManagerDashboard = () => {
   }, [handleDeleteManagerAnnouncement, pendingDelete]);
 
   const handleManagerSendAnnouncement = React.useCallback(
-    async (data: { title: string; message: string; fileIds?: string[] }) => {
-      const primaryProperty = landlordProperties[0];
-      if (!primaryProperty?.id) {
+    async (data: SendAnnouncementFormValues) => {
+      const propertyIds =
+        data.propertyIds.length > 0
+          ? data.propertyIds
+          : landlordProperties.map((property) => property.id).filter(Boolean);
+      if (propertyIds.length === 0) {
         showToast(
           "No property found to send this announcement. Add or select a property first.",
           "error",
@@ -427,26 +433,42 @@ const ManagerDashboard = () => {
       }
 
       console.log("Sending manager property announcement", {
-        propertyId: primaryProperty.id,
+        propertyIds,
         title: data.title,
       });
 
-      const result = await createAnnouncementProperty(primaryProperty.id, {
-        title: data.title,
-        content: data.message,
-        fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
-      });
-      console.log("Manager property announcement API result", result);
+      const results = await Promise.all(
+        propertyIds.map((propertyId) =>
+          createAnnouncementProperty(propertyId, {
+            title: data.title,
+            content: data.message,
+            fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+            propertyIds: [propertyId],
+          }),
+        ),
+      );
+      const failed = results.find((result) => !result.success);
+      console.log("Manager property announcement API result", results);
 
-      if (result.success) {
+      if (!failed) {
         showToast("Announcement sent", "success");
         return;
       }
 
-      showToast(result.error || "Failed to send announcement", "error");
-      throw new Error(result.error || "Failed to send announcement");
+      showToast(failed.error || "Failed to send announcement", "error");
+      throw new Error(failed.error || "Failed to send announcement");
     },
     [landlordProperties, showToast],
+  );
+
+  const managerAnnouncementProperties = React.useMemo(
+    () =>
+      landlordProperties.map((property) => ({
+        id: property.id,
+        name: property.name,
+        address: property.address,
+      })),
+    [landlordProperties],
   );
 
   return (
@@ -658,6 +680,8 @@ const ManagerDashboard = () => {
         isOpen={isSendAnnouncementOpen}
         onClose={() => setIsSendAnnouncementOpen(false)}
         onSend={handleManagerSendAnnouncement}
+        propertyOptions={managerAnnouncementProperties}
+        requirePropertySelection
       />
     </section>
   );
@@ -1507,7 +1531,7 @@ const LandlordDashboard = () => {
       setDeletingAnnouncementId(null);
       return false;
     },
-    [canDeleteLandlordAnnouncement, showToast],
+    [canDeleteLandlordAnnouncement, setLiveAnnouncements, showToast],
   );
 
   const requestDeleteLandlordAnnouncement = React.useCallback(
@@ -1525,9 +1549,13 @@ const LandlordDashboard = () => {
   }, [handleDeleteLandlordAnnouncement, pendingDelete]);
 
   const handleAnnouncementSend = React.useCallback(
-    async (data: { title: string; message: string; fileIds?: string[] }) => {
+    async (data: SendAnnouncementFormValues) => {
       const landlordId =
         typeof window !== "undefined" ? localStorage.getItem("landlordId") : "";
+      const propertyIds =
+        data.propertyIds.length > 0
+          ? data.propertyIds
+          : properties.map((property) => property.id).filter(Boolean);
 
       if (!landlordId) {
         showToast(
@@ -1537,15 +1565,25 @@ const LandlordDashboard = () => {
         throw new Error("Missing landlord account");
       }
 
+      if (propertyIds.length === 0) {
+        showToast(
+          "Select at least one property for this announcement.",
+          "error",
+        );
+        throw new Error("Missing announcement properties");
+      }
+
       console.log("Sending landlord announcement", {
         landlordId,
         title: data.title,
+        propertyIds,
       });
 
       const result = await createAnnouncementLandlord(landlordId, {
         title: data.title,
         content: data.message,
         fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+        propertyIds,
       });
       console.log("Landlord announcement API result", result);
 
@@ -1568,6 +1606,7 @@ const LandlordDashboard = () => {
           content: data.message,
           level: "LANDLORD",
           fileIds: Array.isArray(data.fileIds) ? data.fileIds : [],
+          propertyIds,
           createdAt: responseData?.createdAt || new Date().toISOString(),
           updatedAt: responseData?.updatedAt || new Date().toISOString(),
         };
@@ -1590,7 +1629,17 @@ const LandlordDashboard = () => {
       showToast(result.error || "Failed to send announcement", "error");
       return;
     },
-    [showToast],
+    [properties, setLiveAnnouncements, showToast],
+  );
+
+  const landlordAnnouncementProperties = React.useMemo(
+    () =>
+      properties.map((property) => ({
+        id: property.id,
+        name: property.name,
+        address: property.address,
+      })),
+    [properties],
   );
 
   const landlordStats = React.useMemo((): DashboardStats => {
@@ -1757,6 +1806,8 @@ const LandlordDashboard = () => {
         isOpen={isSendAnnouncementOpen}
         onClose={() => setIsSendAnnouncementOpen(false)}
         onSend={handleAnnouncementSend}
+        propertyOptions={landlordAnnouncementProperties}
+        requirePropertySelection
       />
       <AnnouncementDetailsModal
         isOpen={Boolean(selectedAnnouncement)}
