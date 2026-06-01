@@ -769,7 +769,12 @@ const TenantDashboard = () => {
   const [tenantPropertyDetails, setTenantPropertyDetails] =
     React.useState<Record<string, unknown> | null>(null);
   const [tenantPropertyManagerContact, setTenantPropertyManagerContact] =
-    React.useState<{ name: string; email: string; phone: string } | null>(null);
+    React.useState<{
+      id: string;
+      name: string;
+      email: string;
+      phone: string;
+    } | null>(null);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [tenantError, setTenantError] = React.useState<string | null>(null);
   const [isTenantUnassigned, setIsTenantUnassigned] = React.useState(false);
