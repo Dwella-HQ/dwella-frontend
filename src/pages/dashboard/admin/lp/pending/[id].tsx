@@ -15,7 +15,7 @@ const PendingLandlordDetailPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Pending Landlord</title>
+        <title>Dwelliva · Pending Landlord</title>
       </Head>
       <AdminLayout title="L & P">
         <section className="space-y-4">

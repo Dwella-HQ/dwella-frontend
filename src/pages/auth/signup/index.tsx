@@ -23,7 +23,7 @@ import {
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
 import { loginAfterInviteRegistration } from "@/utils/invitePostRegisterAuth";
 import { getPropertyManagerInviteIdFromQuery } from "@/lib/propertyManagerInviteFromQuery";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_vertical.png";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -411,28 +411,24 @@ const SignUpPage: NextPageWithLayout = () => {
     return (
       <>
         <Head>
-          <title>DWELLA NG · Get Started As</title>
+          <title>Dwelliva · Get Started As</title>
         </Head>
 
         <div className="w-full max-w-3xl mx-auto">
           <div className="flex items-center justify-center gap-2 mb-8">
             <Image
               src={logo}
-              alt="DWELLA NG logo"
-              width={48}
-              height={48}
-              className="object-contain"
+              alt="Dwelliva logo"
+              width={150}
+              height={118}
+              className="h-auto w-32 object-contain"
             />
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold text-brand-main">DWELLA</span>
-              <span className="text-2xl font-bold text-blue-400">NG</span>
-            </div>
           </div>
 
           <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
             <h1 className="text-3xl font-bold text-gray-900">Get Started As</h1>
             <p className="mt-2 text-sm text-gray-600">
-              Choose how you want to use Dwella.
+              Choose how you want to use Dwelliva.
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -486,7 +482,7 @@ const SignUpPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Sign Up</title>
+        <title>Dwelliva · Sign Up</title>
       </Head>
 
       <div className="w-full max-w-md mx-auto">
@@ -494,15 +490,11 @@ const SignUpPage: NextPageWithLayout = () => {
         <div className="flex items-center justify-center gap-2 mb-8">
           <Image
             src={logo}
-            alt="DWELLA NG logo"
-            width={48}
-            height={48}
-            className="object-contain"
+            alt="Dwelliva logo"
+            width={150}
+            height={118}
+            className="h-auto w-32 object-contain"
           />
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold text-brand-main">DWELLA</span>
-            <span className="text-2xl font-bold text-blue-400">NG</span>
-          </div>
         </div>
 
         {/* Sign Up Form Card */}

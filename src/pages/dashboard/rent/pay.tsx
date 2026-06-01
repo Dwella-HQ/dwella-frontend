@@ -205,7 +205,7 @@ const PayRentPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Pay Rent | DWELLA NG</title>
+        <title>Pay Rent | Dwelliva</title>
       </Head>
 
       <section className="space-y-6">

@@ -100,6 +100,9 @@ const mockEmergencyContact = {
   email: "john.emmanuel@email.com",
 };
 
+const messageTenantHref = (tenantId: string | number) =>
+  `/dashboard/messages?role=tenant&roleId=${encodeURIComponent(String(tenantId))}`;
+
 type PaymentStatusTone = "green" | "red" | "amber" | "gray";
 
 function parseRentDueDate(value: string): Date | null {
@@ -424,7 +427,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Tenant Profile</title>
+        <title>Dwelliva · Tenant Profile</title>
       </Head>
 
       <section className="space-y-6">
@@ -451,7 +454,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
             </button>
             <button
               type="button"
-              onClick={() => router.push("/dashboard/messages")}
+              onClick={() => router.push(messageTenantHref(tenant.id))}
               className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 whitespace-nowrap"
             >
               Message
@@ -916,6 +919,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                 </h3>
                 <button
                   type="button"
+                  onClick={() => router.push(messageTenantHref(tenant.id))}
                   className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
                 >
                   New Message

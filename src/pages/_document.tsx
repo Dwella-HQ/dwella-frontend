@@ -10,7 +10,7 @@ type DocumentProps = {
   apiBaseUrl?: string;
 };
 
-class DwellaDocument extends Document<DocumentProps> {
+class DwellivaDocument extends Document<DocumentProps> {
   static async getInitialProps(ctx: DocumentContext) {
     const initialProps = await Document.getInitialProps(ctx);
 
@@ -35,7 +35,7 @@ class DwellaDocument extends Document<DocumentProps> {
           <meta name="theme-color" content="#228cc6" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-          <meta name="apple-mobile-web-app-title" content="Dwella" />
+          <meta name="apple-mobile-web-app-title" content="Dwelliva" />
           <meta name="mobile-web-app-capable" content="yes" />
           <meta name="msapplication-TileColor" content="#228cc6" />
           <meta name="msapplication-config" content="/browserconfig.xml" />
@@ -78,4 +78,4 @@ class DwellaDocument extends Document<DocumentProps> {
   }
 }
 
-export default DwellaDocument;
+export default DwellivaDocument;

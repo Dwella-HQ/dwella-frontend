@@ -552,7 +552,7 @@ const ReportsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Reports & Analytics | DWELLA NG</title>
+        <title>Reports & Analytics | Dwelliva</title>
       </Head>
 
       <section className="relative space-y-6">

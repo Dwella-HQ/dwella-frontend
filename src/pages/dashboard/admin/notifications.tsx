@@ -68,7 +68,7 @@ const AdminNotificationsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Notifications</title>
+        <title>Dwelliva · Notifications</title>
       </Head>
       <AdminLayout title="Notifications">
         <section className="w-full min-w-0 space-y-4">

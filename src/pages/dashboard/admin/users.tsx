@@ -14,7 +14,7 @@ const AdminUsersPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Tenants</title>
+        <title>Dwelliva · Tenants</title>
       </Head>
       <AdminLayout title="Tenants">
         <div className="rounded-lg border border-[#E2E8F0] bg-white p-6 text-sm text-[#64748B]">

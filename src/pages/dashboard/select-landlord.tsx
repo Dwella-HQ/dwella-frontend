@@ -12,7 +12,7 @@ import { getPropertyManagerByUser } from "@/api/property-managers";
 import type { PropertyManagerDTO } from "@/api/property-managers";
 import { getPropertiesByLandlord } from "@/api/properties";
 import { mapPropertiesWithLiveUnitCounts } from "@/api/properties";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -130,7 +130,7 @@ const SelectLandlordPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Select Landlord Account</title>
+        <title>Dwelliva · Select Landlord Account</title>
       </Head>
 
       <div className="min-h-screen bg-gray-50">
@@ -141,14 +141,11 @@ const SelectLandlordPage: NextPageWithLayout = () => {
               <div className="flex items-center gap-3">
                 <Image
                   src={logo}
-                  alt="DWELLA NG logo"
-                  width={32}
-                  height={32}
-                  className="object-contain"
+                  alt="Dwelliva logo"
+                  width={170}
+                  height={40}
+                  className="h-8 w-auto object-contain"
                 />
-                <span className="text-xl font-bold text-gray-900">
-                  DWELLA NG
-                </span>
               </div>
               <button
                 onClick={() => {

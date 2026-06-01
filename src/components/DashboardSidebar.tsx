@@ -15,7 +15,7 @@ import {
 import { useRouter } from "next/router";
 import { useProfile } from "@/contexts/ProfileContext";
 import { logout } from "@/utils/auth";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_horizontal.png";
 
 const navigationLinks = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -59,14 +59,11 @@ export const DashboardSidebar = ({
           <div className="w-full flex flex-col items-center justify-center gap-2">
             <Image
               src={logo}
-              alt="DWELLA NG logo"
-              width={50}
-              height={50}
-              className="object-contain"
+              alt="Dwelliva logo"
+              width={170}
+              height={40}
+              className="h-auto w-36 object-contain"
             />
-            <span className="text-sm font-bold text-brand-main uppercase tracking-wide">
-              DWELLA NG
-            </span>
           </div>
 
           <button

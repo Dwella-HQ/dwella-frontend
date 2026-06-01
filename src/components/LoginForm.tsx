@@ -7,7 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Loader2, Eye, EyeOff, Key } from "lucide-react";
 import { motion } from "framer-motion";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_vertical.png";
 
 const loginFormSchema = z.object({
   email: z
@@ -66,16 +66,12 @@ export const LoginForm = ({
         <div className="flex flex-col items-center justify-center mb-6">
           <Image
             src={logo}
-            alt="DWELLA NG logo"
-            width={64}
-            height={64}
+            alt="Dwelliva logo"
+            width={150}
+            height={118}
             priority
-            className="object-contain mb-2"
+            className="h-auto w-36 object-contain"
           />
-          <div className="flex items-baseline gap-1">
-            <span className="text-lg font-bold text-brand-main">DWELLA</span>
-            <span className="text-lg font-bold text-blue-400">NG</span>
-          </div>
         </div>
 
         {/* Heading */}

@@ -44,18 +44,18 @@ export const PWAInstallPrompt = () => {
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-gray-900">
-              {isAndroid ? "Install Dwella App" : "Install Dwella App"}
+              {isAndroid ? "Install Dwelliva App" : "Install Dwelliva App"}
             </h3>
             <p className="mt-1 text-xs text-gray-600">
               {isAndroid ? (
                 <>
-                  Add Dwella to your home screen for quick access. Tap the menu
+                  Add Dwelliva to your home screen for quick access. Tap the menu
                   (⋮) and select{" "}
                   <span className="font-medium">"Add to Home screen"</span> or{" "}
                   <span className="font-medium">"Install app"</span>.
                 </>
               ) : (
-                "Install Dwella for a better experience with quick access and offline support."
+                "Install Dwelliva for a better experience with quick access and offline support."
               )}
             </p>
           </div>

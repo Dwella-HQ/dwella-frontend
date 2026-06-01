@@ -123,7 +123,7 @@ const NotificationsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Dwella · Notifications</title>
+        <title>Dwelliva · Notifications</title>
       </Head>
 
       <section className="grid gap-6 lg:grid-cols-3">

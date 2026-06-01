@@ -24,7 +24,7 @@ import { getLandlordByUser } from "@/api/landlord";
 import type { LandlordDTO } from "@/api/landlord";
 import { logout } from "@/utils/auth";
 import { ChevronDown } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_white_horizontal.png";
 
 export type DashboardHeaderProps = {
   restrictForUnverifiedLandlord?: boolean;
@@ -175,15 +175,11 @@ export const DashboardHeader = ({
             <div className="flex items-center gap-2 flex-shrink-0">
               <Image
                 src={logo}
-                alt="DWELLA NG logo"
-                width={32}
-                height={32}
-                className="object-contain brightness-0 invert"
+                alt="Dwelliva logo"
+                width={170}
+                height={40}
+                className="h-8 w-auto object-contain"
               />
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-bold text-white">DWELLA</span>
-                <span className="text-lg font-bold text-white">NG</span>
-              </div>
             </div>
 
             {/* Navigation Bar - Hidden on mobile/tablet, shown on desktop (xl and above) */}

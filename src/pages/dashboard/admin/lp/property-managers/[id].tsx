@@ -95,7 +95,7 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · {title}</title>
+        <title>Dwelliva · {title}</title>
       </Head>
       <AdminLayout title="L & P">
         <section className="space-y-4">

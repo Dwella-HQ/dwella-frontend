@@ -228,7 +228,7 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Maintenance Request | DWELLA NG</title>
+        <title>Maintenance Request | Dwelliva</title>
       </Head>
 
       <section className="space-y-6">

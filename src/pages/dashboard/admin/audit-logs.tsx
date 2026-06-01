@@ -31,7 +31,7 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Audit Logs</title>
+        <title>Dwelliva · Audit Logs</title>
       </Head>
       <AdminLayout title="Audit Logs">
         <section className="relative w-full min-w-0 space-y-4">

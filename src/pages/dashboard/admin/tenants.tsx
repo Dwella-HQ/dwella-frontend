@@ -293,7 +293,7 @@ const AdminTenantsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Tenants</title>
+        <title>Dwelliva · Tenants</title>
       </Head>
       <AdminLayout title="Tenants">
         <section className="w-full min-w-0 space-y-3">

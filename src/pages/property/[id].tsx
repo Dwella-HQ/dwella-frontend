@@ -133,7 +133,7 @@ export default function PropertyDetailPage() {
     return (
       <>
         <Head>
-          <title>Property | DWELLA NG</title>
+          <title>Property | Dwelliva</title>
         </Head>
         <div className="flex min-h-screen flex-col bg-gray-50">
           <LandingHeader />
@@ -183,7 +183,7 @@ export default function PropertyDetailPage() {
   return (
     <>
       <Head>
-        <title>{property.name} | DWELLA NG</title>
+        <title>{property.name} | Dwelliva</title>
         <meta name="description" content={property.address} />
       </Head>
       <div className="min-h-screen flex flex-col bg-gray-50">

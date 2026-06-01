@@ -218,7 +218,7 @@ const UnitsPage: NextPageWithLayout = () => {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `dwella-units-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `dwelliva-units-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   }, [allUnits, showToast]);
@@ -297,7 +297,7 @@ const UnitsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>All Units | DWELLA NG</title>
+        <title>All Units | Dwelliva</title>
       </Head>
 
       <section className="space-y-6">

@@ -60,7 +60,7 @@ export default function FeaturesPage() {
   return (
     <>
       <Head>
-        <title>Features | DWELLA NG</title>
+        <title>Features | Dwelliva</title>
       </Head>
       <div className="min-h-screen bg-[#F3F5F8]">
         <LandingHeader />
@@ -86,7 +86,7 @@ export default function FeaturesPage() {
                 Everything you need to rent with confidence
               </h1>
               <p className="mx-auto mt-5 max-w-3xl text-base text-blue-100 sm:text-lg">
-                Dwella NG provides a complete toolkit for tenants and landlords
+                Dwelliva provides a complete toolkit for tenants and landlords
                 to manage the entire rental lifecycle in one place.
               </p>
             </div>

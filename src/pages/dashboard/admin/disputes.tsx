@@ -17,7 +17,7 @@ const AdminDisputesPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Disputes</title>
+        <title>Dwelliva · Disputes</title>
       </Head>
       <AdminLayout title="Disputes">
         <section className="relative w-full min-w-0 space-y-4">

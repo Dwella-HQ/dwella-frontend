@@ -22,7 +22,7 @@ type AppPropsWithLayout = AppProps & {
   Component: NextPageWithLayout;
 };
 
-const DwellaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
+const DwellivaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
   const getLayout = Component.getLayout ?? ((page) => page);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
@@ -44,4 +44,4 @@ const DwellaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
   );
 };
 
-export default DwellaApp;
+export default DwellivaApp;

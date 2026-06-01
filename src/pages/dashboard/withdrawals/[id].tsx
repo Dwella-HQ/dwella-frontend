@@ -99,7 +99,7 @@ const WithdrawalsIdPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Withdrawal Details</title>
+        <title>Dwelliva · Withdrawal Details</title>
       </Head>
 
       <section className="space-y-6">

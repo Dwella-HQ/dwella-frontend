@@ -152,7 +152,7 @@ const LPPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · L & P</title>
+        <title>Dwelliva · L & P</title>
       </Head>
       <AdminLayout title="L & P">
         <section className="w-full min-w-0 space-y-4">

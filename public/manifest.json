@@ -1,7 +1,7 @@
 {
-  "name": "Dwella",
-  "short_name": "Dwella",
-  "description": "Dwella Progressive Web App",
+  "name": "Dwelliva",
+  "short_name": "Dwelliva",
+  "description": "Dwelliva Progressive Web App",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -60,7 +60,7 @@ const extractWithdrawalList = (payload: unknown): WithdrawalItemDTO[] => {
 const WITHDRAW_MIN = 0.01;
 
 /** Filter DevTools console by this string to inspect withdrawal queue API probes. */
-const WITHDRAWAL_QUEUE_LOG = "[Dwella Finance · Withdrawal queue]";
+const WITHDRAWAL_QUEUE_LOG = "[Dwelliva Finance · Withdrawal queue]";
 
 function withdrawalRecipientLabel(w: WithdrawalItemDTO): string {
   const r = w.recipientDetails;
@@ -431,7 +431,7 @@ const FinancePage: NextPageWithLayout = () => {
     return (
       <>
         <Head>
-          <title>DWELLA NG · Finance</title>
+          <title>Dwelliva · Finance</title>
         </Head>
         <div className="flex items-center justify-center min-h-[200px]">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-brand-main" />
@@ -444,7 +444,7 @@ const FinancePage: NextPageWithLayout = () => {
     return (
       <>
         <Head>
-          <title>DWELLA NG · Finance</title>
+          <title>Dwelliva · Finance</title>
         </Head>
         <section className="space-y-6">
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -458,7 +458,7 @@ const FinancePage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Finance</title>
+        <title>Dwelliva · Finance</title>
       </Head>
 
       <section className="space-y-6">

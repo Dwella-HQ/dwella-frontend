@@ -9,7 +9,7 @@ const AddLandlordPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Add Landlord</title>
+        <title>Dwelliva · Add Landlord</title>
       </Head>
       <AdminLayout title="L & P">
         <section className="space-y-4">

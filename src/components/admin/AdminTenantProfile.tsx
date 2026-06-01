@@ -294,7 +294,7 @@ export function AdminTenantProfile({
   return (
     <>
       <Head>
-        <title>DWELLA NG - Tenant Profile</title>
+        <title>Dwelliva - Tenant Profile</title>
       </Head>
       <AdminLayout title={layoutTitle}>
         <section className="space-y-4">

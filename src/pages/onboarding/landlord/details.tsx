@@ -11,7 +11,7 @@ import { uploadFile } from "@/api/files";
 import { useUser } from "@/contexts/UserContext";
 import { Country, State, City } from "country-state-city";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -240,7 +240,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Account Details</title>
+        <title>Dwelliva · Account Details</title>
       </Head>
 
       <div className="w-full max-w-4xl mx-auto">
@@ -248,15 +248,11 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
           <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
             <Image
               src={logo}
-              alt="DWELLA NG logo"
-              width={32}
-              height={32}
-              className="object-contain"
+              alt="Dwelliva logo"
+              width={170}
+              height={40}
+              className="h-8 w-auto object-contain"
             />
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold text-brand-main">DWELLA</span>
-              <span className="text-lg font-bold text-blue-400">NG</span>
-            </div>
           </div>
 
           <div className="w-full sm:w-auto sm:absolute sm:left-1/2 sm:-translate-x-1/2">

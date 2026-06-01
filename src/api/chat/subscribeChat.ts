@@ -6,29 +6,31 @@ import { chatMessageSchema, chatSchema, type ChatDTO } from "./chat.schema";
 const chatArraySchema = z.array(chatSchema);
 const messageArraySchema = z.array(chatMessageSchema);
 
-type SocketAck<T> = {
-  success: boolean;
-  data?: T;
-  error?: string;
-};
-
 type SubscribeChatOptions = {
   token?: string;
   roleId: string;
   onChats: (chats: ChatDTO[]) => void;
+  onMessages?: (chatId: string, messages: ChatDTO["messages"]) => void;
   onConnectionChange?: (isConnected: boolean) => void;
   onError?: (error: string) => void;
 };
 
 type CreateChatPayload = {
-  chatId?: string;
-  receiverId?: string;
-  message: string;
+  chatId: string;
+  participantId: string;
+  content: string;
+  fileIds?: string[];
+};
+
+type CreateChatParticipantPayload = {
+  roleId: string;
+  role: string;
 };
 
 export type ChatSubscription = {
   loadChats: () => void;
   loadMessages: (chatId: string) => void;
+  createChat: (participants: CreateChatParticipantPayload[]) => void;
   sendMessage: (payload: CreateChatPayload) => void;
   markRead: (chatId: string, messageIds?: string[]) => void;
   deleteMessages: (chatId: string, messageIds: string[]) => void;
@@ -39,6 +41,7 @@ const unwrapPayload = (payload: unknown): unknown => {
   if (!payload || typeof payload !== "object") return payload;
 
   const data = payload as Record<string, unknown>;
+  if ("response" in data) return unwrapPayload(data.response);
   if ("data" in data) return unwrapPayload(data.data);
   return payload;
 };
@@ -79,6 +82,31 @@ const extractMessages = (payload: unknown) => {
   return null;
 };
 
+const extractChatIds = (payload: unknown): string[] | null => {
+  const unwrapped = unwrapPayload(payload);
+  if (!unwrapped || typeof unwrapped !== "object") return null;
+
+  const data = unwrapped as Record<string, unknown>;
+  const candidates = [data.chatIds, data.ids, data.chats];
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) continue;
+    const ids = candidate
+      .map((item) => {
+        if (typeof item === "string" || typeof item === "number") {
+          return String(item);
+        }
+        if (item && typeof item === "object" && "id" in item) {
+          return String((item as { id?: string | number }).id || "");
+        }
+        return "";
+      })
+      .filter(Boolean);
+    if (ids.length > 0) return ids;
+  }
+
+  return null;
+};
+
 export const subscribeChat = (
   options: SubscribeChatOptions,
 ): ChatSubscription => {
@@ -99,17 +127,49 @@ export const subscribeChat = (
     event: string,
     payload?: unknown,
     onSuccess?: (data: T) => void,
+    onError?: (error: string) => void,
   ) => {
-    socket.emit(event, payload, (response: unknown) => {
-      const responseData = unwrapPayload(response) as T;
-      onSuccess?.(responseData);
+    socket
+      .timeout(10000)
+      .emit(event, payload, (error: Error | null, response: unknown) => {
+        if (error) {
+          onError?.(error.message || `No response for ${event}`);
+          return;
+        }
+        const responseData = unwrapPayload(response) as T;
+        onSuccess?.(responseData);
+      });
+  };
+
+  const loadChat = (chatId: string) => {
+    emitWithAck<unknown>("findOneChat", chatId, (payload) => {
+      const chats = extractChats(payload);
+      if (chats) options.onChats(chats);
     });
   };
 
   const loadChats = () => {
+    emitWithAck<unknown>("chat", options.roleId, (payload) => {
+      const chats = extractChats(payload);
+      if (chats) {
+        options.onChats(chats);
+        return;
+      }
+
+      const chatIds = extractChatIds(payload);
+      if (chatIds?.length) {
+        chatIds.forEach(loadChat);
+        return;
+      }
+
+      options.onChats([]);
+    });
+
     emitWithAck<unknown[]>("findAllChat", undefined, (payload) => {
       const chats = extractChats(payload);
-      if (chats) options.onChats(chats);
+      if (chats) {
+        options.onChats(chats);
+      }
     });
   };
 
@@ -117,27 +177,34 @@ export const subscribeChat = (
     emitWithAck<unknown>("getChatMessages", { chatId }, (payload) => {
       const messages = extractMessages(payload);
       if (!messages) return;
-
-      options.onChats([
-        {
-          id: chatId,
-          messages,
-          lastMessage: messages[0]?.content || "",
-          name: "Conversation",
-          participants: [],
-          unreadCount: 0,
-          createdAt: messages[0]?.createdAt,
-          updatedAt: messages[0]?.updatedAt,
-        } as ChatDTO,
-      ]);
+      options.onMessages?.(chatId, messages);
     });
+  };
+
+  const sendChatMessage = (payload: CreateChatPayload) => {
+    const events = ["createChatMessage", "addChatMessage", "sendChatMessage"];
+
+    const tryEvent = (index: number) => {
+      const event = events[index];
+      if (!event) {
+        options.onError?.("Unable to send message");
+        return;
+      }
+
+      emitWithAck(
+        event,
+        payload,
+        () => loadMessages(payload.chatId),
+        () => tryEvent(index + 1),
+      );
+    };
+
+    tryEvent(0);
   };
 
   socket.on("connect", () => {
     options.onConnectionChange?.(true);
-    emitWithAck<SocketAck<unknown>>("chat", options.roleId, () => {
-      loadChats();
-    });
+    loadChats();
   });
 
   socket.on("disconnect", () => {
@@ -158,7 +225,7 @@ export const subscribeChat = (
     options.onError?.(message);
   });
 
-  const reloadOnEvent = (payload: unknown) => {
+  const handleChatsEvent = (payload: unknown) => {
     const chats = extractChats(payload);
     if (chats) {
       options.onChats(chats);
@@ -168,39 +235,39 @@ export const subscribeChat = (
   };
 
   [
+    "load:chats",
     "chat",
-    "chat:load",
-    "chat:created",
-    "chat:updated",
-    "message",
-    "message:new",
-    "messages:load",
     "createChat",
     "updateChat",
     "removeChat",
   ].forEach((event) => {
-    socket.on(event, reloadOnEvent);
+    socket.on(event, handleChatsEvent);
+  });
+
+  socket.on("load:messages", (payload: unknown) => {
+    const messages = extractMessages(payload);
+    if (!messages) return;
+    const chatId = messages[0]?.chatId;
+    if (!chatId) return;
+    options.onMessages?.(chatId, messages);
   });
 
   return {
     loadChats,
     loadMessages,
-    sendMessage: ({ chatId, receiverId, message }) => {
-      const payload = {
-        chatId,
-        id: chatId,
-        receiverId,
-        message,
-        content: message,
-        text: message,
-      };
-      emitWithAck("createChat", payload, loadChats);
+    createChat: (participants) => {
+      emitWithAck<unknown>("createChat", { participants }, (payload) => {
+        const chats = extractChats(payload);
+        if (chats) options.onChats(chats);
+        loadChats();
+      });
     },
+    sendMessage: sendChatMessage,
     markRead: (chatId: string, messageIds?: string[]) => {
+      if (!messageIds || messageIds.length === 0) return;
       emitWithAck("readChatMessages", {
         chatId,
         messageIds,
-        userId: options.roleId,
       });
     },
     deleteMessages: (chatId: string, messageIds: string[]) => {
@@ -209,9 +276,8 @@ export const subscribeChat = (
         {
           chatId,
           messageIds,
-          userId: options.roleId,
         },
-        loadChats,
+        () => loadMessages(chatId),
       );
     },
     disconnect: () => {

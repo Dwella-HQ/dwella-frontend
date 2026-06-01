@@ -189,7 +189,7 @@ const PropertiesPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Properties</title>
+        <title>Dwelliva · Properties</title>
       </Head>
 
       <section className="space-y-6">

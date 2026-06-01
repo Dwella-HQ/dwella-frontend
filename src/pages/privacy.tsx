@@ -7,7 +7,7 @@ export default function PrivacyPage() {
   return (
     <>
       <Head>
-        <title>Privacy policy | DWELLA NG</title>
+        <title>Privacy policy | Dwelliva</title>
       </Head>
       <div className="min-h-screen flex flex-col bg-gray-50">
         <LandingHeader />

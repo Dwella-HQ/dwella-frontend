@@ -1,5 +1,6 @@
 import Head from "next/head";
 import * as React from "react";
+import { useRouter } from "next/router";
 import { Loader2, Search, Send, Trash2 } from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -7,6 +8,7 @@ import { useChat } from "@/contexts/ChatContext";
 import { useUser } from "@/contexts/UserContext";
 
 const AdminMessagesPage: NextPageWithLayout = () => {
+  const router = useRouter();
   const { user } = useUser();
   const {
     conversations,
@@ -16,8 +18,10 @@ const AdminMessagesPage: NextPageWithLayout = () => {
     isLoading,
     isConnected,
     error,
+    currentRoleId,
     refresh,
     loadMessages,
+    createChat,
     sendMessage,
     markConversationRead,
     deleteMessages,
@@ -28,6 +32,21 @@ const AdminMessagesPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     refresh();
   }, [refresh]);
+
+  React.useEffect(() => {
+    if (!router.isReady) return;
+    const role = typeof router.query.role === "string" ? router.query.role : "";
+    const roleId =
+      typeof router.query.roleId === "string" ? router.query.roleId : "";
+
+    if (!role || !roleId) return;
+    if (!["tenant", "property_manager", "landlord"].includes(role)) return;
+
+    createChat({ role, roleId });
+    void router.replace("/dashboard/admin/messages", undefined, {
+      shallow: true,
+    });
+  }, [createChat, router]);
 
   React.useEffect(() => {
     if (!selectedConversationId) return;
@@ -56,7 +75,7 @@ const AdminMessagesPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Messages</title>
+        <title>Dwelliva · Messages</title>
       </Head>
       <AdminLayout title="Messages">
         <section className="w-full min-w-0 space-y-4">
@@ -144,7 +163,9 @@ const AdminMessagesPage: NextPageWithLayout = () => {
                     <div className="space-y-3 text-xs">
                       {selectedConversation.messages.length > 0 ? (
                         selectedConversation.messages.map((message) => {
-                          const isMine = message.senderId === String(user?.id);
+                          const isMine =
+                            message.senderId ===
+                            String(currentRoleId ?? user?.id);
                           return (
                             <div
                               key={message.id}

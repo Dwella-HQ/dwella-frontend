@@ -263,7 +263,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Transactions</title>
+        <title>Dwelliva · Transactions</title>
       </Head>
       <AdminLayout title="Transactions">
         <section className="w-full min-w-0 space-y-4">

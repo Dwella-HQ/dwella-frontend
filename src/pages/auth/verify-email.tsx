@@ -8,7 +8,7 @@ import Link from "next/link";
 import { AuthLayout } from "@/components/AuthLayout";
 import { useToast } from "@/components/Toast";
 import { getApiBaseUrl } from "@/utils/createUrl";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_vertical.png";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -80,7 +80,7 @@ const VerifyEmailPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Verifying Email</title>
+        <title>Dwelliva · Verifying Email</title>
       </Head>
 
       <div className="w-full max-w-md mx-auto">
@@ -88,15 +88,11 @@ const VerifyEmailPage: NextPageWithLayout = () => {
         <div className="flex items-center justify-center gap-2 mb-8">
           <Image
             src={logo}
-            alt="DWELLA NG logo"
-            width={48}
-            height={48}
-            className="object-contain"
+            alt="Dwelliva logo"
+            width={150}
+            height={118}
+            className="h-auto w-32 object-contain"
           />
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold text-brand-main">DWELLA</span>
-            <span className="text-2xl font-bold text-blue-400">NG</span>
-          </div>
         </div>
 
         {/* Verification Status Card */}

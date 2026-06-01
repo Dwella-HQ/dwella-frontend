@@ -275,7 +275,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Verifications</title>
+        <title>Dwelliva · Verifications</title>
       </Head>
       <AdminLayout title="Verifications">
         <section className="w-full min-w-0 space-y-4">

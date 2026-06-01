@@ -46,7 +46,7 @@ export default function PropertiesPage() {
   return (
     <>
       <Head>
-        <title>Properties | DWELLA NG</title>
+        <title>Properties | Dwelliva</title>
       </Head>
       <div className="min-h-screen bg-[#F3F5F8]">
         <LandingHeader />

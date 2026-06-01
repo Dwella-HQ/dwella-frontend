@@ -1,16 +1,22 @@
 import Head from "next/head";
 import * as React from "react";
+import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import {
   Loader2,
   MessageSquare,
   MoreVertical,
   Paperclip,
+  Plus,
   Search,
   Send,
   Trash2,
+  X,
 } from "lucide-react";
 
+import { getLandlords } from "@/api/landlord";
+import { getPropertyManagers } from "@/api/property-managers";
+import { getTenants } from "@/api/tenants";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useChat } from "@/contexts/ChatContext";
 import { useUser } from "@/contexts/UserContext";
@@ -174,7 +180,68 @@ const ConversationList = ({
   );
 };
 
+type ChatContact = {
+  id: string;
+  role: "tenant" | "property_manager" | "landlord";
+  name: string;
+  subtitle: string;
+};
+
+const NewChatPanel = ({
+  contacts,
+  isLoading,
+  onClose,
+  onStart,
+}: {
+  contacts: ChatContact[];
+  isLoading: boolean;
+  onClose: () => void;
+  onStart: (contact: ChatContact) => void;
+}) => (
+  <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-900">New chat</p>
+        <p className="text-xs text-gray-500">Choose who to message.</p>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+        aria-label="Close new chat"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+
+    {isLoading ? (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-brand-main" />
+      </div>
+    ) : contacts.length > 0 ? (
+      <div className="max-h-72 space-y-2 overflow-y-auto">
+        {contacts.map((contact) => (
+          <button
+            key={`${contact.role}:${contact.id}`}
+            type="button"
+            onClick={() => onStart(contact)}
+            className="w-full rounded-lg border border-gray-200 p-3 text-left transition hover:border-brand-main hover:bg-brand-main/5"
+          >
+            <p className="text-sm font-medium text-gray-900">{contact.name}</p>
+            <p className="mt-1 text-xs text-gray-500">{contact.subtitle}</p>
+          </button>
+        ))}
+      </div>
+    ) : (
+      <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+        No contacts available.
+      </p>
+    )}
+  </div>
+);
+
 const MessagesContent = () => {
+  const router = useRouter();
   const { user } = useUser();
   const {
     conversations,
@@ -184,18 +251,121 @@ const MessagesContent = () => {
     isLoading,
     isConnected,
     error,
+    currentRoleId,
     refresh,
     loadMessages,
+    createChat,
     sendMessage,
     markConversationRead,
     deleteMessages,
   } = useChat();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [messageText, setMessageText] = React.useState("");
+  const [isNewChatOpen, setIsNewChatOpen] = React.useState(false);
+  const [contacts, setContacts] = React.useState<ChatContact[]>([]);
+  const [contactsLoading, setContactsLoading] = React.useState(false);
+
+  const loadContacts = React.useCallback(async () => {
+    if (!user?.role) return;
+    setContactsLoading(true);
+
+    const nextContacts: ChatContact[] = [];
+
+    if (user.role !== "tenant") {
+      const tenants = await getTenants({ limit: 100 });
+      if (tenants.success) {
+        nextContacts.push(
+          ...tenants.data.map((tenant) => ({
+            id: String(tenant.id),
+            role: "tenant" as const,
+            name: tenant.fullName || tenant.name || tenant.email,
+            subtitle: tenant.email || tenant.phoneNumber || tenant.phone || "Tenant",
+          })),
+        );
+      }
+    }
+
+    if (user.role !== "property_manager") {
+      const managers = await getPropertyManagers();
+      if (managers.success) {
+        nextContacts.push(
+          ...managers.data.map((manager) => ({
+            id: String(manager.id),
+            role: "property_manager" as const,
+            name:
+              manager.fullName ||
+              manager.name ||
+              manager.user?.fullName ||
+              manager.email ||
+              manager.user?.email ||
+              "Property Manager",
+            subtitle:
+              manager.email ||
+              manager.user?.email ||
+              manager.phone ||
+              manager.user?.phoneNumber ||
+              "Property Manager",
+          })),
+        );
+      }
+    }
+
+    if (user.role !== "landlord") {
+      const landlords = await getLandlords();
+      if (landlords.success) {
+        nextContacts.push(
+          ...landlords.data.map((landlord) => ({
+            id: landlord.id,
+            role: "landlord" as const,
+            name:
+              landlord.landLordName ||
+              landlord.businessName ||
+              landlord.user?.fullName ||
+              landlord.businessEmail ||
+              "Landlord",
+            subtitle:
+              landlord.businessEmail ||
+              landlord.user?.email ||
+              landlord.businessPhoneNumber ||
+              "Landlord",
+          })),
+        );
+      }
+    }
+
+    setContacts(nextContacts);
+    setContactsLoading(false);
+  }, [user?.role]);
+
+  const openNewChat = React.useCallback(() => {
+    setIsNewChatOpen(true);
+    void loadContacts();
+  }, [loadContacts]);
+
+  const startChat = React.useCallback(
+    (contact: ChatContact) => {
+      createChat({ role: contact.role, roleId: contact.id });
+      setIsNewChatOpen(false);
+    },
+    [createChat],
+  );
 
   React.useEffect(() => {
     refresh();
   }, [refresh]);
+
+  React.useEffect(() => {
+    if (!router.isReady) return;
+    const role = typeof router.query.role === "string" ? router.query.role : "";
+    const roleId =
+      typeof router.query.roleId === "string" ? router.query.roleId : "";
+
+    if (!role || !roleId) return;
+    if (!["tenant", "property_manager", "landlord"].includes(role)) return;
+
+    createChat({ role, roleId });
+    void router.replace("/dashboard/messages", undefined, { shallow: true });
+  }, [createChat, router]);
 
   React.useEffect(() => {
     if (!selectedConversationId) return;
@@ -228,14 +398,33 @@ const MessagesContent = () => {
             {isConnected ? "Connected" : "Connecting..."}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={refresh}
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={openNewChat}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-main px-4 text-sm font-semibold text-white transition hover:bg-brand-main/90"
+          >
+            <Plus className="h-4 w-4" />
+            New Chat
+          </button>
+        </div>
       </div>
+
+      {isNewChatOpen ? (
+        <NewChatPanel
+          contacts={contacts}
+          isLoading={contactsLoading}
+          onClose={() => setIsNewChatOpen(false)}
+          onStart={startChat}
+        />
+      ) : null}
 
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -287,7 +476,7 @@ const MessagesContent = () => {
                     <ChatBubble
                       key={message.id}
                       message={message}
-                      currentUserId={user?.id}
+                      currentUserId={currentRoleId ?? user?.id}
                       onDelete={(messageId) =>
                         deleteMessages(selectedConversation.id, [messageId])
                       }
@@ -359,7 +548,7 @@ const MessagesPage: NextPageWithLayout = () => {
     return (
       <>
         <Head>
-          <title>Messages | DWELLA NG</title>
+          <title>Messages | Dwelliva</title>
         </Head>
         <div className="flex min-h-[400px] items-center justify-center">
           <p className="text-gray-500">Loading...</p>
@@ -371,7 +560,7 @@ const MessagesPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Messages | DWELLA NG</title>
+        <title>Messages | Dwelliva</title>
       </Head>
       <MessagesContent />
     </>

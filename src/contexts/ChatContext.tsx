@@ -1,11 +1,14 @@
 import * as React from "react";
+import { getLandlordByUser } from "@/api/landlord";
 import { getPropertyManagerByUser } from "@/api/property-managers";
 import { getTenantByUser } from "@/api/tenants";
 import {
   mapChat,
+  mapChatMessage,
   subscribeChat,
   type ChatConversation,
   type ChatDTO,
+  type ChatMessageDTO,
   type ChatSubscription,
 } from "@/api/chat";
 import { useUser } from "@/contexts/UserContext";
@@ -17,9 +20,11 @@ type ChatContextType = {
   isLoading: boolean;
   isConnected: boolean;
   error: string | null;
+  currentRoleId: string | null;
   setSelectedConversationId: (conversationId: string | null) => void;
   refresh: () => void;
   loadMessages: (chatId: string) => void;
+  createChat: (target: { role: string; roleId: string }) => void;
   sendMessage: (message: string, chatId?: string) => void;
   markConversationRead: (chatId: string) => void;
   deleteMessages: (chatId: string, messageIds: string[]) => void;
@@ -54,14 +59,40 @@ const mergeChats = (
           : chat.subtitle,
       messages:
         chat.messages.length > 0 ? chat.messages : existing?.messages ?? [],
+      participants:
+        chat.participants.length > 0
+          ? chat.participants
+          : existing?.participants ?? [],
     });
   });
 
   return Array.from(byId.values()).sort((a, b) => {
-    const aDate = a.messages[0]?.createdAt || "";
-    const bDate = b.messages[0]?.createdAt || "";
+    const aDate = a.messages[a.messages.length - 1]?.createdAt || "";
+    const bDate = b.messages[b.messages.length - 1]?.createdAt || "";
     return bDate.localeCompare(aDate);
   });
+};
+
+const mergeMessages = (
+  current: ChatConversation[],
+  chatId: string,
+  incoming: ChatMessageDTO[],
+): ChatConversation[] => {
+  const messages = incoming
+    .map(mapChatMessage)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const latestMessage = messages[messages.length - 1];
+
+  return current.map((chat) =>
+    chat.id === chatId
+      ? {
+          ...chat,
+          messages,
+          lastMessage: latestMessage?.content || "No messages yet",
+          lastMessageTime: latestMessage?.time || chat.lastMessageTime,
+        }
+      : chat,
+  );
 };
 
 const getStoredRoleId = (role: string): string | null => {
@@ -85,6 +116,8 @@ const getStoredRoleId = (role: string): string | null => {
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = useUser();
   const subscriptionRef = React.useRef<ChatSubscription | null>(null);
+  const conversationsRef = React.useRef<ChatConversation[]>([]);
+  const selectedConversationIdRef = React.useRef<string | null>(null);
   const [roleId, setRoleId] = React.useState<string | null>(null);
   const [conversations, setConversations] = React.useState<ChatConversation[]>(
     [],
@@ -95,6 +128,14 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isConnected, setIsConnected] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  React.useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId;
+  }, [selectedConversationId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -109,6 +150,18 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       if (stored) {
         setRoleId(stored);
         return;
+      }
+
+      if (user.role === "landlord") {
+        const result = await getLandlordByUser(String(user.id));
+        if (cancelled) return;
+        if (result.success) {
+          if (typeof window !== "undefined") {
+            localStorage.setItem("landlordId", result.data.id);
+          }
+          setRoleId(result.data.id);
+          return;
+        }
       }
 
       if (user.role === "tenant") {
@@ -171,6 +224,22 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         setIsLoading(false);
         setError(null);
       },
+      onMessages: (chatId, messages) => {
+        setConversations((current) => mergeMessages(current, chatId, messages));
+        if (selectedConversationIdRef.current === chatId) {
+          const unreadMessageIds = messages
+            .filter(
+              (message) =>
+                !message.isRead &&
+                String(message.participant?.roleId ?? message.senderId) !==
+                  roleId,
+            )
+            .map((message) => message.id);
+          subscriptionRef.current?.markRead(chatId, unreadMessageIds);
+        }
+        setIsLoading(false);
+        setError(null);
+      },
       onError: (message) => {
         setError(message);
         setIsLoading(false);
@@ -206,28 +275,73 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     subscriptionRef.current?.loadMessages(chatId);
   }, []);
 
+  const createChat = React.useCallback(
+    (target: { role: string; roleId: string }) => {
+      if (!roleId || !user?.role || !target.roleId || !target.role) return;
+
+      const existing = conversationsRef.current.find((chat) =>
+        chat.participants.some(
+          (participant) => participant.roleId === target.roleId,
+        ),
+      );
+
+      if (existing) {
+        setSelectedConversationId(existing.id);
+        subscriptionRef.current?.loadMessages(existing.id);
+        return;
+      }
+
+      setIsLoading(true);
+      subscriptionRef.current?.createChat([
+        { role: user.role, roleId },
+        { role: target.role, roleId: target.roleId },
+      ]);
+    },
+    [roleId, user?.role],
+  );
+
   const sendMessage = React.useCallback(
     (message: string, chatId?: string) => {
       const trimmed = message.trim();
       const targetChatId = chatId ?? selectedConversationId;
       if (!trimmed || !targetChatId) return;
+      const targetChat = conversationsRef.current.find(
+        (chat) => chat.id === targetChatId,
+      );
+      const participantId = targetChat?.participants.find(
+        (participant) => participant.roleId === roleId,
+      )?.id;
+
+      if (!participantId) {
+        setError("Unable to send message because your chat participant record was not found.");
+        return;
+      }
 
       subscriptionRef.current?.sendMessage({
         chatId: targetChatId,
-        message: trimmed,
+        participantId,
+        content: trimmed,
       });
     },
-    [selectedConversationId],
+    [roleId, selectedConversationId],
   );
 
   const markConversationRead = React.useCallback((chatId: string) => {
+    const chat = conversationsRef.current.find(
+      (conversation) => conversation.id === chatId,
+    );
+    const messageIds =
+      chat?.messages
+        .filter((message) => !message.isRead && message.senderId !== roleId)
+        .map((message) => message.id) ?? [];
+
     setConversations((current) =>
       current.map((chat) =>
         chat.id === chatId ? { ...chat, unreadCount: 0 } : chat,
       ),
     );
-    subscriptionRef.current?.markRead(chatId);
-  }, []);
+    subscriptionRef.current?.markRead(chatId, messageIds);
+  }, [roleId]);
 
   const deleteMessages = React.useCallback(
     (chatId: string, messageIds: string[]) => {
@@ -263,9 +377,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       isLoading,
       isConnected,
       error,
+      currentRoleId: roleId,
       setSelectedConversationId,
       refresh,
       loadMessages,
+      createChat,
       sendMessage,
       markConversationRead,
       deleteMessages,
@@ -277,8 +393,10 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       isLoading,
       isConnected,
       error,
+      roleId,
       refresh,
       loadMessages,
+      createChat,
       sendMessage,
       markConversationRead,
       deleteMessages,

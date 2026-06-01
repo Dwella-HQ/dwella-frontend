@@ -6,7 +6,7 @@ import { Home, ArrowRight, User, FileText, Landmark } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -30,7 +30,7 @@ const LandlordOnboardingCompletePage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · You&apos;re all set!</title>
+        <title>Dwelliva · You&apos;re all set!</title>
       </Head>
 
       <div className="mx-auto w-full max-w-4xl">
@@ -38,15 +38,11 @@ const LandlordOnboardingCompletePage: NextPageWithLayout = () => {
           <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:justify-start">
             <Image
               src={logo}
-              alt="DWELLA NG logo"
-              width={32}
-              height={32}
-              className="object-contain"
+              alt="Dwelliva logo"
+              width={170}
+              height={40}
+              className="h-8 w-auto object-contain"
             />
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold text-brand-main">DWELLA</span>
-              <span className="text-lg font-bold text-blue-400">NG</span>
-            </div>
           </div>
 
           <div className="w-full sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">

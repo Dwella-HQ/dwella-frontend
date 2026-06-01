@@ -726,6 +726,7 @@ function pickActivePropertyManagerForDisplay(
 }
 
 function propertyManagerContactFromDto(m: PropertyManagerDTO): {
+  id: string;
   name: string;
   email: string;
   phone: string;
@@ -744,7 +745,7 @@ function propertyManagerContactFromDto(m: PropertyManagerDTO): {
     (typeof user.phoneNumber === "string" && user.phoneNumber) ||
     (typeof rec.phone === "string" && rec.phone) ||
     "—";
-  return { name, email, phone };
+  return { id: String(m.id), name, email, phone };
 }
 
 /** Pick the latest lease (by end date descending); active lease first if present */
@@ -947,6 +948,8 @@ const TenantDashboard = () => {
     (typeof landlordRecord?.businessPhoneNumber === "string" &&
       landlordRecord.businessPhoneNumber) ||
     "—";
+  const landlordRoleId =
+    typeof landlordRecord?.id === "string" ? landlordRecord.id : "";
   const sortedTenantPayments = React.useMemo(() => {
     return [...tenantPayments].sort((a, b) => {
       const ta = parsePaymentDueDate(a)?.getTime() ?? 0;
@@ -987,7 +990,24 @@ const TenantDashboard = () => {
   }, []);
 
   const handleSendMessage = (type: "manager" | "landlord") => {
-    // Navigate to messages page with the appropriate contact
+    if (type === "manager" && tenantPropertyManagerContact?.id) {
+      router.push(
+        `/dashboard/messages?role=property_manager&roleId=${encodeURIComponent(
+          tenantPropertyManagerContact.id,
+        )}`,
+      );
+      return;
+    }
+
+    if (type === "landlord" && landlordRoleId) {
+      router.push(
+        `/dashboard/messages?role=landlord&roleId=${encodeURIComponent(
+          landlordRoleId,
+        )}`,
+      );
+      return;
+    }
+
     router.push("/dashboard/messages");
   };
 
@@ -1850,7 +1870,7 @@ const DashboardPage: NextPageWithLayout = () => {
     return (
       <>
         <Head>
-          <title>DWELLA NG · Dashboard</title>
+          <title>Dwelliva · Dashboard</title>
         </Head>
         <div className="flex items-center justify-center min-h-[400px]">
           <p className="text-gray-500">Loading...</p>
@@ -1891,7 +1911,7 @@ const DashboardPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Dashboard</title>
+        <title>Dwelliva · Dashboard</title>
       </Head>
       {renderDashboard()}
     </>

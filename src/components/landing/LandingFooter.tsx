@@ -2,7 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Mail, Phone } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_white_horizontal.png";
 
 export const LandingFooter = () => {
   const [email, setEmail] = React.useState("");
@@ -20,14 +20,11 @@ export const LandingFooter = () => {
             <Link href="/" className="flex items-center gap-2 text-white">
               <Image
                 src={logo}
-                alt="DWELLA NG"
-                width={32}
-                height={32}
-                className="object-contain invert"
+                alt="Dwelliva"
+                width={170}
+                height={40}
+                className="h-8 w-auto object-contain"
               />
-              <span className="text-lg font-bold uppercase tracking-tight">
-                DWELLA NG
-              </span>
             </Link>
             <p className="text-sm text-white/90">
               Helping you find the place where memories are made and your future
@@ -104,10 +101,10 @@ export const LandingFooter = () => {
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 flex-shrink-0 text-white/90" />
                 <a
-                  href="mailto:Dwella@gmail.com"
+                  href="mailto:Dwelliva@gmail.com"
                   className="hover:text-white transition"
                 >
-                  Dwella@gmail.com
+                  Dwelliva@gmail.com
                 </a>
               </li>
               <li className="flex items-center gap-2">

@@ -68,9 +68,9 @@ const bankOptionName = (bank: WithdrawalBankDTO, index: number) => {
 };
 
 /** Console label for payment settings debugging (filter DevTools by this string). */
-const PAYMENT_SETTINGS_LOG = "[Dwella Settings · Payment]";
-const PROFILE_SETTINGS_LOG = "[Dwella Settings · Profile]";
-const LANDLORD_SETTINGS_LOG = "[Dwella Settings · Landlord settings]";
+const PAYMENT_SETTINGS_LOG = "[Dwelliva Settings · Payment]";
+const PROFILE_SETTINGS_LOG = "[Dwelliva Settings · Profile]";
+const LANDLORD_SETTINGS_LOG = "[Dwelliva Settings · Landlord settings]";
 
 const notificationChannelsToBooleans = (arr: unknown) => {
   const list = Array.isArray(arr) ? arr : [];
@@ -1456,7 +1456,7 @@ const SettingsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Settings | DWELLA NG</title>
+        <title>Settings | Dwelliva</title>
       </Head>
 
       <section className="space-y-6">

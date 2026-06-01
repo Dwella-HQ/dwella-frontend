@@ -62,7 +62,7 @@ export default function PricingPage() {
   return (
     <>
       <Head>
-        <title>Pricing | DWELLA NG</title>
+        <title>Pricing | Dwelliva</title>
       </Head>
       <div className="min-h-screen bg-[#F3F5F8]">
         <LandingHeader />

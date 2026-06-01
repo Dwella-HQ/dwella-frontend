@@ -80,7 +80,7 @@ export const mapNotification = (notification: NotificationDTO): Notification => 
 
   return {
     id: String(notification.id),
-    sender: "Dwella",
+    sender: "Dwelliva",
     time: formatTimeAgo(notification.createdAt),
     title: notification.title,
     description: truncatedMessage,

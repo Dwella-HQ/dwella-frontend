@@ -184,7 +184,7 @@ const mockEndpoints: ApiEndpoint[] = [
             vat: "₦750",
             debt_reconciliation: "₦1,000",
             convenience_charge: "₦0",
-            transactionReference: "DWELLA2025112102531648",
+            transactionReference: "Dwelliva2025112102531648",
             description: "Credit:Electricity",
             numberOfUnits: 50,
             UnitValue: "kWh",
@@ -264,14 +264,14 @@ const mockEndpoints: ApiEndpoint[] = [
               {
                 id: 4,
                 type: "credit",
-                description: "Partner wallet topup by Dwella",
+                description: "Partner wallet topup by Dwelliva",
                 partner_id: 3,
                 email: "chukwuka.ezeaka+partner@gmail.com",
                 amount: "30000.00",
                 prev_balance: "160000.00",
                 curr_balance: "190000.00",
                 confirmed: true,
-                reference: "DWELLA2025112006515134",
+                reference: "Dwelliva2025112006515134",
                 genus: "partner",
                 status: "successful",
                 createdAt: "2025-11-20T17:51:51.000Z",
@@ -316,7 +316,7 @@ const mockEndpoints: ApiEndpoint[] = [
             vat: "₦675",
             debt_reconciliation: "₦1,000",
             convenience_charge: "₦0",
-            transactionReference: "DWELLA2025112103213178",
+            transactionReference: "Dwelliva2025112103213178",
             description: "Credit:Electricity",
             numberOfUnits: "50.00",
             UnitValue: "kWh",
@@ -344,7 +344,7 @@ const mockEndpoints: ApiEndpoint[] = [
             vat: "₦750",
             debt_reconciliation: "₦1,000",
             convenience_charge: "₦0",
-            transactionReference: "DWELLA2025112102531648",
+            transactionReference: "Dwelliva2025112102531648",
             description: "Credit:Electricity",
             numberOfUnits: "50.00",
             UnitValue: "kWh",
@@ -395,7 +395,7 @@ const mockEndpoints: ApiEndpoint[] = [
               {
                 id: 61399,
                 transaction_id: 8152631,
-                transaction_reference: "DWELLA2025112612143840",
+                transaction_reference: "Dwelliva2025112612143840",
                 status: "completed",
                 issuer_id: null,
                 account_number: "PCTM0001",
@@ -530,7 +530,7 @@ const DocumentationPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Dwella · Documentation</title>
+        <title>Dwelliva · Documentation</title>
       </Head>
 
       <section className="grid gap-6 lg:grid-cols-3">

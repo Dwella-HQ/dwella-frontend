@@ -11,7 +11,7 @@ export default function AboutPage() {
   return (
     <>
       <Head>
-        <title>About Us | DWELLA NG</title>
+        <title>About Us | Dwelliva</title>
       </Head>
       <div className="min-h-screen bg-[#F3F5F8]">
         <LandingHeader />
@@ -41,7 +41,7 @@ export default function AboutPage() {
                 <h2 className="text-4xl font-bold text-gray-900">Our Story</h2>
                 <div className="mt-6 space-y-6 text-lg leading-9 text-gray-600">
                   <p>
-                    Dwella NG was born out of frustration with the traditional
+                    Dwelliva was born out of frustration with the traditional
                     rental process in Nigeria. Hidden fees, unverified landlords,
                     and paper-based processes were making it unnecessarily
                     difficult for people to find comfortable homes.

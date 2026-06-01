@@ -50,7 +50,7 @@ const PartnersPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Dwella · Partners</title>
+        <title>Dwelliva · Partners</title>
       </Head>
 
       <section className="space-y-6">

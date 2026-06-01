@@ -7,7 +7,7 @@ export default function TermsPage() {
   return (
     <>
       <Head>
-        <title>Terms and conditions | DWELLA NG</title>
+        <title>Terms and conditions | Dwelliva</title>
       </Head>
       <div className="min-h-screen flex flex-col bg-gray-50">
         <LandingHeader />

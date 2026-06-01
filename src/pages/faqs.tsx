@@ -33,7 +33,7 @@ export default function FAQsPage() {
   return (
     <>
       <Head>
-        <title>FAQs | DWELLA NG</title>
+        <title>FAQs | Dwelliva</title>
       </Head>
       <div className="min-h-screen flex flex-col bg-gray-50">
         <LandingHeader />

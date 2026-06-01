@@ -44,7 +44,7 @@ const formatDateTime = (dateString: string): string => {
 export const TransactionDetailModal = ({
   transaction,
   onClose,
-  highlight = "Dwella",
+  highlight = "Dwelliva",
   primaryAction = { label: "Report Issue", variant: "danger" },
   secondaryAction = "Share Receipt",
   onReportIssue,

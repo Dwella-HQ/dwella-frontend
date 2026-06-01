@@ -2,7 +2,7 @@ import { apiPost } from "@/lib/apiClient";
 import type { ApiResult, WithdrawalCreateDTO } from "./withdrawal.schema";
 
 /** Filter DevTools by this string when debugging withdrawal creates. */
-export const WITHDRAWAL_CREATE_LOG = "[Dwella · POST /withdrawal]";
+export const WITHDRAWAL_CREATE_LOG = "[Dwelliva · POST /withdrawal]";
 
 export function generateWithdrawalIdempotencyKey() {
   const c = globalThis.crypto as Crypto | undefined;

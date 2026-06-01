@@ -203,7 +203,7 @@ const LoginPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Sign in</title>
+        <title>Dwelliva · Sign in</title>
       </Head>
       {postRegisterHint ? (
         <div className="mx-auto w-full max-w-md px-4 pt-6">

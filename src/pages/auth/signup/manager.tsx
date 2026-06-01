@@ -16,7 +16,7 @@ import { useUser, type UserRole } from "@/contexts/UserContext";
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
 import { loginAfterInviteRegistration } from "@/utils/invitePostRegisterAuth";
 import { getPropertyManagerInviteIdFromQuery } from "@/lib/propertyManagerInviteFromQuery";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_vertical.png";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -188,7 +188,7 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Property Manager Sign Up</title>
+        <title>Dwelliva · Property Manager Sign Up</title>
       </Head>
 
       <div className="w-full max-w-md mx-auto">
@@ -196,15 +196,11 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
         <div className="flex items-center justify-center gap-2 mb-8">
           <Image
             src={logo}
-            alt="DWELLA NG logo"
-            width={48}
-            height={48}
-            className="object-contain"
+            alt="Dwelliva logo"
+            width={150}
+            height={118}
+            className="h-auto w-32 object-contain"
           />
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold text-brand-main">DWELLA</span>
-            <span className="text-2xl font-bold text-blue-400">NG</span>
-          </div>
         </div>
 
         {/* Sign Up Form Card */}

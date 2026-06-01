@@ -307,7 +307,7 @@ const LandlordDetailPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Landlord Details</title>
+        <title>Dwelliva · Landlord Details</title>
       </Head>
       <AdminLayout title="L & P">
         <section className="w-full min-w-0 space-y-4">
@@ -322,7 +322,13 @@ const LandlordDetailPage: NextPageWithLayout = () => {
             <button
               type="button"
               className="rounded-md bg-[#111827] px-5 py-1.5 text-xs text-white"
-              onClick={() => void router.push("/dashboard/admin/messages")}
+              onClick={() =>
+                void router.push(
+                  `/dashboard/admin/messages?role=landlord&roleId=${encodeURIComponent(
+                    landlordId,
+                  )}`,
+                )
+              }
             >
               Message
             </button>
@@ -930,7 +936,9 @@ const LandlordDetailPage: NextPageWithLayout = () => {
                                 <td className="py-2">{pname}</td>
                                 <td className="py-2">
                                   <Link
-                                    href={`/dashboard/admin/messages`}
+                                    href={`/dashboard/admin/messages?role=tenant&roleId=${encodeURIComponent(
+                                      tid,
+                                    )}`}
                                     className="inline-flex items-center gap-1 text-[#0284C7] hover:underline"
                                   >
                                     <MessageSquare className="h-3 w-3" />

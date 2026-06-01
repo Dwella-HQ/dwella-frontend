@@ -44,6 +44,9 @@ function statusPillClass(status?: string): string {
   return "bg-amber-100 text-amber-900";
 }
 
+const messageTenantHref = (tenantId: string | number) =>
+  `/dashboard/messages?role=tenant&roleId=${encodeURIComponent(String(tenantId))}`;
+
 export const PropertyTenantsTab = ({
   tenants,
   propertyId,
@@ -143,7 +146,7 @@ export const PropertyTenantsTab = ({
                   <div className="mt-4 flex gap-2">
                     <motion.button
                       type="button"
-                      onClick={() => router.push("/dashboard/messages")}
+                      onClick={() => router.push(messageTenantHref(tenant.id))}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 flex items-center justify-center gap-2"

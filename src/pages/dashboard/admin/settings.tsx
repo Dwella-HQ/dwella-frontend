@@ -235,7 +235,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Settings</title>
+        <title>Dwelliva · Settings</title>
       </Head>
       <AdminLayout title="Settings">
         <section className="grid w-full max-w-[980px] grid-cols-1 gap-4 [color-scheme:light] lg:grid-cols-[240px_1fr]">

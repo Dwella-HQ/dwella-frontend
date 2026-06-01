@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { useRouter } from "next/router";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_white_horizontal.png";
 import { useUser } from "@/contexts/UserContext";
 
 export const LandingHeader = () => {
@@ -40,12 +40,11 @@ export const LandingHeader = () => {
         <Link href="/" className="flex items-center gap-2 text-white">
           <Image
             src={logo}
-            alt="DWELLA NG"
-            width={32}
-            height={32}
-            className="object-contain brightness-0 invert"
+            alt="Dwelliva"
+            width={170}
+            height={40}
+            className="h-8 w-auto object-contain"
           />
-          <span className="text-lg font-bold tracking-tight">DWELLA NG</span>
         </Link>
         <nav className="hidden items-center gap-5 rounded-lg bg-[#2A9AD6] px-4 py-1.5 text-xs text-white/95 md:flex">
           {nav.map((item) => (

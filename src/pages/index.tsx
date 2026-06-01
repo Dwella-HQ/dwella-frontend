@@ -102,10 +102,10 @@ export default function LandingPage() {
   return (
     <>
       <Head>
-        <title>DWELLA NG – Find. Rent. Manage.</title>
+        <title>Dwelliva – Find. Rent. Manage.</title>
         <meta
           name="description"
-          content="Discover homes, manage tenants, and automate rentals with DWELLA NG."
+          content="Discover homes, manage tenants, and automate rentals with Dwelliva."
         />
       </Head>
       <div className="min-h-screen flex flex-col bg-[#F3F5F8] font-sans text-[#0F172A]">
@@ -162,7 +162,7 @@ export default function LandingPage() {
                   Simplifying Real Estate in Nigeria
                 </h2>
                 <p className="mt-6 text-lg leading-8 text-[#4B5563] md:text-xl md:leading-9">
-                  Dwella is a modern property platform designed to simplify how
+                  Dwelliva is a modern property platform designed to simplify how
                   people find and manage homes in Nigeria through verified
                   listings, secure payments, and reliable property management
                   tools.
@@ -383,7 +383,7 @@ export default function LandingPage() {
             <div className="mx-auto grid max-w-7xl gap-8 px-4 text-white sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8">
               <div>
                 <h2 className="font-sans text-3xl font-bold tracking-tight md:text-5xl">
-                  Why Trust Dwella?
+                  Why Trust Dwelliva?
                 </h2>
                 <p className="mt-3 max-w-xl text-sm text-white/85 md:text-base">
                   We are changing the narrative of Nigerian real estate with
@@ -425,7 +425,7 @@ export default function LandingPage() {
                 <div className="relative aspect-[16/9] overflow-hidden rounded-xl border border-white/10 bg-[#0B1028]">
                   <Image
                     src="https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?auto=format&fit=crop&w=1400&q=80"
-                    alt="Dwella dashboard preview"
+                    alt="Dwelliva dashboard preview"
                     fill
                     className="object-cover opacity-90"
                     sizes="(max-width: 1024px) 100vw, 40vw"

@@ -555,7 +555,7 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Admin Property Detail</title>
+        <title>Dwelliva · Admin Property Detail</title>
       </Head>
       <AdminLayout title="Property Details">
         <section className="space-y-6">

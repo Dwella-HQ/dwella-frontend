@@ -126,7 +126,7 @@ export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
       >
         <div className="mb-6 flex items-center justify-between px-2 lg:mb-0 lg:block lg:pb-6">
           <div className="text-[26px] font-bold tracking-wide lg:text-[31px]">
-            DWELLA.
+            Dwelliva.
           </div>
           <button
             type="button"

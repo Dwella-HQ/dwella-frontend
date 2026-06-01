@@ -6,7 +6,7 @@ import { Home, ArrowRight } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
 
@@ -67,7 +67,7 @@ const SignUpCompletePage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · You're all set!</title>
+        <title>Dwelliva · You're all set!</title>
       </Head>
 
       <div className="w-full max-w-4xl mx-auto">
@@ -77,15 +77,11 @@ const SignUpCompletePage: NextPageWithLayout = () => {
           <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
             <Image
               src={logo}
-              alt="DWELLA NG logo"
-              width={32}
-              height={32}
-              className="object-contain"
+              alt="Dwelliva logo"
+              width={170}
+              height={40}
+              className="h-8 w-auto object-contain"
             />
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold text-brand-main">DWELLA</span>
-              <span className="text-lg font-bold text-blue-400">NG</span>
-            </div>
           </div>
 
           {/* Progress Indicator - Centered like Nav Links */}

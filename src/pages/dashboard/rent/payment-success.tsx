@@ -75,7 +75,7 @@ const PaymentSuccessPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Payment successful | DWELLA NG</title>
+        <title>Payment successful | Dwelliva</title>
       </Head>
 
       <section className="flex min-h-[60vh] items-center justify-center">

@@ -360,7 +360,7 @@ const AnnouncementsPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · Announcements</title>
+        <title>Dwelliva · Announcements</title>
       </Head>
 
       <section className="space-y-6">

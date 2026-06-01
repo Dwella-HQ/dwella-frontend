@@ -32,6 +32,9 @@ import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 
 type NestedProperty = { id?: string; name?: string };
 
+const messageTenantHref = (tenantId: string | number) =>
+  `/dashboard/messages?role=tenant&roleId=${encodeURIComponent(String(tenantId))}`;
+
 const UnitDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { user } = useUser();
@@ -162,7 +165,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>DWELLA NG · {unit.unitId}</title>
+        <title>Dwelliva · {unit.unitId}</title>
       </Head>
 
       <section className="space-y-6">
@@ -393,7 +396,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
               <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={() => router.push("/dashboard/messages")}
+                  onClick={() => router.push(messageTenantHref(tenant.id))}
                   className="flex-1 rounded-lg bg-brand-main px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-main/90 flex items-center justify-center gap-2"
                 >
                   <MessageSquare className="h-4 w-4" />
