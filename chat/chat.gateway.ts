@@ -21,6 +21,7 @@ import { Cache } from '@nestjs/cache-manager';
 import { DeleteMessagesDto } from './dto/delete-messages.dto';
 import { GetChatMessagesDto } from './dto/get-chat-messages.dto';
 import { ReadMessagesDto } from './dto/read-messages.dto';
+import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 
 @UseGuards(WsAuthGuard) // Use global WS guard for authentication
 @WebSocketGateway({
@@ -83,9 +84,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() roleId: string,
     @ConnectedSocket() client: Socket,
   ) {
-    const chats = await this.chatService.getUserChatIds(roleId);
-    for (const chatId of chats) {
-      void client.join(chatId);
+    const chats = await this.chatService.getUserChats(roleId);
+    for (const chat of chats) {
+      void client.join(chat.id);
     }
     return { message: `Joined ${chats.length} chat rooms` };
   }
@@ -103,6 +104,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('findOneChat')
   findOne(@MessageBody() id: string) {
     return this.chatService.findOne(id);
+  }
+
+  @SubscribeMessage('addChatMessage')
+  addChatMessage(@MessageBody() createChatMessageDto: CreateChatMessageDto) {
+    return this.chatService.addChatMessage(createChatMessageDto);
   }
 
   @SubscribeMessage('getChatMessages')

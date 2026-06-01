@@ -21,5 +21,5 @@ export class CreateChatDto {
   @ValidateNested({ each: true })
   @IsArray()
   @ArrayMinSize(2, { message: 'A chat must have at least 2 participants' })
-  participants: ChatParticipantDto[];
+  participants!: ChatParticipantDto[];
 }

@@ -122,6 +122,7 @@ export const subscribeChat = (
     auth: { token },
     query: { token },
   });
+  const subscribedMessageEvents = new Set<string>();
 
   const emitWithAck = <T,>(
     event: string,
@@ -144,36 +145,57 @@ export const subscribeChat = (
   const loadChat = (chatId: string) => {
     emitWithAck<unknown>("findOneChat", chatId, (payload) => {
       const chats = extractChats(payload);
-      if (chats) options.onChats(chats);
+      if (chats) handleChats(chats);
     });
+  };
+
+  const registerChatMessageListener = (chatId: string) => {
+    const event = `${chatId}:load:messages`;
+    if (!chatId || subscribedMessageEvents.has(event)) return;
+
+    subscribedMessageEvents.add(event);
+    socket.on(event, (payload: unknown) => {
+      const messages = extractMessages(payload);
+      if (!messages) return;
+      options.onMessages?.(chatId, messages);
+    });
+  };
+
+  const handleChats = (chats: ChatDTO[]) => {
+    chats.forEach((chat) => registerChatMessageListener(String(chat.id)));
+    options.onChats(chats);
   };
 
   const loadChats = () => {
     emitWithAck<unknown>("chat", options.roleId, (payload) => {
       const chats = extractChats(payload);
       if (chats) {
-        options.onChats(chats);
+        handleChats(chats);
         return;
       }
 
       const chatIds = extractChatIds(payload);
       if (chatIds?.length) {
-        chatIds.forEach(loadChat);
+        chatIds.forEach((chatId) => {
+          registerChatMessageListener(chatId);
+          loadChat(chatId);
+        });
         return;
       }
 
-      options.onChats([]);
+      handleChats([]);
     });
 
     emitWithAck<unknown[]>("findAllChat", undefined, (payload) => {
       const chats = extractChats(payload);
       if (chats) {
-        options.onChats(chats);
+        handleChats(chats);
       }
     });
   };
 
   const loadMessages = (chatId: string) => {
+    registerChatMessageListener(chatId);
     emitWithAck<unknown>("getChatMessages", { chatId }, (payload) => {
       const messages = extractMessages(payload);
       if (!messages) return;
@@ -182,7 +204,7 @@ export const subscribeChat = (
   };
 
   const sendChatMessage = (payload: CreateChatPayload) => {
-    const events = ["createChatMessage", "addChatMessage", "sendChatMessage"];
+    const events = ["createMessage", "addChatMessage", "createChatMessage"];
 
     const tryEvent = (index: number) => {
       const event = events[index];
@@ -228,7 +250,7 @@ export const subscribeChat = (
   const handleChatsEvent = (payload: unknown) => {
     const chats = extractChats(payload);
     if (chats) {
-      options.onChats(chats);
+      handleChats(chats);
       return;
     }
     loadChats();
@@ -258,7 +280,7 @@ export const subscribeChat = (
     createChat: (participants) => {
       emitWithAck<unknown>("createChat", { participants }, (payload) => {
         const chats = extractChats(payload);
-        if (chats) options.onChats(chats);
+        if (chats) handleChats(chats);
         loadChats();
       });
     },

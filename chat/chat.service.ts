@@ -269,7 +269,7 @@ export class ChatService {
     });
     this.server
       .to(`chat:${getChatMessagesDto.chatId}`)
-      .emit('load:messages', messages);
+      .emit(`${getChatMessagesDto.chatId}:load:messages`, messages);
     return messages;
   }
 
@@ -279,6 +279,6 @@ export class ChatService {
       cursor,
       limit,
     });
-    this.server.to(`chat:${chatId}`).emit('load:messages', messages);
+    return messages;
   }
 }
