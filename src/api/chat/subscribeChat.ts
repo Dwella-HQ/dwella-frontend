@@ -107,6 +107,25 @@ const extractChatIds = (payload: unknown): string[] | null => {
   return null;
 };
 
+const getAckErrorMessage = (payload: unknown): string | null => {
+  const unwrapped = unwrapPayload(payload);
+  if (!unwrapped || typeof unwrapped !== "object") return null;
+
+  const data = unwrapped as Record<string, unknown>;
+  const status = typeof data.status === "string" ? data.status : "";
+  const success = typeof data.success === "boolean" ? data.success : undefined;
+  const message =
+    (typeof data.message === "string" && data.message) ||
+    (typeof data.error === "string" && data.error) ||
+    "";
+
+  if (status.toLowerCase() === "error" || success === false) {
+    return message || "Chat request failed";
+  }
+
+  return null;
+};
+
 export const subscribeChat = (
   options: SubscribeChatOptions,
 ): ChatSubscription => {
@@ -135,6 +154,11 @@ export const subscribeChat = (
       .emit(event, payload, (error: Error | null, response: unknown) => {
         if (error) {
           onError?.(error.message || `No response for ${event}`);
+          return;
+        }
+        const ackError = getAckErrorMessage(response);
+        if (ackError) {
+          onError?.(ackError);
           return;
         }
         const responseData = unwrapPayload(response) as T;
@@ -278,11 +302,20 @@ export const subscribeChat = (
     loadChats,
     loadMessages,
     createChat: (participants) => {
-      emitWithAck<unknown>("createChat", { participants }, (payload) => {
-        const chats = extractChats(payload);
-        if (chats) handleChats(chats);
-        loadChats();
-      });
+      emitWithAck<unknown>(
+        "createChat",
+        { participants },
+        (payload) => {
+          const chats = extractChats(payload);
+          if (chats) {
+            handleChats(chats);
+          } else {
+            handleChats([]);
+          }
+          loadChats();
+        },
+        (message) => options.onError?.(message || "Unable to start chat"),
+      );
     },
     sendMessage: sendChatMessage,
     markRead: (chatId: string, messageIds?: string[]) => {

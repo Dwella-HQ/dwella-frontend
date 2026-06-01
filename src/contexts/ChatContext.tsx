@@ -118,6 +118,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const subscriptionRef = React.useRef<ChatSubscription | null>(null);
   const conversationsRef = React.useRef<ChatConversation[]>([]);
   const selectedConversationIdRef = React.useRef<string | null>(null);
+  const pendingChatTargetRef = React.useRef<string | null>(null);
   const [roleId, setRoleId] = React.useState<string | null>(null);
   const [conversations, setConversations] = React.useState<ChatConversation[]>(
     [],
@@ -241,6 +242,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         setError(null);
       },
       onError: (message) => {
+        pendingChatTargetRef.current = null;
         setError(message);
         setIsLoading(false);
       },
@@ -258,6 +260,20 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   React.useEffect(() => {
     setSelectedConversationId((current) => {
+      if (pendingChatTargetRef.current) {
+        const pending = conversations.find((chat) =>
+          chat.participants.some(
+            (participant) =>
+              participant.roleId === pendingChatTargetRef.current,
+          ),
+        );
+        if (pending) {
+          pendingChatTargetRef.current = null;
+          subscriptionRef.current?.loadMessages(pending.id);
+          return pending.id;
+        }
+      }
+
       if (current && conversations.some((chat) => chat.id === current)) {
         return current;
       }
@@ -278,6 +294,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const createChat = React.useCallback(
     (target: { role: string; roleId: string }) => {
       if (!roleId || !user?.role || !target.roleId || !target.role) return;
+      pendingChatTargetRef.current = target.roleId;
 
       const existing = conversationsRef.current.find((chat) =>
         chat.participants.some(
@@ -286,6 +303,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       );
 
       if (existing) {
+        pendingChatTargetRef.current = null;
         setSelectedConversationId(existing.id);
         subscriptionRef.current?.loadMessages(existing.id);
         return;
