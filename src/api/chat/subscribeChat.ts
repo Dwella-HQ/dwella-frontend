@@ -263,10 +263,17 @@ export const subscribeChat = (
 
   const loadChats = () => {
     pendingJoinedRoomCount = 0;
-    emitWithOptionalAck<unknown>("chat", options.roleId, (payload) => {
+    emitWithOptionalAck<unknown>("findChats", options.roleId, (payload) => {
       if (handleChatsPayload(payload)) return;
       pendingJoinedRoomCount = extractJoinedRoomCount(payload) ?? 0;
     });
+    window.setTimeout(() => {
+      if (!loadChatsFallback || pendingJoinedRoomCount > 0) return;
+      emitWithOptionalAck<unknown>("chat", options.roleId, (payload) => {
+        if (handleChatsPayload(payload)) return;
+        pendingJoinedRoomCount = extractJoinedRoomCount(payload) ?? 0;
+      });
+    }, 1500);
     clearLoadChatsFallback();
     loadChatsFallback = setTimeout(() => {
       if (pendingJoinedRoomCount > 0) {

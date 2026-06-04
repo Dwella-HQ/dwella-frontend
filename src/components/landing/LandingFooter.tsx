@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Mail, Phone } from "lucide-react";
 import logo from "@/assets/logo_white_horizontal.png";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
 
 export const LandingFooter = () => {
   const [email, setEmail] = React.useState("");
@@ -101,10 +102,10 @@ export const LandingFooter = () => {
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 flex-shrink-0 text-white/90" />
                 <a
-                  href="mailto:Dwelliva@gmail.com"
+                  href={SUPPORT_MAILTO}
                   className="hover:text-white transition"
                 >
-                  Dwelliva@gmail.com
+                  {SUPPORT_EMAIL}
                 </a>
               </li>
               <li className="flex items-center gap-2">

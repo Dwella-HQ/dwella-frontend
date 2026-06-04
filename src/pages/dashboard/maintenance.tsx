@@ -28,6 +28,7 @@ import { useUser } from "@/contexts/UserContext";
 import { getTenantByUser, type TenantByUserDTO } from "@/api/tenants";
 import { getUnit } from "@/api/units";
 import { uploadFile } from "@/api/files";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
 import type { NextPageWithLayout } from "../_app";
 
 // Tenant Maintenance Components
@@ -359,8 +360,11 @@ const TenantNewRequestForm = ({
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm text-center text-gray-600">
         <p>
-          We could not load your unit details. Please try again or contact
-          support.
+          We could not load your unit details. Please try again or contact{" "}
+          <a className="font-medium text-brand-main" href={SUPPORT_MAILTO}>
+            {SUPPORT_EMAIL}
+          </a>
+          .
         </p>
       </div>
     );

@@ -8,6 +8,7 @@ import { SupportChatWindow } from "@/components/SupportChatWindow";
 import { SupportNewTicketModal } from "@/components/SupportNewTicketModal";
 import type { SupportTicket } from "@/components/SupportTicketList";
 import { supportTickets, chatMessages } from "@/api/support/support.mock";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -39,11 +40,21 @@ const SupportPage: NextPageWithLayout = () => {
       <Head>
         <title>Dwelliva · Support</title>
       </Head>
-      <div className="w-full">
+      <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Support</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Need help? Email{" "}
+            <a className="font-medium text-brand-main" href={SUPPORT_MAILTO}>
+              {SUPPORT_EMAIL}
+            </a>
+            .
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => setIsNewTicketModalOpen(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand-main px-4 py-2.5 text-base font-medium text-brand-white transition-fx hover:bg-brand-main/90"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-main px-4 py-2.5 text-base font-medium text-brand-white transition-fx hover:bg-brand-main/90"
         >
           <Plus className="h-5 w-5" />
           New Ticket

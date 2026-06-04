@@ -15,6 +15,7 @@ import {
 } from "@/api/rent-payment";
 import { getProperty } from "@/api/properties";
 import { useToast } from "@/components/Toast";
+import { SUPPORT_EMAIL } from "@/lib/supportContact";
 import type { NextPageWithLayout } from "../../_app";
 
 function formatDueDateLabel(value: string): string {
@@ -192,11 +193,11 @@ const PayRentPage: NextPageWithLayout = () => {
       return;
     }
     showToast(
-      "Payment started, but no checkout link was returned. Try again, or contact support if this keeps happening.",
+      `Payment started, but no checkout link was returned. Try again, or contact ${SUPPORT_EMAIL} if this keeps happening.`,
       "error",
       7000,
     );
-  }, [router, selectedRentId, showToast]);
+  }, [selectedRentId, showToast]);
 
   const formatCurrency = (amount: number) => {
     return `₦${amount.toLocaleString()}`;

@@ -2,6 +2,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { Check, X } from "lucide-react";
 import { LandingFooter, LandingHeader, StatsBar } from "@/components/landing";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
 
 const plans = [
   {
@@ -175,9 +176,9 @@ export default function PricingPage() {
                 Check our FAQs
               </Link>{" "}
               or{" "}
-              <Link href="/about" className="font-semibold text-sky-600">
-                contact support.
-              </Link>
+              <a href={SUPPORT_MAILTO} className="font-semibold text-sky-600">
+                contact {SUPPORT_EMAIL}.
+              </a>
             </p>
           </section>
           <StatsBar />

@@ -14,7 +14,6 @@ import {
   DollarSign,
   FileText,
   AlertTriangle,
-  ArrowLeft,
   UserRound,
   CalendarClock,
   MoreVertical,
@@ -48,6 +47,7 @@ import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { useUser } from "@/contexts/UserContext";
 import type { NextPageWithLayout } from "../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
+import { SUPPORT_EMAIL } from "@/lib/supportContact";
 import { useToast } from "@/components/Toast";
 
 /** Default days until due date when creating a rent charge from this page. */
@@ -591,7 +591,7 @@ const TenantPaymentHistory = () => {
         return;
       }
       showToast(
-        "Payment started, but no checkout link was returned. Tap Pay again, or contact support if this keeps happening.",
+        `Payment started, but no checkout link was returned. Tap Pay again, or contact ${SUPPORT_EMAIL} if this keeps happening.`,
         "error",
         7000,
       );
