@@ -71,13 +71,19 @@ const extractMessages = (payload: unknown) => {
   const direct = messageArraySchema.safeParse(unwrapped);
   if (direct.success) return direct.data;
 
+  const single = chatMessageSchema.safeParse(unwrapped);
+  if (single.success) return [single.data];
+
   if (!unwrapped || typeof unwrapped !== "object") return null;
   const data = unwrapped as Record<string, unknown>;
-  const candidates = [data.messages, data.items, data.results];
+  const candidates = [data.messages, data.items, data.results, data.message];
 
   for (const candidate of candidates) {
     const parsed = messageArraySchema.safeParse(candidate);
     if (parsed.success) return parsed.data;
+
+    const singleParsed = chatMessageSchema.safeParse(candidate);
+    if (singleParsed.success) return [singleParsed.data];
   }
 
   return null;
@@ -144,6 +150,7 @@ export const subscribeChat = (
   });
   const subscribedMessageEvents = new Set<string>();
   const hydratingChatIds = new Set<string>();
+  const knownChatIds = new Set<string>();
   let loadChatsFallback: ReturnType<typeof setTimeout> | null = null;
   let pendingJoinedRoomCount = 0;
 
@@ -230,7 +237,11 @@ export const subscribeChat = (
   const handleChats = (chats: ChatDTO[]) => {
     clearLoadChatsFallback();
     pendingJoinedRoomCount = 0;
-    chats.forEach((chat) => registerChatMessageListener(String(chat.id)));
+    chats.forEach((chat) => {
+      const chatId = String(chat.id);
+      knownChatIds.add(chatId);
+      registerChatMessageListener(chatId);
+    });
     options.onChats(chats);
   };
 
@@ -306,6 +317,11 @@ export const subscribeChat = (
     if (!messages) return false;
     const chatId = messages[0]?.chatId || fallbackChatId;
     if (!chatId) return false;
+    if (!knownChatIds.has(chatId)) {
+      registerChatMessageListener(chatId);
+      loadChat(chatId);
+      window.setTimeout(loadChats, 500);
+    }
     options.onMessages?.(chatId, messages);
     return true;
   };

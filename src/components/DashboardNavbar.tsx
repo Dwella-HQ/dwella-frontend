@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Menu, ChevronDown } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
+import { useChat } from "@/contexts/ChatContext";
 import { getNavigationItems, getMoreMenuItems } from "@/utils/navigation";
 
 export type DashboardNavbarProps = {
@@ -18,6 +19,7 @@ export const DashboardNavbar = ({
 }: DashboardNavbarProps) => {
   const router = useRouter();
   const { user } = useUser();
+  const { unreadCount } = useChat();
   const currentPath = router.pathname;
   const [isMoreOpen, setIsMoreOpen] = React.useState(false);
 
@@ -54,6 +56,8 @@ export const DashboardNavbar = ({
         }
         const Icon = item.icon;
         const restricted = isItemRestricted(item.href);
+        const itemUnreadCount =
+          item.href === "/dashboard/messages" ? unreadCount : 0;
 
         return (
           <motion.div
@@ -81,6 +85,17 @@ export const DashboardNavbar = ({
               )}
               <Icon className={`relative z-10 h-4 w-4 flex-shrink-0 ${isActive ? "text-white" : "text-gray-500"}`} />
               <span className="relative z-10 hidden sm:inline">{item.name}</span>
+              {itemUnreadCount > 0 ? (
+                <span
+                  className={`relative z-10 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
+                    isActive
+                      ? "bg-white text-brand-main"
+                      : "bg-red-500 text-white"
+                  }`}
+                >
+                  {itemUnreadCount > 9 ? "9+" : itemUnreadCount}
+                </span>
+              ) : null}
             </Link>
           </motion.div>
         );
@@ -122,6 +137,8 @@ export const DashboardNavbar = ({
                   const isItemActive = currentPath.startsWith(item.href);
                   const Icon = item.icon;
                   const restricted = isItemRestricted(item.href);
+                  const itemUnreadCount =
+                    item.href === "/dashboard/messages" ? unreadCount : 0;
 
                   return (
                     <DropdownMenu.Item
@@ -150,6 +167,17 @@ export const DashboardNavbar = ({
                         >
                           <Icon className={`h-4 w-4 ${isItemActive ? "text-white" : "text-gray-500"}`} />
                           <span>{item.name}</span>
+                          {itemUnreadCount > 0 ? (
+                            <span
+                              className={`ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
+                                isItemActive
+                                  ? "bg-white text-brand-main"
+                                  : "bg-red-500 text-white"
+                              }`}
+                            >
+                              {itemUnreadCount > 9 ? "9+" : itemUnreadCount}
+                            </span>
+                          ) : null}
                         </Link>
                       </motion.div>
                     </DropdownMenu.Item>
@@ -163,4 +191,3 @@ export const DashboardNavbar = ({
     </nav>
   );
 };
-

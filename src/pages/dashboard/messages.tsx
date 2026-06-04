@@ -3,6 +3,7 @@ import * as React from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   Loader2,
   MessageSquare,
   MoreVertical,
@@ -76,7 +77,7 @@ const ChatBubble = ({
       className={`flex ${isFromMe ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`group flex max-w-[75%] flex-col ${
+        className={`group flex max-w-[86%] flex-col sm:max-w-[75%] ${
           isFromMe ? "items-end" : "items-start"
         }`}
       >
@@ -122,12 +123,14 @@ const ConversationList = ({
   onSelect,
   searchQuery,
   onSearchChange,
+  isMobileVisible,
 }: {
   conversations: ChatConversation[];
   selectedConversationId: string | null;
   onSelect: (conversationId: string) => void;
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  isMobileVisible: boolean;
 }) => {
   const filteredConversations = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -142,7 +145,11 @@ const ConversationList = ({
   }, [conversations, searchQuery]);
 
   return (
-    <div className="flex w-full flex-col border-b border-gray-200 bg-white lg:w-[350px] lg:border-b-0 lg:border-r">
+    <div
+      className={`${
+        isMobileVisible ? "flex" : "hidden"
+      } h-full w-full flex-col border-gray-200 bg-white lg:flex lg:w-[350px] lg:border-r`}
+    >
       <div className="border-b border-gray-200 p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -329,6 +336,7 @@ const MessagesContent = () => {
     Record<string, PendingChatMessage[]>
   >({});
   const [isEmojiOpen, setIsEmojiOpen] = React.useState(false);
+  const [isMobileThreadOpen, setIsMobileThreadOpen] = React.useState(false);
   const messageInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const loadContacts = React.useCallback(async () => {
@@ -376,6 +384,7 @@ const MessagesContent = () => {
   const startChat = React.useCallback(
     (contact: ChatContactDTO) => {
       createChat({ role: contact.role, roleId: contact.id });
+      setIsMobileThreadOpen(true);
       setIsNewChatOpen(false);
     },
     [createChat],
@@ -394,6 +403,7 @@ const MessagesContent = () => {
     if (!role || !roleId) return;
     if (!["tenant", "property_manager", "landlord"].includes(role)) return;
 
+    setIsMobileThreadOpen(true);
     createChat({ role, roleId });
     void router.replace("/dashboard/messages", undefined, { shallow: true });
   }, [createChat, router]);
@@ -485,13 +495,26 @@ const MessagesContent = () => {
     setIsEmojiOpen(false);
   }, [currentRoleId, messageText, selectedConversationId, sendMessage]);
 
+  const handleSelectConversation = React.useCallback(
+    (conversationId: string) => {
+      setSelectedConversationId(conversationId);
+      setIsMobileThreadOpen(true);
+    },
+    [setSelectedConversationId],
+  );
+
+  const handleBackToConversations = React.useCallback(() => {
+    setIsMobileThreadOpen(false);
+    setIsEmojiOpen(false);
+  }, []);
+
   const title =
     user?.role === "tenant"
       ? "Chat with your landlord or property manager"
       : "Communicate with tenants and managers";
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
@@ -537,32 +560,45 @@ const MessagesContent = () => {
         </div>
       ) : null}
 
-      <div className="flex min-h-[600px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:flex-row">
+      <div className="flex h-[calc(100dvh-300px)] min-h-[520px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm sm:h-[calc(100dvh-280px)] lg:h-[600px] lg:flex-row">
         <ConversationList
           conversations={conversations}
           selectedConversationId={selectedConversationId}
-          onSelect={setSelectedConversationId}
+          onSelect={handleSelectConversation}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          isMobileVisible={!isMobileThreadOpen}
         />
 
-        <div className="flex min-h-[500px] flex-1 flex-col lg:min-h-[600px]">
+        <div
+          className={`${
+            isMobileThreadOpen ? "flex" : "hidden"
+          } min-h-0 flex-1 flex-col lg:flex`}
+        >
           {isLoading && conversations.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-brand-main" />
             </div>
           ) : selectedConversation ? (
             <>
-              <div className="flex items-center justify-between border-b border-gray-200 p-4">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between border-b border-gray-200 p-3 sm:p-4">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={handleBackToConversations}
+                    className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 lg:hidden"
+                    aria-label="Back to conversations"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white">
                     {getInitials(selectedConversation.name)}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-900">
                       {selectedConversation.name}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="truncate text-xs text-gray-500">
                       {selectedConversation.subtitle}
                     </p>
                   </div>
@@ -575,7 +611,7 @@ const MessagesContent = () => {
                 </button>
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto bg-gray-50 p-4">
+              <div className="flex-1 space-y-4 overflow-y-auto bg-gray-50 p-3 sm:p-4">
                 {visibleMessages.length > 0 ? (
                   visibleMessages.map((message) => (
                     <ChatBubble
@@ -596,7 +632,7 @@ const MessagesContent = () => {
                 )}
               </div>
 
-              <div className="border-t border-gray-200 bg-white p-4">
+              <div className="border-t border-gray-200 bg-white p-3 sm:p-4">
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <button
@@ -633,7 +669,7 @@ const MessagesContent = () => {
                     onKeyDown={(event) => {
                       if (event.key === "Enter") handleSendMessage();
                     }}
-                    className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
+                    className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main sm:px-4"
                   />
                   <motion.button
                     type="button"

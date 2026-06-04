@@ -23,7 +23,6 @@ import {
   User,
   FileText,
   CalendarClock,
-  CreditCard,
   Globe,
   Upload,
 } from "lucide-react";
@@ -170,7 +169,6 @@ function findManagerNameForProperty(
 type PropertySettingsSection =
   | "documents"
   | "gracePeriods"
-  | "payment"
   | "preferences";
 
 type PropertyRentRulesSummaryLines = {
@@ -298,11 +296,6 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   const [propertyDocUploading, setPropertyDocUploading] = React.useState<
     string | null
   >(null);
-  const [propertyBank, setPropertyBank] = React.useState({
-    bankName: "",
-    accountNumber: "",
-    accountName: "",
-  });
   const [propertyLateFee, setPropertyLateFee] = React.useState({
     lateFeeAmount: "0",
     lateFeeType: "percentage" as "fixed" | "percentage",
@@ -702,7 +695,6 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   }> = [
     { id: "documents", label: "Documents", icon: FileText },
     { id: "gracePeriods", label: "Rent grace periods", icon: CalendarClock },
-    { id: "payment", label: "Payment Details", icon: CreditCard },
     { id: "preferences", label: "Preferences", icon: Globe },
   ];
 
@@ -1578,88 +1570,6 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                               : "Save grace periods"}
                           </button>
                         </div>
-                      </div>
-                    )}
-
-                    {propertySettingsSection === "payment" && (
-                      <div className="space-y-6">
-                        <h2 className="text-lg font-semibold text-gray-900">
-                          Payment Payout Details
-                        </h2>
-                        <p className="text-sm text-gray-600">
-                          Update your bank account information for receiving
-                          payments for this property.
-                        </p>
-                        <p className="text-xs text-gray-500 max-w-lg">
-                          For now, bank details you enter here are not saved.
-                          Use your account wallet and withdrawal flow for
-                          payouts.
-                        </p>
-                        <div className="space-y-4 max-w-lg">
-                          <div>
-                            <label className="mb-2 block text-sm font-medium text-gray-700">
-                              Bank Name
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="Placeholder"
-                              value={propertyBank.bankName}
-                              onChange={(e) =>
-                                setPropertyBank((p) => ({
-                                  ...p,
-                                  bankName: e.target.value,
-                                }))
-                              }
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-2 block text-sm font-medium text-gray-700">
-                              Account Number
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="Placeholder"
-                              value={propertyBank.accountNumber}
-                              onChange={(e) =>
-                                setPropertyBank((p) => ({
-                                  ...p,
-                                  accountNumber: e.target.value,
-                                }))
-                              }
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-2 block text-sm font-medium text-gray-700">
-                              Account Name
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="Placeholder"
-                              value={propertyBank.accountName}
-                              onChange={(e) =>
-                                setPropertyBank((p) => ({
-                                  ...p,
-                                  accountName: e.target.value,
-                                }))
-                              }
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-                            />
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            showToast(
-                              "Property payout details are not saved to the server yet.",
-                              "info",
-                            )
-                          }
-                          className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-                        >
-                          Save Bank Details
-                        </button>
                       </div>
                     )}
 

@@ -70,7 +70,25 @@ const asParticipantLabelFields = (value: unknown): ParticipantLabelFields | null
   return value as ParticipantLabelFields;
 };
 
-export const mapChat = (chat: ChatDTO): ChatConversation => {
+const formatRoleLabel = (role: string): string => {
+  switch (role) {
+    case "landlord":
+      return "Landlord";
+    case "property_manager":
+      return "Property Manager";
+    case "tenant":
+      return "Tenant";
+    default:
+      return role
+        .replace(/_/g, " ")
+        .replace(/\b[a-z]/g, (match) => match.toUpperCase());
+  }
+};
+
+export const mapChat = (
+  chat: ChatDTO,
+  currentRoleId?: string | null,
+): ChatConversation => {
   const messages = chat.messages
     .map(mapChatMessage)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -106,16 +124,30 @@ export const mapChat = (chat: ChatDTO): ChatConversation => {
   const participantLabels = participants
     .map((participant) => participant.name)
     .filter(Boolean);
+  const otherParticipants = currentRoleId
+    ? participants.filter(
+        (participant) => participant.roleId !== currentRoleId,
+      )
+    : [];
+  const displayParticipants =
+    otherParticipants.length > 0 ? otherParticipants : participants;
+  const displayNames = displayParticipants
+    .map((participant) => participant.name)
+    .filter(Boolean);
+  const displayRoles = displayParticipants
+    .map((participant) => formatRoleLabel(participant.role))
+    .filter(Boolean);
 
   const lastMessage =
     chat.lastMessage || latestMessage?.content || "No messages yet";
 
   return {
     id: String(chat.id),
-    name: chat.name,
+    name: displayNames.join(", ") || chat.name,
     subtitle:
       chat.propertyName ||
       chat.unit ||
+      displayRoles.join(", ") ||
       participantLabels.slice(1).join(", ") ||
       "Chat",
     lastMessage,

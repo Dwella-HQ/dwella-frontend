@@ -3,7 +3,6 @@ import {
   Home,
   CreditCard,
   Wrench,
-  Menu,
   Users,
   FileText,
   BarChart3,
@@ -90,7 +89,6 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
           href: "/dashboard/announcements",
           icon: Megaphone,
         },
-        { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
         { name: "Finance", href: "/dashboard/finance", icon: ArrowDownToLine },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
@@ -108,7 +106,6 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
           href: "/dashboard/announcements",
           icon: Megaphone,
         },
-        { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
     case "tenant":
@@ -119,7 +116,6 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
           href: "/dashboard/announcements",
           icon: Megaphone,
         },
-        { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
     default:

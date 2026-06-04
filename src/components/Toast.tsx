@@ -43,10 +43,25 @@ export const useToast = () => {
 export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
   const [toasts, setToasts] = React.useState<Toast[]>([]);
 
+  const removeToast = React.useCallback((id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
+
   const showToast = React.useCallback(
-    (message: string, type: ToastType = "info", duration: number = 4000) => {
+    (
+      message: string,
+      type: ToastType = "info",
+      duration: number = 4000,
+      options?: { action?: ToastAction },
+    ) => {
       const id = Math.random().toString(36).substring(7);
-      const newToast: Toast = { id, message, type, duration };
+      const newToast: Toast = {
+        id,
+        message,
+        type,
+        duration,
+        action: options?.action,
+      };
 
       setToasts((prev) => [...prev, newToast]);
 
@@ -57,12 +72,8 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
         }, duration);
       }
     },
-    [],
+    [removeToast],
   );
-
-  const removeToast = React.useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
 
   const value = React.useMemo(
     () => ({

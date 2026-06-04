@@ -98,6 +98,23 @@ function formatLabel(value: string): string {
     .replace(/\b[a-z]/g, (m) => m.toUpperCase());
 }
 
+function firstName(...values: unknown[]): string {
+  for (const value of values) {
+    const name = extractName(value).trim();
+    if (name) return name;
+  }
+  return "";
+}
+
+function splitTitleType(title: unknown): { type: string; subType: string } {
+  if (typeof title !== "string") return { type: "", subType: "" };
+  const [type = "", ...rest] = title.split(":");
+  return {
+    type: type.trim(),
+    subType: rest.join(":").trim(),
+  };
+}
+
 export function mapMaintenanceRequestItem(
   item: MaintenanceRequestItemDTO,
 ): MaintenanceRequestWithDetails {
@@ -106,8 +123,31 @@ export function mapMaintenanceRequestItem(
   const unit = record.unit;
   const tenant = record.tenant;
   const unitLabel = extractName(unit);
-  const typeRaw = extractName(item.type);
-  const subTypeRaw = extractName(item.subType ?? item.sub_type);
+  const titleParts = splitTitleType(item.title);
+  const typeRaw =
+    firstName(
+      item.type,
+      record.maintenanceType,
+      record.maintenance_type,
+      record.requestType,
+      record.request_type,
+      record.category,
+      record.typeName,
+      record.type_name,
+    ) || titleParts.type;
+  const subTypeRaw =
+    firstName(
+      item.subType,
+      item.sub_type,
+      record.maintenanceSubType,
+      record.maintenance_sub_type,
+      record.requestSubType,
+      record.request_sub_type,
+      record.subCategory,
+      record.sub_category,
+      record.subTypeName,
+      record.sub_type_name,
+    ) || titleParts.subType;
   const propertyId =
     (item.propertyId ?? item.property_id ?? extractId(property)) || undefined;
   const tenantId =

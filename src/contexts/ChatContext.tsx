@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useRouter } from "next/router";
 import { getLandlordByUser } from "@/api/landlord";
 import { getPropertyManagerByUser } from "@/api/property-managers";
 import { getTenantByUser } from "@/api/tenants";
@@ -13,6 +14,7 @@ import {
 } from "@/api/chat";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { useUser } from "@/contexts/UserContext";
+import { useToast } from "@/components/Toast";
 
 type ChatContextType = {
   conversations: ChatConversation[];
@@ -22,6 +24,7 @@ type ChatContextType = {
   isConnected: boolean;
   error: string | null;
   currentRoleId: string | null;
+  unreadCount: number;
   setSelectedConversationId: (conversationId: string | null) => void;
   refresh: () => void;
   loadMessages: (chatId: string) => void;
@@ -33,6 +36,7 @@ type ChatContextType = {
 
 const ChatContext = React.createContext<ChatContextType | null>(null);
 const START_CHAT_TIMEOUT_MS = 12000;
+const CHAT_SYNC_INTERVAL_MS = 15000;
 
 export const useChat = () => {
   const context = React.useContext(ChatContext);
@@ -64,22 +68,46 @@ const getStoredSelectedLandlordId = (): string => {
 const mergeChats = (
   current: ChatConversation[],
   incoming: ChatDTO[],
+  currentRoleId?: string | null,
 ): ChatConversation[] => {
-  const mapped = incoming.map(mapChat);
+  const mapped = incoming.map((chat) => mapChat(chat, currentRoleId));
   const byId = new Map(current.map((chat) => [chat.id, chat]));
 
   mapped.forEach((chat) => {
     const existing = byId.get(chat.id);
+    const messages =
+      chat.messages.length > 0 ? chat.messages : existing?.messages ?? [];
+    const latestMessage = messages[messages.length - 1];
+    const hasIncomingPreview =
+      chat.lastMessage.trim() !== "" && chat.lastMessage !== "No messages yet";
+    const hasExistingPreview =
+      Boolean(existing?.lastMessage.trim()) &&
+      existing?.lastMessage !== "No messages yet";
+
     byId.set(chat.id, {
       ...existing,
       ...chat,
-      name: existing?.name && chat.name === "Conversation" ? existing.name : chat.name,
+      name:
+        existing?.name && chat.name === "Conversation"
+          ? existing.name
+          : chat.name,
       subtitle:
         existing?.subtitle && chat.subtitle === "Chat"
           ? existing.subtitle
           : chat.subtitle,
-      messages:
-        chat.messages.length > 0 ? chat.messages : existing?.messages ?? [],
+      messages,
+      lastMessage:
+        latestMessage?.content ||
+        (hasIncomingPreview
+          ? chat.lastMessage
+          : hasExistingPreview
+            ? existing?.lastMessage
+            : chat.lastMessage) || "No messages yet",
+      lastMessageTime:
+        latestMessage?.time ||
+        (hasIncomingPreview
+          ? chat.lastMessageTime
+          : existing?.lastMessageTime || chat.lastMessageTime),
       participants:
         chat.participants.length > 0
           ? chat.participants
@@ -98,6 +126,11 @@ const mergeMessages = (
   current: ChatConversation[],
   chatId: string,
   incoming: ChatMessageDTO[],
+  options?: {
+    currentRoleId?: string | null;
+    selectedConversationId?: string | null;
+    countMessagesAfter?: number;
+  },
 ): ChatConversation[] => {
   const messages = incoming
     .map(mapChatMessage)
@@ -106,23 +139,61 @@ const mergeMessages = (
 
   return current.map((chat) =>
     chat.id === chatId
-      ? {
-          ...chat,
-          messages,
-          lastMessage: latestMessage?.content || "No messages yet",
-          lastMessageTime: latestMessage?.time || chat.lastMessageTime,
-        }
+      ? (() => {
+          const existingMessageIds = new Set(
+            chat.messages.map((message) => message.id),
+          );
+          const mergedMessages = Array.from(
+            [...chat.messages, ...messages]
+              .reduce(
+                (byId, message) => byId.set(message.id, message),
+                new Map<string, (typeof messages)[number]>(),
+              )
+              .values(),
+          ).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+          const latestMergedMessage =
+            mergedMessages[mergedMessages.length - 1] ?? latestMessage;
+          const newUnreadCount = messages.filter((message) => {
+            const createdAt = new Date(message.createdAt).getTime();
+            const isRecent =
+              !options?.countMessagesAfter ||
+              (!Number.isNaN(createdAt) &&
+                createdAt >= options.countMessagesAfter - 5000);
+
+            return (
+              !existingMessageIds.has(message.id) &&
+              message.senderId !== options?.currentRoleId &&
+              options?.selectedConversationId !== chatId &&
+              isRecent
+            );
+          }).length;
+
+          return {
+            ...chat,
+            messages: mergedMessages,
+            lastMessage: latestMergedMessage?.content || "No messages yet",
+            lastMessageTime:
+              latestMergedMessage?.time || chat.lastMessageTime,
+            unreadCount:
+              options?.selectedConversationId === chatId
+                ? 0
+                : chat.unreadCount + newUnreadCount,
+          };
+        })()
       : chat,
   );
 };
 
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
+  const router = useRouter();
   const { user } = useUser();
+  const { showToast } = useToast();
   const { selectedLandlord } = useSelectedLandlord();
   const subscriptionRef = React.useRef<ChatSubscription | null>(null);
   const conversationsRef = React.useRef<ChatConversation[]>([]);
   const selectedConversationIdRef = React.useRef<string | null>(null);
   const pendingChatTargetRef = React.useRef<string | null>(null);
+  const subscriptionStartedAtRef = React.useRef(0);
   const pendingChatTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -249,18 +320,69 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     setIsLoading(true);
     setError(null);
+    subscriptionStartedAtRef.current = Date.now();
 
     const subscription = subscribeChat({
       token: user.token,
       roleId,
       onConnectionChange: setIsConnected,
       onChats: (chats) => {
-        setConversations((current) => mergeChats(current, chats));
+        setConversations((current) => mergeChats(current, chats, roleId));
+        window.setTimeout(() => {
+          chats.forEach((chat) => {
+            subscriptionRef.current?.loadMessages(String(chat.id));
+          });
+        }, 0);
         setIsLoading(false);
         setError(null);
       },
       onMessages: (chatId, messages) => {
-        setConversations((current) => mergeMessages(current, chatId, messages));
+        const currentConversation = conversationsRef.current.find(
+          (chat) => chat.id === chatId,
+        );
+        const existingMessageIds = new Set(
+          currentConversation?.messages.map((message) => message.id) ?? [],
+        );
+        const newIncomingMessage = messages
+          .map(mapChatMessage)
+          .filter((message) => {
+            const createdAt = new Date(message.createdAt).getTime();
+            const isRecent =
+              !Number.isNaN(createdAt) &&
+              createdAt >= subscriptionStartedAtRef.current - 5000;
+
+            return (
+              !existingMessageIds.has(message.id) &&
+              message.senderId !== roleId &&
+              selectedConversationIdRef.current !== chatId &&
+              isRecent
+            );
+          })
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+
+        setConversations((current) =>
+          mergeMessages(current, chatId, messages, {
+            currentRoleId: roleId,
+            selectedConversationId: selectedConversationIdRef.current,
+            countMessagesAfter: subscriptionStartedAtRef.current,
+          }),
+        );
+        if (newIncomingMessage) {
+          showToast(
+            `New message from ${currentConversation?.name ?? "a conversation"}`,
+            "info",
+            6000,
+            {
+              action: {
+                label: "Open",
+                onClick: () => {
+                  setSelectedConversationId(chatId);
+                  void router.push("/dashboard/messages");
+                },
+              },
+            },
+          );
+        }
         if (selectedConversationIdRef.current === chatId) {
           const unreadMessageIds = messages
             .filter(
@@ -284,15 +406,19 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     subscriptionRef.current = subscription;
+    const syncInterval = window.setInterval(() => {
+      subscription.loadChats();
+    }, CHAT_SYNC_INTERVAL_MS);
 
     return () => {
       clearPendingChatTimer();
+      window.clearInterval(syncInterval);
       subscription.disconnect();
       if (subscriptionRef.current === subscription) {
         subscriptionRef.current = null;
       }
     };
-  }, [clearPendingChatTimer, roleId, user?.token]);
+  }, [clearPendingChatTimer, roleId, router, showToast, user?.token]);
 
   React.useEffect(() => {
     setSelectedConversationId((current) => {
@@ -434,6 +560,14 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       conversations.find((chat) => chat.id === selectedConversationId) ?? null,
     [conversations, selectedConversationId],
   );
+  const unreadCount = React.useMemo(
+    () =>
+      conversations.reduce(
+        (total, conversation) => total + conversation.unreadCount,
+        0,
+      ),
+    [conversations],
+  );
 
   const value = React.useMemo(
     () => ({
@@ -444,6 +578,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       isConnected,
       error,
       currentRoleId: roleId,
+      unreadCount,
       setSelectedConversationId,
       refresh,
       loadMessages,
@@ -460,6 +595,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       isConnected,
       error,
       roleId,
+      unreadCount,
       refresh,
       loadMessages,
       createChat,

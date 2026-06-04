@@ -763,6 +763,7 @@ function getLatestLease(leases: TenantByUserDTO["leases"]) {
 const TenantDashboard = () => {
   const { user } = useUser();
   const router = useRouter();
+  const { showToast } = useToast();
   const [tenantDetails, setTenantDetails] =
     React.useState<TenantByUserDTO | null>(null);
   const [tenantPayments, setTenantPayments] = React.useState<Payment[]>([]);
@@ -996,7 +997,7 @@ const TenantDashboard = () => {
 
   const handleSendMessage = (type: "manager" | "landlord") => {
     if (type === "manager" && tenantPropertyManagerContact?.id) {
-      router.push(
+      void router.push(
         `/dashboard/messages?role=property_manager&roleId=${encodeURIComponent(
           tenantPropertyManagerContact.id,
         )}`,
@@ -1005,7 +1006,7 @@ const TenantDashboard = () => {
     }
 
     if (type === "landlord" && landlordRoleId) {
-      router.push(
+      void router.push(
         `/dashboard/messages?role=landlord&roleId=${encodeURIComponent(
           landlordRoleId,
         )}`,
@@ -1013,7 +1014,13 @@ const TenantDashboard = () => {
       return;
     }
 
-    router.push("/dashboard/messages");
+    showToast(
+      type === "manager"
+        ? "No property manager is available for messages yet."
+        : "Landlord chat details are still loading. Please try again.",
+      "warning",
+      5000,
+    );
   };
 
   if (tenantLoading) {
@@ -1266,8 +1273,10 @@ const TenantDashboard = () => {
             <p className="text-sm text-gray-500">Contact via Messages</p>
           </div>
           <button
+            type="button"
             onClick={() => handleSendMessage("manager")}
-            className="mt-4 sm:mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm sm:text-base font-medium text-white transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+            disabled={!tenantPropertyManagerContact?.id}
+            className="mt-4 sm:mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm sm:text-base font-medium text-white transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
           >
             <svg
               className="h-4 w-4 sm:h-5 sm:w-5"
@@ -1300,8 +1309,10 @@ const TenantDashboard = () => {
             <p className="text-sm text-gray-500">Contact via Messages</p>
           </div>
           <button
+            type="button"
             onClick={() => handleSendMessage("landlord")}
-            className="mt-4 sm:mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-main px-4 py-2.5 text-sm sm:text-base font-medium text-white transition hover:bg-brand-main/90 focus:outline-none focus:ring-2 focus:ring-brand-main focus:ring-offset-2"
+            disabled={!landlordRoleId}
+            className="mt-4 sm:mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-main px-4 py-2.5 text-sm sm:text-base font-medium text-white transition hover:bg-brand-main/90 focus:outline-none focus:ring-2 focus:ring-brand-main focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
           >
             <svg
               className="h-4 w-4 sm:h-5 sm:w-5"

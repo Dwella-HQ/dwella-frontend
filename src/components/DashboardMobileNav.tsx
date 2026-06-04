@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as Popover from "@radix-ui/react-popover";
 import { Menu, ChevronUp } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
+import { useChat } from "@/contexts/ChatContext";
 import { getNavigationItems, getMoreMenuItems } from "@/utils/navigation";
 
 export type DashboardMobileNavProps = {
@@ -16,6 +17,7 @@ export const DashboardMobileNav = ({
 }: DashboardMobileNavProps) => {
   const router = useRouter();
   const { user } = useUser();
+  const { unreadCount } = useChat();
   const currentPath = router.pathname;
   const [isMoreOpen, setIsMoreOpen] = React.useState(false);
 
@@ -58,6 +60,8 @@ export const DashboardMobileNav = ({
           const Icon = item.icon;
           const active = isActive(item.href);
           const restricted = isItemRestricted(item.href);
+          const itemUnreadCount =
+            item.href === "/dashboard/messages" ? unreadCount : 0;
 
           return (
             <Link
@@ -70,7 +74,14 @@ export const DashboardMobileNav = ({
                 active ? "text-brand-main" : "text-gray-500"
               } ${restricted ? "opacity-45 cursor-not-allowed pointer-events-none" : ""}`}
             >
-              <Icon className={`h-5 w-5 ${active ? "text-brand-main" : "text-gray-500"}`} />
+              <span className="relative">
+                <Icon className={`h-5 w-5 ${active ? "text-brand-main" : "text-gray-500"}`} />
+                {itemUnreadCount > 0 ? (
+                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                    {itemUnreadCount > 9 ? "9+" : itemUnreadCount}
+                  </span>
+                ) : null}
+              </span>
               <span className={`text-xs font-medium ${active ? "text-brand-main" : "text-gray-500"}`}>
                 {item.name}
               </span>
@@ -130,6 +141,8 @@ export const DashboardMobileNav = ({
                     const isItemActive = currentPath.startsWith(item.href);
                     const Icon = item.icon;
                     const restricted = isItemRestricted(item.href);
+                    const itemUnreadCount =
+                      item.href === "/dashboard/messages" ? unreadCount : 0;
 
                     return (
                       <motion.div
@@ -155,6 +168,17 @@ export const DashboardMobileNav = ({
                         >
                           <Icon className={`h-5 w-5 ${isItemActive ? "text-white" : "text-gray-500"}`} />
                           <span>{item.name}</span>
+                          {itemUnreadCount > 0 ? (
+                            <span
+                              className={`ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
+                                isItemActive
+                                  ? "bg-white text-brand-main"
+                                  : "bg-red-500 text-white"
+                              }`}
+                            >
+                              {itemUnreadCount > 9 ? "9+" : itemUnreadCount}
+                            </span>
+                          ) : null}
                         </Link>
                       </motion.div>
                     );
@@ -168,4 +192,3 @@ export const DashboardMobileNav = ({
     </nav>
   );
 };
-
