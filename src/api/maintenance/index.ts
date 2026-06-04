@@ -1,5 +1,6 @@
 export { getMaintenanceRequests } from "./getMaintenanceRequests";
 export type { GetMaintenanceRequestsParams } from "./getMaintenanceRequests";
+export { mapMaintenanceRequestItem } from "./getMaintenanceRequests";
 export { getMaintenanceRequest } from "./getMaintenanceRequest";
 export { createMaintenanceRequest } from "./createMaintenanceRequest";
 export { updateMaintenanceRequest } from "./updateMaintenanceRequest";

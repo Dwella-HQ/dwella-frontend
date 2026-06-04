@@ -6,21 +6,23 @@ import {
   Loader2,
   MessageSquare,
   MoreVertical,
-  Paperclip,
   Plus,
   Search,
   Send,
+  Smile,
   Trash2,
   X,
 } from "lucide-react";
 
-import { getLandlords } from "@/api/landlord";
-import { getPropertyManagers } from "@/api/property-managers";
-import { getTenants } from "@/api/tenants";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useChat } from "@/contexts/ChatContext";
 import { useUser } from "@/contexts/UserContext";
-import type { ChatConversation, ChatMessage } from "@/api/chat";
+import {
+  getChatContacts,
+  type ChatContactDTO,
+  type ChatConversation,
+  type ChatMessage,
+} from "@/api/chat";
 import type { NextPageWithLayout } from "../_app";
 
 const getInitials = (name: string) =>
@@ -31,22 +33,46 @@ const getInitials = (name: string) =>
     .toUpperCase()
     .slice(0, 2) || "DW";
 
+const EMOJI_OPTIONS = [
+  "😀",
+  "😂",
+  "😊",
+  "😍",
+  "🥳",
+  "😎",
+  "🙏",
+  "👍",
+  "👏",
+  "🔥",
+  "💙",
+  "🏠",
+  "🔑",
+  "✅",
+  "💬",
+  "✨",
+];
+
+type PendingChatMessage = ChatMessage & {
+  status: "sending";
+};
+
 const ChatBubble = ({
   message,
   currentUserId,
   onDelete,
 }: {
-  message: ChatMessage;
+  message: ChatMessage | PendingChatMessage;
   currentUserId?: string | number;
   onDelete: (messageId: string) => void;
 }) => {
   const isFromMe =
     Boolean(currentUserId) && message.senderId === String(currentUserId);
+  const isSending = "status" in message && message.status === "sending";
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
       className={`flex ${isFromMe ? "justify-end" : "justify-start"}`}
     >
       <div
@@ -57,22 +83,33 @@ const ChatBubble = ({
         <div
           className={`rounded-lg px-4 py-2.5 ${
             isFromMe
-              ? "bg-brand-main text-white"
+              ? isSending
+                ? "bg-brand-main/80 text-white shadow-sm"
+                : "bg-brand-main text-white"
               : "border border-gray-200 bg-white text-gray-900"
           }`}
         >
           <p className="text-sm">{message.content}</p>
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-          <span>{message.time}</span>
-          <button
-            type="button"
-            onClick={() => onDelete(message.id)}
-            className="opacity-0 transition hover:text-red-600 group-hover:opacity-100"
-            aria-label="Delete message"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          {isSending ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Sending</span>
+            </>
+          ) : (
+            <>
+              <span>{message.time}</span>
+              <button
+                type="button"
+                onClick={() => onDelete(message.id)}
+                className="opacity-0 transition hover:text-red-600 group-hover:opacity-100"
+                aria-label="Delete message"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </motion.div>
@@ -180,23 +217,18 @@ const ConversationList = ({
   );
 };
 
-type ChatContact = {
-  id: string;
-  role: "tenant" | "property_manager" | "landlord";
-  name: string;
-  subtitle: string;
-};
-
 const NewChatPanel = ({
   contacts,
   isLoading,
+  error,
   onClose,
   onStart,
 }: {
-  contacts: ChatContact[];
+  contacts: ChatContactDTO[];
   isLoading: boolean;
+  error: string | null;
   onClose: () => void;
-  onStart: (contact: ChatContact) => void;
+  onStart: (contact: ChatContactDTO) => void;
 }) => (
   <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
     <div className="mb-3 flex items-center justify-between gap-3">
@@ -218,6 +250,10 @@ const NewChatPanel = ({
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-5 w-5 animate-spin text-brand-main" />
       </div>
+    ) : error ? (
+      <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        {error}
+      </p>
     ) : contacts.length > 0 ? (
       <div className="max-h-72 space-y-2 overflow-y-auto">
         {contacts.map((contact) => (
@@ -227,8 +263,32 @@ const NewChatPanel = ({
             onClick={() => onStart(contact)}
             className="w-full rounded-lg border border-gray-200 p-3 text-left transition hover:border-brand-main hover:bg-brand-main/5"
           >
-            <p className="text-sm font-medium text-gray-900">{contact.name}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium text-gray-900">
+                {contact.name}
+              </p>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                {contact.roleLabel}
+              </span>
+            </div>
             <p className="mt-1 text-xs text-gray-500">{contact.subtitle}</p>
+            {contact.properties.length > 0 || contact.unit ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {contact.properties.map((property) => (
+                  <span
+                    key={property}
+                    className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                  >
+                    {property}
+                  </span>
+                ))}
+                {contact.unit ? (
+                  <span className="rounded-full border border-gray-200 px-2 py-0.5 text-xs text-gray-600">
+                    Unit: {contact.unit}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </button>
         ))}
       </div>
@@ -262,80 +322,51 @@ const MessagesContent = () => {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [messageText, setMessageText] = React.useState("");
   const [isNewChatOpen, setIsNewChatOpen] = React.useState(false);
-  const [contacts, setContacts] = React.useState<ChatContact[]>([]);
+  const [contacts, setContacts] = React.useState<ChatContactDTO[]>([]);
   const [contactsLoading, setContactsLoading] = React.useState(false);
+  const [contactsError, setContactsError] = React.useState<string | null>(null);
+  const [pendingMessages, setPendingMessages] = React.useState<
+    Record<string, PendingChatMessage[]>
+  >({});
+  const [isEmojiOpen, setIsEmojiOpen] = React.useState(false);
+  const messageInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const loadContacts = React.useCallback(async () => {
-    if (!user?.role) return;
+    if (!user?.role || !currentRoleId) {
+      setContacts([]);
+      setContactsError(
+        "Could not load contacts: your chat profile is still loading.",
+      );
+      return;
+    }
     setContactsLoading(true);
+    setContactsError(null);
 
-    const nextContacts: ChatContact[] = [];
+    try {
+      const result = await getChatContacts({
+        role: user.role,
+        roleId: currentRoleId,
+        userId: user.id,
+      });
 
-    if (user.role !== "tenant") {
-      const tenants = await getTenants({ limit: 100 });
-      if (tenants.success) {
-        nextContacts.push(
-          ...tenants.data.map((tenant) => ({
-            id: String(tenant.id),
-            role: "tenant" as const,
-            name: tenant.fullName || tenant.name || tenant.email,
-            subtitle: tenant.email || tenant.phoneNumber || tenant.phone || "Tenant",
-          })),
-        );
+      if (result.success) {
+        setContacts(result.data);
+        setContactsError(null);
+      } else {
+        setContacts([]);
+        setContactsError(`Could not load contacts: ${result.error}`);
       }
+    } catch (err) {
+      setContacts([]);
+      setContactsError(
+        err instanceof Error
+          ? `Could not load contacts: ${err.message}`
+          : "Could not load contacts.",
+      );
+    } finally {
+      setContactsLoading(false);
     }
-
-    if (user.role !== "property_manager") {
-      const managers = await getPropertyManagers();
-      if (managers.success) {
-        nextContacts.push(
-          ...managers.data.map((manager) => ({
-            id: String(manager.id),
-            role: "property_manager" as const,
-            name:
-              manager.fullName ||
-              manager.name ||
-              manager.user?.fullName ||
-              manager.email ||
-              manager.user?.email ||
-              "Property Manager",
-            subtitle:
-              manager.email ||
-              manager.user?.email ||
-              manager.phone ||
-              manager.user?.phoneNumber ||
-              "Property Manager",
-          })),
-        );
-      }
-    }
-
-    if (user.role !== "landlord") {
-      const landlords = await getLandlords();
-      if (landlords.success) {
-        nextContacts.push(
-          ...landlords.data.map((landlord) => ({
-            id: landlord.id,
-            role: "landlord" as const,
-            name:
-              landlord.landLordName ||
-              landlord.businessName ||
-              landlord.user?.fullName ||
-              landlord.businessEmail ||
-              "Landlord",
-            subtitle:
-              landlord.businessEmail ||
-              landlord.user?.email ||
-              landlord.businessPhoneNumber ||
-              "Landlord",
-          })),
-        );
-      }
-    }
-
-    setContacts(nextContacts);
-    setContactsLoading(false);
-  }, [user?.role]);
+  }, [currentRoleId, user?.id, user?.role]);
 
   const openNewChat = React.useCallback(() => {
     setIsNewChatOpen(true);
@@ -343,7 +374,7 @@ const MessagesContent = () => {
   }, [loadContacts]);
 
   const startChat = React.useCallback(
-    (contact: ChatContact) => {
+    (contact: ChatContactDTO) => {
       createChat({ role: contact.role, roleId: contact.id });
       setIsNewChatOpen(false);
     },
@@ -373,13 +404,86 @@ const MessagesContent = () => {
     markConversationRead(selectedConversationId);
   }, [loadMessages, markConversationRead, selectedConversationId]);
 
+  React.useEffect(() => {
+    if (!selectedConversation || !currentRoleId) return;
+
+    setPendingMessages((current) => {
+      const pending = current[selectedConversation.id] ?? [];
+      if (pending.length === 0) return current;
+
+      const remaining = pending.filter(
+        (message) =>
+          !selectedConversation.messages.some(
+            (sentMessage) =>
+              sentMessage.content === message.content &&
+              sentMessage.senderId === currentRoleId,
+          ),
+      );
+
+      if (remaining.length === pending.length) return current;
+
+      return {
+        ...current,
+        [selectedConversation.id]: remaining,
+      };
+    });
+  }, [currentRoleId, selectedConversation]);
+
+  const visibleMessages = React.useMemo(() => {
+    if (!selectedConversation) return [];
+    return [
+      ...selectedConversation.messages,
+      ...(pendingMessages[selectedConversation.id] ?? []),
+    ];
+  }, [pendingMessages, selectedConversation]);
+
+  const insertEmoji = React.useCallback((emoji: string) => {
+    const input = messageInputRef.current;
+    const start = input?.selectionStart ?? messageText.length;
+    const end = input?.selectionEnd ?? messageText.length;
+    const nextValue =
+      messageText.slice(0, start) + emoji + messageText.slice(end);
+
+    setMessageText(nextValue);
+    setIsEmojiOpen(false);
+
+    window.requestAnimationFrame(() => {
+      input?.focus();
+      const nextCursor = start + emoji.length;
+      input?.setSelectionRange(nextCursor, nextCursor);
+    });
+  }, [messageText]);
+
   const handleSendMessage = React.useCallback(() => {
     const value = messageText.trim();
     if (!value || !selectedConversationId) return;
 
+    const pendingMessage: PendingChatMessage = {
+      id: `pending-${Date.now()}`,
+      chatId: selectedConversationId,
+      participantId: "",
+      participantRoleId: currentRoleId ?? "",
+      senderId: currentRoleId ?? "",
+      receiverId: "",
+      content: value,
+      time: "",
+      isRead: false,
+      isDeleted: false,
+      createdAt: new Date().toISOString(),
+      status: "sending",
+    };
+
+    setPendingMessages((current) => ({
+      ...current,
+      [selectedConversationId]: [
+        ...(current[selectedConversationId] ?? []),
+        pendingMessage,
+      ],
+    }));
     sendMessage(value, selectedConversationId);
     setMessageText("");
-  }, [messageText, selectedConversationId, sendMessage]);
+    setIsEmojiOpen(false);
+  }, [currentRoleId, messageText, selectedConversationId, sendMessage]);
 
   const title =
     user?.role === "tenant"
@@ -421,6 +525,7 @@ const MessagesContent = () => {
         <NewChatPanel
           contacts={contacts}
           isLoading={contactsLoading}
+          error={contactsError}
           onClose={() => setIsNewChatOpen(false)}
           onStart={startChat}
         />
@@ -471,8 +576,8 @@ const MessagesContent = () => {
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto bg-gray-50 p-4">
-                {selectedConversation.messages.length > 0 ? (
-                  selectedConversation.messages.map((message) => (
+                {visibleMessages.length > 0 ? (
+                  visibleMessages.map((message) => (
                     <ChatBubble
                       key={message.id}
                       message={message}
@@ -493,13 +598,34 @@ const MessagesContent = () => {
 
               <div className="border-t border-gray-200 bg-white p-4">
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-                  >
-                    <Paperclip className="h-5 w-5" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsEmojiOpen((current) => !current)}
+                      className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                      aria-label="Add emoji"
+                      aria-expanded={isEmojiOpen}
+                    >
+                      <Smile className="h-5 w-5" />
+                    </button>
+                    {isEmojiOpen ? (
+                      <div className="absolute bottom-12 left-0 z-20 grid w-56 grid-cols-8 gap-1 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+                        {EMOJI_OPTIONS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => insertEmoji(emoji)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-lg transition hover:bg-gray-100"
+                            aria-label={`Insert ${emoji}`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                   <input
+                    ref={messageInputRef}
                     type="text"
                     placeholder="Type your message..."
                     value={messageText}

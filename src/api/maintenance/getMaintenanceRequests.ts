@@ -57,6 +57,39 @@ function extractName(value: unknown): string {
   return "";
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function extractId(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  const record = asRecord(value);
+  const id = record.id;
+  return typeof id === "string" || typeof id === "number" ? String(id) : "";
+}
+
+function extractPersonName(value: unknown): string {
+  const record = asRecord(value);
+  const user = asRecord(record.user);
+  const candidates = [
+    record.fullName,
+    record.name,
+    record.email,
+    user.fullName,
+    user.name,
+    user.email,
+  ];
+
+  const match = candidates.find(
+    (candidate) => typeof candidate === "string" && candidate.length > 0,
+  );
+  return typeof match === "string" ? match : "";
+}
+
 function formatLabel(value: string): string {
   return value
     .replace(/_/g, " ")
@@ -65,21 +98,31 @@ function formatLabel(value: string): string {
     .replace(/\b[a-z]/g, (m) => m.toUpperCase());
 }
 
-function mapItemToWithDetails(
+export function mapMaintenanceRequestItem(
   item: MaintenanceRequestItemDTO,
 ): MaintenanceRequestWithDetails {
-  const unitLabel = extractName(item.unit);
+  const record = item as Record<string, unknown>;
+  const property = record.property;
+  const unit = record.unit;
+  const tenant = record.tenant;
+  const unitLabel = extractName(unit);
   const typeRaw = extractName(item.type);
   const subTypeRaw = extractName(item.subType ?? item.sub_type);
+  const propertyId =
+    (item.propertyId ?? item.property_id ?? extractId(property)) || undefined;
+  const tenantId =
+    (item.tenantId ?? item.tenant_id ?? extractId(tenant)) || undefined;
 
   return {
     id: item.id,
     requestId: item.requestId ?? item.request_id ?? item.id,
-    propertyId: item.propertyId ?? item.property_id ?? undefined,
-    propertyName: item.propertyName ?? item.property_name ?? "",
+    propertyId,
+    propertyName:
+      item.propertyName ?? item.property_name ?? extractName(property),
     unit: unitLabel || "",
-    tenantName: item.tenantName ?? item.tenant_name ?? "",
-    tenantId: item.tenantId ?? item.tenant_id ?? undefined,
+    tenantName:
+      item.tenantName ?? item.tenant_name ?? extractPersonName(tenant),
+    tenantId,
     type: typeRaw ? formatLabel(typeRaw) : "",
     subType: subTypeRaw ? formatLabel(subTypeRaw) : "",
     priority: normalizePriority(item.priority),
@@ -116,7 +159,7 @@ export const getMaintenanceRequests = async (
   try {
     const parsed = maintenanceRequestsResponseSchema.parse(result.data);
     const items = Array.isArray(parsed.data) ? parsed.data : [];
-    const mapped = items.map(mapItemToWithDetails);
+    const mapped = items.map(mapMaintenanceRequestItem);
     return { success: true, data: mapped };
   } catch (parseError) {
     console.error(

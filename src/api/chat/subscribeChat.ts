@@ -5,6 +5,7 @@ import { chatMessageSchema, chatSchema, type ChatDTO } from "./chat.schema";
 
 const chatArraySchema = z.array(chatSchema);
 const messageArraySchema = z.array(chatMessageSchema);
+const CHAT_ACK_TIMEOUT_MS = 10000;
 
 type SubscribeChatOptions = {
   token?: string;
@@ -82,31 +83,6 @@ const extractMessages = (payload: unknown) => {
   return null;
 };
 
-const extractChatIds = (payload: unknown): string[] | null => {
-  const unwrapped = unwrapPayload(payload);
-  if (!unwrapped || typeof unwrapped !== "object") return null;
-
-  const data = unwrapped as Record<string, unknown>;
-  const candidates = [data.chatIds, data.ids, data.chats];
-  for (const candidate of candidates) {
-    if (!Array.isArray(candidate)) continue;
-    const ids = candidate
-      .map((item) => {
-        if (typeof item === "string" || typeof item === "number") {
-          return String(item);
-        }
-        if (item && typeof item === "object" && "id" in item) {
-          return String((item as { id?: string | number }).id || "");
-        }
-        return "";
-      })
-      .filter(Boolean);
-    if (ids.length > 0) return ids;
-  }
-
-  return null;
-};
-
 const getAckErrorMessage = (payload: unknown): string | null => {
   const unwrapped = unwrapPayload(payload);
   if (!unwrapped || typeof unwrapped !== "object") return null;
@@ -126,6 +102,31 @@ const getAckErrorMessage = (payload: unknown): string | null => {
   return null;
 };
 
+const getSocketAckErrorMessage = (event: string, error: Error): string => {
+  const message = error.message || "";
+  const isTimeout = message.toLowerCase().includes("timed out");
+
+  if (!isTimeout) return message || `No response for ${event}`;
+  return `The backend did not acknowledge ${event}.`;
+};
+
+const isAckTimeout = (error: Error): boolean =>
+  (error.message || "").toLowerCase().includes("timed out");
+
+const hasUsableParticipants = (chat: ChatDTO): boolean =>
+  chat.participants.some((participant) => Boolean(participant.id));
+
+const extractJoinedRoomCount = (payload: unknown): number | null => {
+  const unwrapped = unwrapPayload(payload);
+  if (!unwrapped || typeof unwrapped !== "object") return null;
+
+  const message = (unwrapped as Record<string, unknown>).message;
+  if (typeof message !== "string") return null;
+
+  const match = message.match(/Joined\s+(\d+)\s+chat rooms?/i);
+  return match ? Number(match[1]) : null;
+};
+
 export const subscribeChat = (
   options: SubscribeChatOptions,
 ): ChatSubscription => {
@@ -142,6 +143,25 @@ export const subscribeChat = (
     query: { token },
   });
   const subscribedMessageEvents = new Set<string>();
+  const hydratingChatIds = new Set<string>();
+  let loadChatsFallback: ReturnType<typeof setTimeout> | null = null;
+  let pendingJoinedRoomCount = 0;
+
+  const clearLoadChatsFallback = () => {
+    if (!loadChatsFallback) return;
+    clearTimeout(loadChatsFallback);
+    loadChatsFallback = null;
+  };
+
+  const debug = (label: string, payload?: unknown) => {
+    if (
+      typeof window === "undefined" ||
+      localStorage.getItem("chatDebug") !== "true"
+    ) {
+      return;
+    }
+    console.info(`[chat] ${label}`, payload);
+  };
 
   const emitWithAck = <T,>(
     event: string,
@@ -149,13 +169,16 @@ export const subscribeChat = (
     onSuccess?: (data: T) => void,
     onError?: (error: string) => void,
   ) => {
+    debug(`emit ${event}`, payload);
     socket
-      .timeout(10000)
+      .timeout(CHAT_ACK_TIMEOUT_MS)
       .emit(event, payload, (error: Error | null, response: unknown) => {
         if (error) {
-          onError?.(error.message || `No response for ${event}`);
+          debug(`ack error ${event}`, error);
+          onError?.(getSocketAckErrorMessage(event, error));
           return;
         }
+        debug(`ack ${event}`, response);
         const ackError = getAckErrorMessage(response);
         if (ackError) {
           onError?.(ackError);
@@ -166,11 +189,30 @@ export const subscribeChat = (
       });
   };
 
-  const loadChat = (chatId: string) => {
-    emitWithAck<unknown>("findOneChat", chatId, (payload) => {
-      const chats = extractChats(payload);
-      if (chats) handleChats(chats);
-    });
+  const emitWithOptionalAck = <T,>(
+    event: string,
+    payload?: unknown,
+    onSuccess?: (data: T) => void,
+  ) => {
+    debug(`emit ${event}`, payload);
+    socket
+      .timeout(CHAT_ACK_TIMEOUT_MS)
+      .emit(event, payload, (error: Error | null, response: unknown) => {
+        if (error) {
+          debug(`optional ack error ${event}`, error);
+          if (!isAckTimeout(error)) {
+            options.onError?.(getSocketAckErrorMessage(event, error));
+          }
+          return;
+        }
+        debug(`optional ack ${event}`, response);
+        const ackError = getAckErrorMessage(response);
+        if (ackError) {
+          options.onError?.(ackError);
+          return;
+        }
+        onSuccess?.(unwrapPayload(response) as T);
+      });
   };
 
   const registerChatMessageListener = (chatId: string) => {
@@ -186,36 +228,58 @@ export const subscribeChat = (
   };
 
   const handleChats = (chats: ChatDTO[]) => {
+    clearLoadChatsFallback();
+    pendingJoinedRoomCount = 0;
     chats.forEach((chat) => registerChatMessageListener(String(chat.id)));
     options.onChats(chats);
   };
 
+  const loadChat = (chatId: string) => {
+    if (!chatId || hydratingChatIds.has(chatId)) return;
+    hydratingChatIds.add(chatId);
+    emitWithAck<unknown>(
+      "findOneChat",
+      chatId,
+      (payload) => {
+        hydratingChatIds.delete(chatId);
+        const chats = extractChats(payload);
+        if (chats) handleChats(chats);
+      },
+      () => {
+        hydratingChatIds.delete(chatId);
+      },
+    );
+  };
+
+  const handleChatsPayload = (payload: unknown): boolean => {
+    const chats = extractChats(payload);
+    if (!chats) return false;
+    handleChats(chats);
+    chats
+      .filter((chat) => !hasUsableParticipants(chat))
+      .forEach((chat) => loadChat(String(chat.id)));
+    return true;
+  };
+
   const loadChats = () => {
-    emitWithAck<unknown>("chat", options.roleId, (payload) => {
-      const chats = extractChats(payload);
-      if (chats) {
-        handleChats(chats);
+    pendingJoinedRoomCount = 0;
+    emitWithOptionalAck<unknown>("chat", options.roleId, (payload) => {
+      if (handleChatsPayload(payload)) return;
+      pendingJoinedRoomCount = extractJoinedRoomCount(payload) ?? 0;
+    });
+    clearLoadChatsFallback();
+    loadChatsFallback = setTimeout(() => {
+      if (pendingJoinedRoomCount > 0) {
+        clearLoadChatsFallback();
+        options.onError?.(
+          `The backend joined ${pendingJoinedRoomCount} chat room${
+            pendingJoinedRoomCount === 1 ? "" : "s"
+          } but did not send the chat list.`,
+        );
         return;
       }
-
-      const chatIds = extractChatIds(payload);
-      if (chatIds?.length) {
-        chatIds.forEach((chatId) => {
-          registerChatMessageListener(chatId);
-          loadChat(chatId);
-        });
-        return;
-      }
-
       handleChats([]);
-    });
-
-    emitWithAck<unknown[]>("findAllChat", undefined, (payload) => {
-      const chats = extractChats(payload);
-      if (chats) {
-        handleChats(chats);
-      }
-    });
+    }, 5000);
   };
 
   const loadMessages = (chatId: string) => {
@@ -225,6 +289,18 @@ export const subscribeChat = (
       if (!messages) return;
       options.onMessages?.(chatId, messages);
     });
+  };
+
+  const handleMessagesPayload = (
+    payload: unknown,
+    fallbackChatId = "",
+  ): boolean => {
+    const messages = extractMessages(payload);
+    if (!messages) return false;
+    const chatId = messages[0]?.chatId || fallbackChatId;
+    if (!chatId) return false;
+    options.onMessages?.(chatId, messages);
+    return true;
   };
 
   const sendChatMessage = (payload: CreateChatPayload) => {
@@ -248,21 +324,30 @@ export const subscribeChat = (
     tryEvent(0);
   };
 
+  const scheduleChatRefresh = () => {
+    window.setTimeout(loadChats, 500);
+    window.setTimeout(loadChats, 2000);
+  };
+
   socket.on("connect", () => {
+    debug("connect", { id: socket.id, roleId: options.roleId });
     options.onConnectionChange?.(true);
     loadChats();
   });
 
   socket.on("disconnect", () => {
+    debug("disconnect");
     options.onConnectionChange?.(false);
   });
 
   socket.on("connect_error", (error: Error) => {
+    debug("connect_error", error);
     options.onConnectionChange?.(false);
     options.onError?.(error.message || "Unable to connect to messages");
   });
 
   socket.on("error", (payload: unknown) => {
+    debug("error", payload);
     const message =
       typeof payload === "string"
         ? payload
@@ -271,51 +356,64 @@ export const subscribeChat = (
     options.onError?.(message);
   });
 
+  socket.on("exception", (payload: unknown) => {
+    debug("exception", payload);
+    const data =
+      payload && typeof payload === "object"
+        ? (payload as { message?: string; cause?: { pattern?: string } })
+        : null;
+    const pattern = data?.cause?.pattern;
+    const message = data?.message || "Chat request failed on the backend";
+    options.onError?.(pattern ? `${message} (${pattern})` : message);
+  });
+
   const handleChatsEvent = (payload: unknown) => {
-    const chats = extractChats(payload);
-    if (chats) {
-      handleChats(chats);
-      return;
-    }
+    if (handleChatsPayload(payload)) return;
     loadChats();
   };
 
+  const knownChatEvents = new Set([
+    "load:chats",
+    "load:messages",
+    "exception",
+  ]);
+
+  socket.onAny((event, payload) => {
+    debug(`event ${event}`, payload);
+    if (knownChatEvents.has(event)) return;
+    if (handleChatsPayload(payload)) return;
+    const messageEventSuffix = ":load:messages";
+    const fallbackChatId = event.endsWith(messageEventSuffix)
+      ? event.slice(0, -messageEventSuffix.length)
+      : "";
+    handleMessagesPayload(payload, fallbackChatId);
+  });
+
   [
     "load:chats",
-    "chat",
-    "createChat",
-    "updateChat",
-    "removeChat",
   ].forEach((event) => {
     socket.on(event, handleChatsEvent);
   });
 
   socket.on("load:messages", (payload: unknown) => {
-    const messages = extractMessages(payload);
-    if (!messages) return;
-    const chatId = messages[0]?.chatId;
-    if (!chatId) return;
-    options.onMessages?.(chatId, messages);
+    debug("event load:messages", payload);
+    handleMessagesPayload(payload);
   });
 
   return {
     loadChats,
     loadMessages,
     createChat: (participants) => {
-      emitWithAck<unknown>(
+      emitWithOptionalAck<unknown>(
         "createChat",
         { participants },
         (payload) => {
-          const chats = extractChats(payload);
-          if (chats) {
-            handleChats(chats);
-          } else {
-            handleChats([]);
+          if (!handleChatsPayload(payload)) {
+            loadChats();
           }
-          loadChats();
         },
-        (message) => options.onError?.(message || "Unable to start chat"),
       );
+      scheduleChatRefresh();
     },
     sendMessage: sendChatMessage,
     markRead: (chatId: string, messageIds?: string[]) => {
@@ -336,6 +434,7 @@ export const subscribeChat = (
       );
     },
     disconnect: () => {
+      clearLoadChatsFallback();
       socket.removeAllListeners();
       socket.disconnect();
     },

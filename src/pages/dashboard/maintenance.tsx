@@ -1,7 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
 import * as React from "react";
-import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { NewMaintenanceRequestModal } from "@/components/NewMaintenanceRequestModal";
@@ -9,20 +8,17 @@ import {
   Plus,
   Search,
   Wrench,
-  AlertCircle,
-  CheckCircle2,
   Clock,
   Check,
-  ArrowLeft,
   X,
   Upload,
   Info,
 } from "lucide-react";
-import { mockProperties } from "@/data/mockLandlordData";
 import type { MaintenanceRequestWithDetails } from "@/data/mockLandlordData";
 import {
   getMaintenanceRequests,
   createMaintenanceRequest,
+  mapMaintenanceRequestItem,
   updateMaintenanceRequestStatus,
   getMaintenanceRequestTypes,
   type MaintenanceRequestTypeDTO,
@@ -42,6 +38,8 @@ const TenantMaintenancePage = () => {
     React.useState<TenantByUserDTO | null>(null);
   const [tenantLoading, setTenantLoading] = React.useState(true);
   const [historyCount, setHistoryCount] = React.useState(0);
+  const [createdRequest, setCreatedRequest] =
+    React.useState<MaintenanceRequestWithDetails | null>(null);
 
   React.useEffect(() => {
     if (!user?.id || user?.role !== "tenant") {
@@ -130,12 +128,14 @@ const TenantMaintenancePage = () => {
           unitId={unitId}
           tenantLoading={tenantLoading}
           onSuccess={() => setActiveTab("history")}
+          onCreatedRequest={setCreatedRequest}
           onHistoryCountChange={setHistoryCount}
         />
       ) : (
         <TenantRequestHistory
           tenantRecordId={tenantDetails?.id ?? null}
           tenantProfileLoading={tenantLoading}
+          createdRequest={createdRequest}
           onCountChange={setHistoryCount}
         />
       )}
@@ -149,6 +149,7 @@ type TenantNewRequestFormProps = {
   unitId: string | null;
   tenantLoading: boolean;
   onSuccess?: () => void;
+  onCreatedRequest?: (request: MaintenanceRequestWithDetails) => void;
   onHistoryCountChange?: (n: number) => void;
 };
 
@@ -157,6 +158,7 @@ const TenantNewRequestForm = ({
   unitId,
   tenantLoading,
   onSuccess,
+  onCreatedRequest,
   onHistoryCountChange,
 }: TenantNewRequestFormProps) => {
   const { user } = useUser();
@@ -314,6 +316,7 @@ const TenantNewRequestForm = ({
       setUploadedImages([]);
       setFilesToUpload([]);
       setUploadedFileIds([]);
+      onCreatedRequest?.(mapMaintenanceRequestItem(result.data));
       onSuccess?.();
       if (onHistoryCountChange) {
         const list = await getMaintenanceRequests({
@@ -576,10 +579,12 @@ const filterMaintenanceByProperties = (
 const TenantRequestHistory = ({
   tenantRecordId,
   tenantProfileLoading,
+  createdRequest,
   onCountChange,
 }: {
   tenantRecordId: string | null;
   tenantProfileLoading: boolean;
+  createdRequest: MaintenanceRequestWithDetails | null;
   onCountChange?: (n: number) => void;
 }) => {
   const [requests, setRequests] = React.useState<
@@ -602,9 +607,19 @@ const TenantRequestHistory = ({
       (result) => {
         if (cancelled) return;
         if (result.success) {
-          setRequests(result.data.filter((r) => r.tenantId === tenantRecordId));
+          const scopedRequests = result.data.filter((request) =>
+            request.tenantId ? request.tenantId === tenantRecordId : true,
+          );
+          const nextRequests =
+            createdRequest &&
+            (!createdRequest.tenantId ||
+              createdRequest.tenantId === tenantRecordId) &&
+            !scopedRequests.some((request) => request.id === createdRequest.id)
+              ? [createdRequest, ...scopedRequests]
+              : scopedRequests;
+          setRequests(nextRequests);
         } else {
-          setRequests([]);
+          setRequests(createdRequest ? [createdRequest] : []);
         }
         setLoading(false);
       },
@@ -612,7 +627,7 @@ const TenantRequestHistory = ({
     return () => {
       cancelled = true;
     };
-  }, [tenantRecordId, tenantProfileLoading]);
+  }, [createdRequest, tenantRecordId, tenantProfileLoading]);
 
   React.useEffect(() => {
     onCountChange?.(requests.length);

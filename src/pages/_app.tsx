@@ -31,12 +31,12 @@ const DwellivaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
       <ToastProvider>
         <UserProvider>
           <NotificationsProvider>
-            <ChatProvider>
-              <SelectedLandlordProvider>
+            <SelectedLandlordProvider>
+              <ChatProvider>
                 {getLayout(<Component {...pageProps} />)}
                 <PWAInstallPrompt />
-              </SelectedLandlordProvider>
-            </ChatProvider>
+              </ChatProvider>
+            </SelectedLandlordProvider>
           </NotificationsProvider>
         </UserProvider>
       </ToastProvider>

@@ -11,6 +11,7 @@ import {
   type ChatMessageDTO,
   type ChatSubscription,
 } from "@/api/chat";
+import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { useUser } from "@/contexts/UserContext";
 
 type ChatContextType = {
@@ -31,6 +32,7 @@ type ChatContextType = {
 };
 
 const ChatContext = React.createContext<ChatContextType | null>(null);
+const START_CHAT_TIMEOUT_MS = 12000;
 
 export const useChat = () => {
   const context = React.useContext(ChatContext);
@@ -38,6 +40,25 @@ export const useChat = () => {
     throw new Error("useChat must be used within a ChatProvider");
   }
   return context;
+};
+
+const getStoredSelectedLandlordId = (): string => {
+  if (typeof window === "undefined") return "";
+
+  const direct =
+    localStorage.getItem("selectedLandlordId") ||
+    localStorage.getItem("landlordId") ||
+    "";
+  if (direct) return direct;
+
+  try {
+    const stored = localStorage.getItem("selectedLandlord");
+    if (!stored) return "";
+    const parsed = JSON.parse(stored) as { id?: unknown };
+    return typeof parsed.id === "string" ? parsed.id : "";
+  } catch {
+    return "";
+  }
 };
 
 const mergeChats = (
@@ -95,30 +116,16 @@ const mergeMessages = (
   );
 };
 
-const getStoredRoleId = (role: string): string | null => {
-  if (typeof window === "undefined") return null;
-
-  if (role === "landlord") {
-    return localStorage.getItem("landlordId");
-  }
-
-  if (role === "tenant") {
-    return localStorage.getItem("tenantId");
-  }
-
-  if (role === "property_manager") {
-    return localStorage.getItem("propertyManagerId");
-  }
-
-  return null;
-};
-
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = useUser();
+  const { selectedLandlord } = useSelectedLandlord();
   const subscriptionRef = React.useRef<ChatSubscription | null>(null);
   const conversationsRef = React.useRef<ChatConversation[]>([]);
   const selectedConversationIdRef = React.useRef<string | null>(null);
   const pendingChatTargetRef = React.useRef<string | null>(null);
+  const pendingChatTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [roleId, setRoleId] = React.useState<string | null>(null);
   const [conversations, setConversations] = React.useState<ChatConversation[]>(
     [],
@@ -129,6 +136,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isConnected, setIsConnected] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const clearPendingChatTimer = React.useCallback(() => {
+    if (!pendingChatTimerRef.current) return;
+    clearTimeout(pendingChatTimerRef.current);
+    pendingChatTimerRef.current = null;
+  }, []);
 
   React.useEffect(() => {
     conversationsRef.current = conversations;
@@ -147,18 +160,15 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
-      const stored = getStoredRoleId(user.role);
-      if (stored) {
-        setRoleId(stored);
-        return;
-      }
-
       if (user.role === "landlord") {
         const result = await getLandlordByUser(String(user.id));
         if (cancelled) return;
         if (result.success) {
           if (typeof window !== "undefined") {
             localStorage.setItem("landlordId", result.data.id);
+            if (localStorage.getItem("chatDebug") === "true") {
+              console.info("[chat] resolved landlord roleId", result.data.id);
+            }
           }
           setRoleId(result.data.id);
           return;
@@ -171,6 +181,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         if (result.success) {
           if (typeof window !== "undefined") {
             localStorage.setItem("tenantId", result.data.id);
+            if (localStorage.getItem("chatDebug") === "true") {
+              console.info("[chat] resolved tenant roleId", result.data.id);
+            }
           }
           setRoleId(result.data.id);
           return;
@@ -180,10 +193,31 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       if (user.role === "property_manager") {
         const result = await getPropertyManagerByUser(String(user.id));
         if (cancelled) return;
-        const managerId = result.success ? result.data[0]?.id : null;
+        const selectedLandlordId =
+          selectedLandlord?.id || getStoredSelectedLandlordId();
+        const manager = result.success
+          ? result.data.find(
+              (item) => item.landlord?.id === selectedLandlordId,
+            ) ??
+            result.data.find(
+              (item) =>
+                item.id ===
+                (typeof window !== "undefined"
+                  ? localStorage.getItem("propertyManagerId")
+                  : null),
+            ) ??
+            result.data[0]
+          : null;
+        const managerId = manager?.id ?? null;
         if (managerId) {
           if (typeof window !== "undefined") {
             localStorage.setItem("propertyManagerId", managerId);
+            if (localStorage.getItem("chatDebug") === "true") {
+              console.info("[chat] resolved property manager roleId", {
+                managerId,
+                selectedLandlordId,
+              });
+            }
           }
           setRoleId(managerId);
           return;
@@ -198,7 +232,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.role]);
+  }, [selectedLandlord?.id, user?.id, user?.role]);
 
   React.useEffect(() => {
     subscriptionRef.current?.disconnect();
@@ -242,6 +276,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         setError(null);
       },
       onError: (message) => {
+        clearPendingChatTimer();
         pendingChatTargetRef.current = null;
         setError(message);
         setIsLoading(false);
@@ -251,12 +286,13 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     subscriptionRef.current = subscription;
 
     return () => {
+      clearPendingChatTimer();
       subscription.disconnect();
       if (subscriptionRef.current === subscription) {
         subscriptionRef.current = null;
       }
     };
-  }, [roleId, user?.token]);
+  }, [clearPendingChatTimer, roleId, user?.token]);
 
   React.useEffect(() => {
     setSelectedConversationId((current) => {
@@ -268,6 +304,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           ),
         );
         if (pending) {
+          clearPendingChatTimer();
           pendingChatTargetRef.current = null;
           subscriptionRef.current?.loadMessages(pending.id);
           return pending.id;
@@ -279,7 +316,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       }
       return conversations[0]?.id ?? null;
     });
-  }, [conversations]);
+  }, [clearPendingChatTimer, conversations]);
 
   const refresh = React.useCallback(() => {
     if (!roleId || !user?.token) return;
@@ -303,6 +340,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       );
 
       if (existing) {
+        clearPendingChatTimer();
         pendingChatTargetRef.current = null;
         setSelectedConversationId(existing.id);
         subscriptionRef.current?.loadMessages(existing.id);
@@ -310,12 +348,22 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       setIsLoading(true);
+      clearPendingChatTimer();
+      pendingChatTimerRef.current = setTimeout(() => {
+        if (pendingChatTargetRef.current !== target.roleId) return;
+        pendingChatTargetRef.current = null;
+        pendingChatTimerRef.current = null;
+        setIsLoading(false);
+        setError(
+          "The backend did not send the created conversation back. Please refresh or try again.",
+        );
+      }, START_CHAT_TIMEOUT_MS);
       subscriptionRef.current?.createChat([
         { role: user.role, roleId },
         { role: target.role, roleId: target.roleId },
       ]);
     },
-    [roleId, user?.role],
+    [clearPendingChatTimer, roleId, user],
   );
 
   const sendMessage = React.useCallback(
