@@ -16,7 +16,7 @@ export type DashboardLayoutProps = {
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isLoading: isUserLoading } = useUser();
   const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
   const [isLandlordVerified, setIsLandlordVerified] = React.useState<
     boolean | null
@@ -41,8 +41,18 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       return;
     }
 
+    if (isUserLoading) {
+      return;
+    }
+
+    if (!user) {
+      savePostLoginRedirect();
+      router.replace("/auth/login");
+      return;
+    }
+
     setIsCheckingAuth(false);
-  }, [router]);
+  }, [isUserLoading, router, user]);
 
   React.useEffect(() => {
     if (!user?.id || user.role !== "landlord") {
@@ -53,7 +63,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     getLandlordByUser(String(user.id)).then((result) => {
       if (cancelled) return;
       if (result.success) {
+        if (typeof window !== "undefined" && result.data.id) {
+          localStorage.setItem("landlordId", result.data.id);
+        }
         setIsLandlordVerified(result.data.isApproved !== false);
+      } else if (result.statusCode === 404) {
+        void router.replace("/onboarding/landlord/details");
       } else {
         setIsLandlordVerified(true);
       }
@@ -61,7 +76,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.role]);
+  }, [router, user?.id, user?.role]);
 
   const shouldRestrictLandlordNav =
     user?.role === "landlord" && isLandlordVerified === false;
@@ -72,7 +87,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     shouldRestrictLandlordNav && !isAllowedUnverifiedLandlordPath;
 
   // Show nothing while checking authentication
-  if (isCheckingAuth) {
+  if (
+    isCheckingAuth ||
+    isUserLoading ||
+    (user?.role === "landlord" && isLandlordVerified === null)
+  ) {
     return null;
   }
 

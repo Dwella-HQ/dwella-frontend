@@ -16,6 +16,10 @@ import { useUser, type UserRole } from "@/contexts/UserContext";
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
 import { loginAfterInviteRegistration } from "@/utils/invitePostRegisterAuth";
 import { getPropertyManagerInviteIdFromQuery } from "@/lib/propertyManagerInviteFromQuery";
+import {
+  isValidInternationalPhoneNumber,
+  normalizePhoneNumberForApi,
+} from "@/utils/phoneNumber";
 import logo from "@/assets/logo_blue_vertical.png";
 
 import type { NextPageWithLayout } from "../../_app";
@@ -24,7 +28,12 @@ const propertyManagerSignUpSchema = z
   .object({
     email: z.string().email("Invalid email address"),
     fullName: z.string().min(1, "Full name is required"),
-    phoneNumber: z.string().min(1, "Phone number is required"),
+    phoneNumber: z
+      .string()
+      .min(1, "Phone number is required")
+      .refine(isValidInternationalPhoneNumber, {
+        message: "Enter a valid phone number.",
+      }),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
@@ -49,7 +58,6 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
     control,
     handleSubmit,
     formState: { errors },
-    setValue,
   } = useForm<PropertyManagerSignUpValues>({
     resolver: zodResolver(propertyManagerSignUpSchema),
     defaultValues: {
@@ -93,7 +101,7 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
         password: data.password,
         roleName: "property_manager",
         fullName: data.fullName,
-        phoneNumber: data.phoneNumber,
+        phoneNumber: normalizePhoneNumberForApi(data.phoneNumber),
         registrationType: "EMAIL",
       };
 

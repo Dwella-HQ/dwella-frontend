@@ -5,9 +5,11 @@ import { Menu, X } from "lucide-react";
 import { useRouter } from "next/router";
 import logo from "@/assets/logo_white_horizontal.png";
 import { useUser } from "@/contexts/UserContext";
+import { getLandlordByUser } from "@/api/landlord";
 
 export const LandingHeader = () => {
   const [open, setOpen] = React.useState(false);
+  const [isRoutingDashboard, setIsRoutingDashboard] = React.useState(false);
   const router = useRouter();
   const { user, logout } = useUser();
   const pathname = router.pathname;
@@ -33,6 +35,37 @@ export const LandingHeader = () => {
     setOpen(false);
     await router.push("/");
   }, [logout, router]);
+
+  const handleDashboardClick = React.useCallback(async () => {
+    if (!user) return;
+    setOpen(false);
+
+    if (user.role !== "landlord") {
+      await router.push("/dashboard");
+      return;
+    }
+
+    setIsRoutingDashboard(true);
+    try {
+      const result = await getLandlordByUser(String(user.id));
+      if (result.success) {
+        if (typeof window !== "undefined" && result.data.id) {
+          localStorage.setItem("landlordId", result.data.id);
+        }
+        await router.push("/dashboard");
+        return;
+      }
+
+      if (result.statusCode === 404) {
+        await router.push("/onboarding/landlord/details");
+        return;
+      }
+
+      await router.push("/dashboard");
+    } finally {
+      setIsRoutingDashboard(false);
+    }
+  }, [router, user]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/20 bg-[#1F93D0] font-sans shadow-sm">
@@ -60,12 +93,14 @@ export const LandingHeader = () => {
         <nav className="hidden items-center gap-3 md:flex">
           {user ? (
             <>
-              <Link
-                href="/dashboard"
-                className="rounded-lg border border-white/60 bg-transparent px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+              <button
+                type="button"
+                onClick={() => void handleDashboardClick()}
+                disabled={isRoutingDashboard}
+                className="rounded-lg border border-white/60 bg-transparent px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-wait disabled:opacity-70"
               >
-                Dashboard
-              </Link>
+                {isRoutingDashboard ? "Opening..." : "Dashboard"}
+              </button>
               <button
                 type="button"
                 onClick={() => void handleLogout()}
@@ -116,13 +151,14 @@ export const LandingHeader = () => {
             <div className="mt-1 grid grid-cols-2 gap-2">
               {user ? (
                 <>
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setOpen(false)}
-                    className="rounded-md border border-white/60 px-3 py-2 text-center text-sm font-semibold text-white"
+                  <button
+                    type="button"
+                    onClick={() => void handleDashboardClick()}
+                    disabled={isRoutingDashboard}
+                    className="rounded-md border border-white/60 px-3 py-2 text-center text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-70"
                   >
-                    Dashboard
-                  </Link>
+                    {isRoutingDashboard ? "Opening..." : "Dashboard"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => void handleLogout()}

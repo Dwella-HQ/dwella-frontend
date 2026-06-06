@@ -19,6 +19,32 @@ type ApiResult<T> =
   | { success: true; data: T }
   | { success: false; error: string; statusCode?: number };
 
+type ApiErrorBody = {
+  message?: string | string[];
+  error?: string | string[];
+};
+
+function formatApiErrorValue(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => formatApiErrorValue(item))
+      .filter((item): item is string => Boolean(item))
+      .join(". ");
+    return joined.length > 0 ? joined : null;
+  }
+  return null;
+}
+
+function extractApiErrorMessage(responseData: unknown): string | null {
+  if (!responseData || typeof responseData !== "object") return null;
+  const data = responseData as ApiErrorBody;
+  return formatApiErrorValue(data.message) || formatApiErrorValue(data.error);
+}
+
 function isProtectedAppRoute(): boolean {
   if (typeof window === "undefined") return false;
   return (
@@ -206,10 +232,6 @@ export const apiClient = async <T>(
         return { success: true, data: response.data };
       }
 
-      const responseData = response.data as
-        | { message?: string; error?: string }
-        | undefined;
-
       if (response.status === 401) {
         return handle401Response(
           skipAuth,
@@ -230,18 +252,13 @@ export const apiClient = async <T>(
       return {
         success: false,
         error:
-          (responseData &&
-            typeof responseData === "object" &&
-            (responseData.message || responseData.error)) ||
+          extractApiErrorMessage(response.data) ||
           `Request failed with status ${response.status}`,
         statusCode: response.status,
       };
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError<{
-          message?: string;
-          error?: string;
-        }>;
+        const axiosError = error as AxiosError<ApiErrorBody>;
 
         if (!axiosError.response) {
           return {
@@ -252,10 +269,6 @@ export const apiClient = async <T>(
 
         const statusCode = axiosError.response.status;
         persistRefreshTokenFromResponse(axiosError.response.headers);
-        const responseData = axiosError.response.data as
-          | { message?: string; error?: string }
-          | undefined;
-
         if (statusCode === 401) {
           return handle401Response(
             options.skipAuth,
@@ -277,9 +290,7 @@ export const apiClient = async <T>(
         return {
           success: false,
           error:
-            (responseData &&
-              typeof responseData === "object" &&
-              (responseData.message || responseData.error)) ||
+            extractApiErrorMessage(axiosError.response.data) ||
             axiosError.message ||
             `Request failed: ${axiosError.response.statusText}`,
           statusCode,

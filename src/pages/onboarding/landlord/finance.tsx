@@ -2,8 +2,7 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowRight, Landmark, Home, User, FileText } from "lucide-react";
+import { ArrowRight, Landmark, Home, User, FileText, X } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
@@ -74,6 +73,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = React.useState(false);
   const [financeDetails, setFinanceDetails] =
     React.useState<LandlordFinanceDetails>(emptyFinanceDetails);
   const [banks, setBanks] = React.useState<WithdrawalBankDTO[]>([]);
@@ -675,13 +675,13 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
             />
             <span>
               I confirm that I have read and accepted the{" "}
-              <Link
-                href="/terms"
-                target="_blank"
+              <button
+                type="button"
+                onClick={() => setIsTermsModalOpen(true)}
                 className="font-semibold text-brand-main underline-offset-4 hover:underline"
               >
                 terms and conditions
-              </Link>
+              </button>
               .
             </span>
           </label>
@@ -718,6 +718,75 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
           </div>
         </div>
       </div>
+
+      {isTermsModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="landlord-onboarding-terms-title"
+        >
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <h2
+                id="landlord-onboarding-terms-title"
+                className="text-lg font-semibold text-gray-900"
+              >
+                Terms and conditions
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsTermsModalOpen(false)}
+                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
+                aria-label="Close terms and conditions"
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4 text-sm leading-6 text-gray-700">
+              <p>
+                By continuing, you confirm that the information and documents
+                provided for your landlord account are accurate and belong to
+                you or the business you are authorized to represent.
+              </p>
+              <p className="mt-4">
+                Dwelliva may verify your identity, ownership documents, payout
+                details, and property information before enabling full landlord
+                access. Accounts that submit inaccurate, incomplete, or
+                misleading information may be restricted while the issue is
+                reviewed.
+              </p>
+              <p className="mt-4">
+                You are responsible for keeping your contact, banking, property,
+                and tenant information current. Payments, withdrawals, lease
+                activity, maintenance records, and messages may be processed
+                through Dwelliva features according to the rules shown in the
+                app.
+              </p>
+              <p className="mt-4">
+                You agree to use the platform lawfully, respect tenant privacy,
+                respond to platform and verification requests when required, and
+                avoid uploading documents or listings that you do not have the
+                right to use.
+              </p>
+              <p className="mt-4">
+                Dwelliva may update these terms from time to time. Continued use
+                of the platform after an update means you accept the revised
+                terms.
+              </p>
+            </div>
+            <div className="flex justify-end border-t border-gray-200 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setIsTermsModalOpen(false)}
+                className="rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 };
