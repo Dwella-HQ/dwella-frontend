@@ -185,6 +185,10 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
         );
         return;
       }
+      if (status === "VERIFIED" && st === "REJECTED") {
+        showToast("Rejected records cannot be marked verified.", "info");
+        return;
+      }
       setPendingAction(status);
       setActionReason("");
       setSupportingFiles([]);
@@ -690,7 +694,9 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                           type="button"
                           disabled={
                             actionBusy !== null ||
-                            String(d.status).toUpperCase() === "VERIFIED"
+                            ["VERIFIED", "REJECTED"].includes(
+                              String(d.status).toUpperCase(),
+                            )
                           }
                           onClick={() => openActionModal("VERIFIED")}
                           className="inline-flex items-center justify-center gap-2 rounded-md bg-[#111827] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-[#1E293B] disabled:cursor-not-allowed disabled:opacity-50"

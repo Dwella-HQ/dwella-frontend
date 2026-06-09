@@ -46,6 +46,11 @@ import {
   resolveWithdrawalAccount,
 } from "@/api/withdrawal";
 import type { WithdrawalBankDTO } from "@/api/withdrawal";
+import {
+  deriveVerificationKind,
+  entityLandlordId,
+  queryVerifications,
+} from "@/api/verification";
 import type { NextPageWithLayout } from "../_app";
 
 type SettingsTab =
@@ -258,6 +263,10 @@ const SettingsPage: NextPageWithLayout = () => {
   const [isUploadingDoc, setIsUploadingDoc] = React.useState<string | null>(
     null,
   );
+  const [
+    hasPendingLandlordVerification,
+    setHasPendingLandlordVerification,
+  ] = React.useState(false);
 
   const [profileForm, setProfileForm] = React.useState({
     businessName: "",
@@ -407,7 +416,7 @@ const SettingsPage: NextPageWithLayout = () => {
       setProfileSnapshot(next);
       return next;
     },
-    [resolveLandlordBusinessPhone],
+    [],
   );
 
   const applyLandlordSettings = React.useCallback(
@@ -689,6 +698,40 @@ const SettingsPage: NextPageWithLayout = () => {
       cancelled = true;
     };
   }, [landlordId, loadLandlordData, userRole]);
+
+  React.useEffect(() => {
+    if (!landlordId || userRole !== "landlord") {
+      setHasPendingLandlordVerification(false);
+      return;
+    }
+
+    let cancelled = false;
+    void queryVerifications({ landlordId, status: "PENDING" }).then(
+      (result) => {
+        if (cancelled) return;
+        if (!result.success) {
+          setHasPendingLandlordVerification(false);
+          return;
+        }
+
+        setHasPendingLandlordVerification(
+          result.data.some((verification) => {
+            const status = String(verification.status).toUpperCase();
+            const rowLandlordId = entityLandlordId(verification);
+            return (
+              status === "PENDING" &&
+              deriveVerificationKind(verification) === "landlord" &&
+              (!rowLandlordId || rowLandlordId === landlordId)
+            );
+          }),
+        );
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [landlordId, userRole]);
 
   React.useEffect(() => {
     setLandlordSettingsLoaded(false);
@@ -1331,6 +1374,13 @@ const SettingsPage: NextPageWithLayout = () => {
         showToast("You must be signed in to upload files", "error");
         return;
       }
+      if (isLandlordVerified && hasPendingLandlordVerification) {
+        showToast(
+          "A landlord verification is already pending. You can reupload after admin review.",
+          "info",
+        );
+        return;
+      }
       setIsUploadingDoc(key);
       const result = await uploadFile({
         file,
@@ -1367,6 +1417,7 @@ const SettingsPage: NextPageWithLayout = () => {
 
         if (updateResult.success) {
           setDocumentsForm(nextDocuments);
+          setHasPendingLandlordVerification(true);
           showToast(
             "Document reuploaded. A new verification has been submitted.",
             "success",
@@ -1393,6 +1444,7 @@ const SettingsPage: NextPageWithLayout = () => {
     },
     [
       documentsForm,
+      hasPendingLandlordVerification,
       isLandlordVerified,
       landlordId,
       showToast,
@@ -1452,6 +1504,16 @@ const SettingsPage: NextPageWithLayout = () => {
     },
     [],
   );
+
+  const isReuploadDisabled =
+    isLandlordVerified && hasPendingLandlordVerification;
+  const documentUploadButtonClass = `inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
+    isReuploadDisabled
+      ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400"
+      : isLandlordVerified
+        ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
+        : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
+  }`;
 
   return (
     <>
@@ -1824,7 +1886,12 @@ const SettingsPage: NextPageWithLayout = () => {
                 <h2 className="text-lg font-semibold text-gray-900">
                   Verification Documents
                 </h2>
-                {isLandlordVerified ? (
+                {isReuploadDisabled ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    A landlord verification is pending admin review. Reupload
+                    will be available after this verification is reviewed.
+                  </div>
+                ) : isLandlordVerified ? (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                     This account is verified. You can reupload a document to
                     submit a new verification for admin approval.
@@ -1843,11 +1910,13 @@ const SettingsPage: NextPageWithLayout = () => {
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <label
-                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
-                          isLandlordVerified
-                            ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
-                            : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
-                        }`}
+                        aria-disabled={isReuploadDisabled}
+                        className={documentUploadButtonClass}
+                        title={
+                          isReuploadDisabled
+                            ? "Pending verification is awaiting admin review"
+                            : undefined
+                        }
                       >
                         <Upload className="h-4 w-4" />
                         {isUploadingDoc === "govermentIdDocumentId"
@@ -1860,6 +1929,7 @@ const SettingsPage: NextPageWithLayout = () => {
                         <input
                           type="file"
                           className="hidden"
+                          disabled={isReuploadDisabled}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -1895,11 +1965,13 @@ const SettingsPage: NextPageWithLayout = () => {
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <label
-                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
-                          isLandlordVerified
-                            ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
-                            : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
-                        }`}
+                        aria-disabled={isReuploadDisabled}
+                        className={documentUploadButtonClass}
+                        title={
+                          isReuploadDisabled
+                            ? "Pending verification is awaiting admin review"
+                            : undefined
+                        }
                       >
                         <Upload className="h-4 w-4" />
                         {isUploadingDoc === "landSurveyDocumentId"
@@ -1912,6 +1984,7 @@ const SettingsPage: NextPageWithLayout = () => {
                         <input
                           type="file"
                           className="hidden"
+                          disabled={isReuploadDisabled}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -1947,11 +2020,13 @@ const SettingsPage: NextPageWithLayout = () => {
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <label
-                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
-                          isLandlordVerified
-                            ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
-                            : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
-                        }`}
+                        aria-disabled={isReuploadDisabled}
+                        className={documentUploadButtonClass}
+                        title={
+                          isReuploadDisabled
+                            ? "Pending verification is awaiting admin review"
+                            : undefined
+                        }
                       >
                         <Upload className="h-4 w-4" />
                         {isUploadingDoc === "proofOfOwnershipDocumentId"
@@ -1964,6 +2039,7 @@ const SettingsPage: NextPageWithLayout = () => {
                         <input
                           type="file"
                           className="hidden"
+                          disabled={isReuploadDisabled}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -1999,11 +2075,13 @@ const SettingsPage: NextPageWithLayout = () => {
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <label
-                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
-                          isLandlordVerified
-                            ? "cursor-pointer border-brand-main bg-white text-brand-main hover:bg-brand-main/5"
-                            : "cursor-pointer border-gray-300 bg-white text-brand-main hover:bg-gray-50"
-                        }`}
+                        aria-disabled={isReuploadDisabled}
+                        className={documentUploadButtonClass}
+                        title={
+                          isReuploadDisabled
+                            ? "Pending verification is awaiting admin review"
+                            : undefined
+                        }
                       >
                         <Upload className="h-4 w-4" />
                         {isUploadingDoc === "taxIdentificationNumberDocumentId"
@@ -2016,6 +2094,7 @@ const SettingsPage: NextPageWithLayout = () => {
                         <input
                           type="file"
                           className="hidden"
+                          disabled={isReuploadDisabled}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
