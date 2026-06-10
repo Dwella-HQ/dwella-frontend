@@ -26,6 +26,7 @@ import {
   getLandlord,
   getLandlordByUser,
   getLandlordSettings,
+  isApprovedLandlordVerificationComplete,
   resolveLandlordBusinessPhone,
   updateLandlord,
   updateLandlordDocumentsSettings,
@@ -574,7 +575,7 @@ const SettingsPage: NextPageWithLayout = () => {
   );
 
   const landlordId = landlord?.id as string | undefined;
-  const isLandlordVerified = landlord?.isApproved === true;
+  const isLandlordVerified = isApprovedLandlordVerificationComplete(landlord);
 
   const hasSavedBankAccount = React.useMemo(() => {
     const digits = paymentForm.accountNumber.replace(/\D/g, "");
@@ -1896,6 +1897,12 @@ const SettingsPage: NextPageWithLayout = () => {
                     This account is verified. You can reupload a document to
                     submit a new verification for admin approval.
                   </div>
+                ) : userRole === "landlord" ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Your landlord account is not approved yet. If your
+                    verification was rejected, reupload the required documents
+                    and save them for admin review.
+                  </div>
                 ) : null}
 
                 <div className="space-y-6">
@@ -1941,12 +1948,10 @@ const SettingsPage: NextPageWithLayout = () => {
                           }}
                         />
                       </label>
-                      {isLandlordVerified
-                        ? renderUploadedDocumentInfo(
-                            documentPreview.governmentId,
-                            documentsForm.govermentIdDocumentId,
-                          )
-                        : null}
+                      {renderUploadedDocumentInfo(
+                        documentPreview.governmentId,
+                        documentsForm.govermentIdDocumentId,
+                      )}
                     </div>
                     {documentsForm.govermentIdDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
@@ -1996,12 +2001,10 @@ const SettingsPage: NextPageWithLayout = () => {
                           }}
                         />
                       </label>
-                      {isLandlordVerified
-                        ? renderUploadedDocumentInfo(
-                            documentPreview.landSurvey,
-                            documentsForm.landSurveyDocumentId,
-                          )
-                        : null}
+                      {renderUploadedDocumentInfo(
+                        documentPreview.landSurvey,
+                        documentsForm.landSurveyDocumentId,
+                      )}
                     </div>
                     {documentsForm.landSurveyDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
@@ -2051,12 +2054,10 @@ const SettingsPage: NextPageWithLayout = () => {
                           }}
                         />
                       </label>
-                      {isLandlordVerified
-                        ? renderUploadedDocumentInfo(
-                            documentPreview.proofOfOwnership,
-                            documentsForm.proofOfOwnershipDocumentId,
-                          )
-                        : null}
+                      {renderUploadedDocumentInfo(
+                        documentPreview.proofOfOwnership,
+                        documentsForm.proofOfOwnershipDocumentId,
+                      )}
                     </div>
                     {documentsForm.proofOfOwnershipDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
@@ -2106,12 +2107,10 @@ const SettingsPage: NextPageWithLayout = () => {
                           }}
                         />
                       </label>
-                      {isLandlordVerified
-                        ? renderUploadedDocumentInfo(
-                            documentPreview.tin,
-                            documentsForm.taxIdentificationNumberDocumentId,
-                          )
-                        : null}
+                      {renderUploadedDocumentInfo(
+                        documentPreview.tin,
+                        documentsForm.taxIdentificationNumberDocumentId,
+                      )}
                     </div>
                     {documentsForm.taxIdentificationNumberDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">

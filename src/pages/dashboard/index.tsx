@@ -23,7 +23,10 @@ import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { getPropertiesByLandlord } from "@/api/properties";
 import { mapPropertiesWithLiveUnitCounts } from "@/api/properties";
 import { getTenantByUser } from "@/api/tenants";
-import { getLandlordByUser } from "@/api/landlord";
+import {
+  getLandlordByUser,
+  isApprovedLandlordVerificationComplete,
+} from "@/api/landlord";
 import { getProperty } from "@/api/properties";
 import {
   getPropertyManagersByProperty,
@@ -1453,7 +1456,9 @@ const LandlordDashboard = () => {
     getLandlordByUser(String(user.id)).then((result) => {
       if (cancelled) return;
       if (result.success) {
-        setIsLandlordVerified(result.data.isApproved !== false);
+        setIsLandlordVerified(
+          isApprovedLandlordVerificationComplete(result.data),
+        );
       } else {
         setIsLandlordVerified(true);
       }
@@ -1740,8 +1745,9 @@ const LandlordDashboard = () => {
         </div>
         {!isLandlordVerified ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Your landlord account is pending verification. You cannot create
-            properties until verification is complete.
+            Your landlord account is not approved yet. You cannot create
+            properties until verification is approved. If your verification was
+            rejected, reupload your documents from Settings for admin review.
           </div>
         ) : null}
 

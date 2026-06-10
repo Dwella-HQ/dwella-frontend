@@ -6,7 +6,10 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import { DashboardMobileNav } from "@/components/DashboardMobileNav";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { useUser } from "@/contexts/UserContext";
-import { getLandlordByUser } from "@/api/landlord";
+import {
+  getLandlordByUser,
+  isApprovedLandlordVerificationComplete,
+} from "@/api/landlord";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import { savePostLoginRedirect } from "@/utils/postLoginRedirect";
 
@@ -66,7 +69,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         if (typeof window !== "undefined" && result.data.id) {
           localStorage.setItem("landlordId", result.data.id);
         }
-        setIsLandlordVerified(result.data.isApproved !== false);
+        setIsLandlordVerified(
+          isApprovedLandlordVerificationComplete(result.data),
+        );
       } else if (result.statusCode === 404) {
         void router.replace("/onboarding/landlord/details");
       } else {
@@ -115,9 +120,10 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               >
                 {showUnverifiedFailSafeBanner ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    Your landlord account is pending verification. You can only
-                    access Dashboard and Settings until verification is
-                    complete.
+                    Your landlord account is not approved yet. You can only
+                    access Dashboard and Settings until verification is approved.
+                    If your verification was rejected, reupload your documents
+                    from Settings for admin review.
                   </div>
                 ) : null}
                 {children}

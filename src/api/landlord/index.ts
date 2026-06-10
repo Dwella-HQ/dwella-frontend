@@ -3,6 +3,10 @@ export { getLandlords } from "./getLandlords";
 export { getLandlord } from "./getLandlord";
 export { getLandlordByUser } from "./getLandlordByUser";
 export { resolveLandlordBusinessPhone } from "./parseLandlordApiResponse";
+export {
+  hasRequiredLandlordVerificationDocuments,
+  isApprovedLandlordVerificationComplete,
+} from "./landlordVerification";
 export { updateLandlord } from "./updateLandlord";
 export type {
   LandlordBankAccountDTO,

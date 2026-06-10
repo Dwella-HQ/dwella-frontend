@@ -39,7 +39,10 @@ import { uploadFile, deleteFile } from "@/api/files";
 import { getAmenities } from "@/api/amenities";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { useUser } from "@/contexts/UserContext";
-import { getLandlordByUser } from "@/api/landlord";
+import {
+  getLandlordByUser,
+  isApprovedLandlordVerificationComplete,
+} from "@/api/landlord";
 import type { CreatePropertyRequestDTO } from "@/api/properties";
 import type { NextPageWithLayout } from "../../_app";
 
@@ -198,7 +201,9 @@ const AddPropertyPage: NextPageWithLayout = () => {
     getLandlordByUser(String(user.id)).then((result) => {
       if (cancelled) return;
       if (result.success) {
-        setIsLandlordVerified(result.data.isApproved !== false);
+        setIsLandlordVerified(
+          isApprovedLandlordVerificationComplete(result.data),
+        );
       } else {
         setIsLandlordVerified(true);
       }
@@ -537,7 +542,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
   const handleCreateProperty = async () => {
     if (user?.role === "landlord" && !isLandlordVerified) {
       const message =
-        "Your landlord account is pending verification. You cannot create properties yet.";
+        "Your landlord account is not approved yet. Reupload documents from Settings if your verification was rejected.";
       setSubmitError(message);
       showToast(message, "error");
       return;
@@ -908,8 +913,10 @@ const AddPropertyPage: NextPageWithLayout = () => {
             <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <p>
-                Your account has not been verified yet. Property creation is
-                disabled until verification is completed.
+                Your landlord account is not approved yet. Property creation is
+                disabled until verification is approved. If your verification
+                was rejected, reupload your documents from Settings for admin
+                review.
               </p>
             </div>
           ) : null}
