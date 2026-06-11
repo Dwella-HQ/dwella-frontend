@@ -1,7 +1,6 @@
 import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { isValid, parse, parseISO } from "date-fns";
 import {
@@ -13,10 +12,8 @@ import {
   DollarSign,
   CheckCircle2,
   FileText,
-  Wrench,
   MessageSquare,
   Upload,
-  User,
 } from "lucide-react";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -32,6 +29,7 @@ import {
   resolveTenantActiveLeaseId,
   type RentItemDTO,
 } from "@/api/rent";
+import { formatDateTimeDisplay } from "@/utils/formatDate";
 
 // Mock data for tenant documents
 const mockTenantDocuments = [
@@ -405,7 +403,8 @@ const TenantProfilePage: NextPageWithLayout = () => {
     .reduce((sum, payment) => sum + payment.amount, 0);
 
   // Get monthly rent - default to 120000 for Ada Emmanuel
-  const monthlyRent = (tenant as any)?.monthlyRent || 120000;
+  const monthlyRent =
+    (tenant as { monthlyRent?: number | null } | null)?.monthlyRent || 120000;
 
   const paymentStatusBadgeClasses: Record<PaymentStatusTone, string> = {
     green: "bg-green-100 text-green-700",
@@ -886,9 +885,12 @@ const TenantProfilePage: NextPageWithLayout = () => {
                           {request.subType}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          Reported: {request.reportedDate}
+                          Reported:{" "}
+                          {formatDateTimeDisplay(request.reportedDate)}
                           {request.resolvedDate &&
-                            ` • Resolved: ${request.resolvedDate}`}
+                            ` • Resolved: ${formatDateTimeDisplay(
+                              request.resolvedDate,
+                            )}`}
                         </p>
                       </div>
                     </div>

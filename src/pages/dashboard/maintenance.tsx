@@ -29,6 +29,7 @@ import { getTenantByUser, type TenantByUserDTO } from "@/api/tenants";
 import { getUnit } from "@/api/units";
 import { uploadFile } from "@/api/files";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
+import { formatDateTimeDisplay } from "@/utils/formatDate";
 import type { NextPageWithLayout } from "../_app";
 
 // Tenant Maintenance Components
@@ -721,7 +722,9 @@ const TenantRequestHistory = ({
                   {request.description}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-600">
-                  <span>Reported: {request.reportedTime}</span>
+                  <span>
+                    Reported: {formatDateTimeDisplay(request.reportedTime)}
+                  </span>
                   {request.unit && (
                     <>
                       <span>•</span>
@@ -1254,7 +1257,7 @@ const LandlordMaintenancePage = () => {
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Reported</p>
                     <p className="text-xs sm:text-sm font-semibold text-gray-900">
-                      {request.reportedTime}
+                      {formatDateTimeDisplay(request.reportedTime)}
                     </p>
                   </div>
                 </div>

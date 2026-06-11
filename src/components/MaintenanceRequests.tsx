@@ -3,6 +3,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Wrench } from "lucide-react";
 import type { MaintenanceRequest } from "@/data/mockLandlordData";
+import { formatDateTimeDisplay } from "@/utils/formatDate";
 
 export type MaintenanceRequestsProps = {
   requests: MaintenanceRequest[];
@@ -100,7 +101,7 @@ export const MaintenanceRequests = ({
                             : "New"}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {request.timeAgo}
+                        {formatDateTimeDisplay(request.timeAgo)}
                       </span>
                     </div>
                   </div>

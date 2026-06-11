@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   Clock,
   Check,
-  Wrench,
   Trash2,
   Pencil,
   AlertCircle,
@@ -21,6 +20,7 @@ import type { MaintenanceRequestItemDTO } from "@/api/maintenance";
 import { getTenantByUser } from "@/api/tenants";
 import { useUser } from "@/contexts/UserContext";
 import { maintenanceRequestOwnedByTenant } from "@/utils/maintenanceTenantAccess";
+import { formatDateTimeDisplay } from "@/utils/formatDate";
 import { EditMaintenanceRequestModal } from "@/components/EditMaintenanceRequestModal";
 import type { NextPageWithLayout } from "../../_app";
 
@@ -260,22 +260,19 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
           </div>
         )}
 
-        {!pageLoading &&
-          !error &&
-          isTenant &&
-          tenantGate.error && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-amber-900">
-                  Could not verify your account
-                </p>
-                <p className="text-sm text-amber-800 mt-1">
-                  Refresh the page or sign in again to view maintenance requests.
-                </p>
-              </div>
+        {!pageLoading && !error && isTenant && tenantGate.error && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-900">
+                Could not verify your account
+              </p>
+              <p className="text-sm text-amber-800 mt-1">
+                Refresh the page or sign in again to view maintenance requests.
+              </p>
             </div>
-          )}
+          </div>
+        )}
 
         {!pageLoading &&
           !error &&
@@ -302,154 +299,151 @@ const MaintenanceRequestDetailPage: NextPageWithLayout = () => {
         {!pageLoading &&
           !error &&
           request &&
-          (!isTenant ||
-            (!tenantGate.error && tenantAllowedToViewRequest)) && (
-          <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div className="border-b border-gray-200 px-4 py-4 sm:px-6 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  {request.title ||
-                    `${typeLabel || "Request"}${
-                      subTypeLabel ? ` — ${subTypeLabel}` : ""
-                    }`}
-                </h1>
-                <p className="mt-1 text-sm text-gray-500">
-                  ID: {request.requestId ?? request.request_id ?? request.id}
-                </p>
-              </div>
-              <div className="mt-3 flex items-center gap-2 sm:mt-0">
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-                    status === "Resolved"
-                      ? "bg-green-100 text-green-700"
-                      : status === "In Progress"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-gray-100 text-gray-700"
-                  }`}
-                >
-                  {status === "Resolved" ? (
-                    <Check className="h-3 w-3" />
-                  ) : (
-                    <Clock className="h-3 w-3" />
-                  )}
-                  {status}
-                </span>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                    priority === "High"
-                      ? "bg-red-100 text-red-700"
-                      : priority === "Low"
+          (!isTenant || (!tenantGate.error && tenantAllowedToViewRequest)) && (
+            <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="border-b border-gray-200 px-4 py-4 sm:px-6 sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <h1 className="text-lg font-semibold text-gray-900">
+                    {request.title ||
+                      `${typeLabel || "Request"}${
+                        subTypeLabel ? ` — ${subTypeLabel}` : ""
+                      }`}
+                  </h1>
+                  <p className="mt-1 text-sm text-gray-500">
+                    ID: {request.requestId ?? request.request_id ?? request.id}
+                  </p>
+                </div>
+                <div className="mt-3 flex items-center gap-2 sm:mt-0">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                      status === "Resolved"
                         ? "bg-green-100 text-green-700"
-                        : "bg-amber-100 text-amber-700"
-                  }`}
-                >
-                  {priority}
-                </span>
-                {canEdit && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditOpen(true)}
-                      disabled={status === "Resolved"}
-                      title={
-                        status === "Resolved"
-                          ? "Resolved requests cannot be edited"
-                          : undefined
-                      }
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsDeleteConfirmOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </button>
-                  </>
-                )}
-                {showMarkResolved && (
-                  <button
-                    type="button"
-                    onClick={handleMarkResolved}
-                    disabled={isMarkingResolved}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-70"
+                        : status === "In Progress"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-100 text-gray-700"
+                    }`}
                   >
-                    <Check className="h-4 w-4" />
-                    {isMarkingResolved ? "Marking…" : "Mark as Resolved"}
-                  </button>
-                )}
+                    {status === "Resolved" ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <Clock className="h-3 w-3" />
+                    )}
+                    {status}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      priority === "High"
+                        ? "bg-red-100 text-red-700"
+                        : priority === "Low"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {priority}
+                  </span>
+                  {canEdit && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditOpen(true)}
+                        disabled={status === "Resolved"}
+                        title={
+                          status === "Resolved"
+                            ? "Resolved requests cannot be edited"
+                            : undefined
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsDeleteConfirmOpen(true)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  {showMarkResolved && (
+                    <button
+                      type="button"
+                      onClick={handleMarkResolved}
+                      disabled={isMarkingResolved}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-70"
+                    >
+                      <Check className="h-4 w-4" />
+                      {isMarkingResolved ? "Marking…" : "Mark as Resolved"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-4 py-4 sm:px-6 space-y-6">
+                <div>
+                  <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Description
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
+                    {request.description || "—"}
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Type
+                    </h2>
+                    <p className="mt-1 text-sm font-medium text-gray-900">
+                      {typeLabel || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Sub-type
+                    </h2>
+                    <p className="mt-1 text-sm font-medium text-gray-900">
+                      {subTypeLabel || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Property
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {propertyLabel || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Unit
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {unitLabel || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Tenant
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {tenantLabel || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Reported
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-900">
+                      {formatDateTimeDisplay(reportedTime)}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-
-            <div className="px-4 py-4 sm:px-6 space-y-6">
-              <div>
-                <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Description
-                </h2>
-                <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
-                  {request.description || "—"}
-                </p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    Type
-                  </h2>
-                  <p className="mt-1 text-sm font-medium text-gray-900">
-                    {typeLabel || "—"}
-                  </p>
-                </div>
-                <div>
-                  <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    Sub-type
-                  </h2>
-                  <p className="mt-1 text-sm font-medium text-gray-900">
-                    {subTypeLabel || "—"}
-                  </p>
-                </div>
-                <div>
-                  <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    Property
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-900">
-                    {propertyLabel || "—"}
-                  </p>
-                </div>
-                <div>
-                  <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    Unit
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-900">
-                    {unitLabel || "—"}
-                  </p>
-                </div>
-                <div>
-                  <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    Tenant
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-900">
-                    {tenantLabel || "—"}
-                  </p>
-                </div>
-                <div>
-                  <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    Reported
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-900">
-                    {reportedTime
-                      ? new Date(reportedTime).toLocaleString()
-                      : "—"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+          )}
 
         {/* Delete confirmation */}
         {isDeleteConfirmOpen && (

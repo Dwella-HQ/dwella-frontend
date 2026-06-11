@@ -16,6 +16,7 @@ import type {
   MaintenanceRequestWithDetails,
   Payment,
 } from "@/data/mockLandlordData";
+import { formatDateTimeDisplay } from "@/utils/formatDate";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object"
@@ -423,7 +424,7 @@ const AdminUnitDetailPage: NextPageWithLayout = () => {
                         </span>
                       </div>
                       <span className="text-xs text-[#94A3B8]">
-                        {m.reportedTime}
+                        {formatDateTimeDisplay(m.reportedTime)}
                       </span>
                     </div>
                     <p className="text-sm font-medium">

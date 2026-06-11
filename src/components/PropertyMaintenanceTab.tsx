@@ -2,6 +2,7 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { Plus, ChevronLeft, ChevronRight, Wrench } from "lucide-react";
 import type { MaintenanceRequestDetail } from "@/data/mockLandlordData";
+import { formatDateTimeDisplay } from "@/utils/formatDate";
 import { NewMaintenanceRequestModal } from "./NewMaintenanceRequestModal";
 
 export type PropertyMaintenanceTabProps = {
@@ -55,7 +56,9 @@ export const PropertyMaintenanceTab = ({
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Maintenance Requests</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              Maintenance Requests
+            </h2>
           </div>
           <motion.button
             type="button"
@@ -73,36 +76,36 @@ export const PropertyMaintenanceTab = ({
         {displayedRequests.length > 0 ? (
           <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
             <table className="w-full table-auto min-w-[800px]">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Unit ID
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Sub-Type
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Tenant
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Reported Date
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Priority
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Additional Detail
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {displayedRequests.map((request, index) => (
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Unit ID
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Sub-Type
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Tenant
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Reported Date
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Priority
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Additional Detail
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {displayedRequests.map((request, index) => (
                   <motion.tr
                     key={request.id}
                     initial={{ opacity: 0, x: -20 }}
@@ -124,15 +127,16 @@ export const PropertyMaintenanceTab = ({
                       {request.tenantName}
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {request.reportedDate}
+                      {formatDateTimeDisplay(request.reportedDate)}
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getPriorityColor(
-                          request.priority
+                          request.priority,
                         )}`}
                       >
-                        {request.priority.charAt(0).toUpperCase() + request.priority.slice(1)}
+                        {request.priority.charAt(0).toUpperCase() +
+                          request.priority.slice(1)}
                       </span>
                     </td>
                     <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 max-w-xs truncate">
@@ -148,72 +152,81 @@ export const PropertyMaintenanceTab = ({
                         </span>
                       </div>
                     </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
 
             {/* Pagination */}
             <div className="px-3 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Items per page</span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700"
-              >
-                <option value="12">12</option>
-                <option value="24">24</option>
-                <option value="48">48</option>
-              </select>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-              <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
-                {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} items
-              </span>
-              <div className="flex items-center gap-2">
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              <div className="flex items-center gap-2 sm:gap-4">
+                <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
+                  Items per page
+                </span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700"
                 >
-                  <ChevronLeft className="h-4 w-4" />
-                </motion.button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <option value="12">12</option>
+                  <option value="24">24</option>
+                  <option value="48">48</option>
+                </select>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
+                  {startIndex + 1}-{Math.min(endIndex, totalItems)} of{" "}
+                  {totalItems} items
+                </span>
+                <div className="flex items-center gap-2">
                   <motion.button
-                    key={page}
                     type="button"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setCurrentPage(page)}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                      currentPage === page
-                        ? "bg-brand-main text-white"
-                        : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                    }`}
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
+                    disabled={currentPage === 1}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {page}
+                    <ChevronLeft className="h-4 w-4" />
                   </motion.button>
-                ))}
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </motion.button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (page) => (
+                      <motion.button
+                        key={page}
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setCurrentPage(page)}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                          currentPage === page
+                            ? "bg-brand-main text-white"
+                            : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {page}
+                      </motion.button>
+                    ),
+                  )}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </motion.button>
+                </div>
               </div>
             </div>
-          </div>
           </div>
         ) : (
           <motion.div
@@ -225,7 +238,9 @@ export const PropertyMaintenanceTab = ({
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 mb-4">
               <Wrench className="h-8 w-8 text-gray-400" />
             </div>
-            <p className="text-sm font-medium text-gray-900 mb-1">No Maintenance Requests</p>
+            <p className="text-sm font-medium text-gray-900 mb-1">
+              No Maintenance Requests
+            </p>
             <p className="text-xs text-gray-500 text-center">
               Maintenance requests will appear here when available.
             </p>
@@ -241,4 +256,3 @@ export const PropertyMaintenanceTab = ({
     </>
   );
 };
-

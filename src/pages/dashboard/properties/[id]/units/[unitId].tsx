@@ -14,7 +14,6 @@ import {
   Mail,
   Pencil,
 } from "lucide-react";
-import * as Dialog from "@radix-ui/react-dialog";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUser } from "@/contexts/UserContext";
@@ -29,6 +28,7 @@ import type { Unit } from "@/data/mockLandlordData";
 
 import type { NextPageWithLayout } from "@/pages/_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
+import { formatDateTimeDisplay } from "@/utils/formatDate";
 
 type NestedProperty = { id?: string; name?: string };
 
@@ -421,7 +421,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
                 No Tenant Assigned
               </p>
               <p className="text-xs text-gray-600 mb-4">
-                Click 'Add Tenant' to Assign new tenant.
+                Click &apos;Add Tenant&apos; to assign a new tenant.
               </p>
               <button
                 type="button"
@@ -506,11 +506,15 @@ const UnitDetailPage: NextPageWithLayout = () => {
                       {maintenance.subType}
                     </p>
                     <div className="flex items-center gap-4 text-xs text-gray-600">
-                      <span>Reported: {maintenance.reportedDate}</span>
+                      <span>
+                        Reported:{" "}
+                        {formatDateTimeDisplay(maintenance.reportedDate)}
+                      </span>
                       {maintenance.resolvedDate && (
                         <span className="flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3 text-brand-green" />
-                          Resolved: {maintenance.resolvedDate}
+                          Resolved:{" "}
+                          {formatDateTimeDisplay(maintenance.resolvedDate)}
                         </span>
                       )}
                     </div>
