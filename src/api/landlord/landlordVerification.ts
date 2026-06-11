@@ -31,8 +31,5 @@ export function hasRequiredLandlordVerificationDocuments(
 export function isApprovedLandlordVerificationComplete(
   landlord?: LandlordDTO | null,
 ): boolean {
-  return (
-    landlord?.isApproved === true &&
-    hasRequiredLandlordVerificationDocuments(landlord)
-  );
+  return landlord?.isApproved === true;
 }

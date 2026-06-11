@@ -209,6 +209,53 @@ type PreferencesSnapshot = {
   };
 };
 
+type DocumentsFormState = {
+  govermentIdDocumentId: string;
+  landSurveyDocumentId: string;
+  proofOfOwnershipDocumentId: string;
+  taxIdentificationNumberDocumentId: string;
+};
+
+const createEmptyDocumentsForm = (): DocumentsFormState => ({
+  govermentIdDocumentId: "",
+  landSurveyDocumentId: "",
+  proofOfOwnershipDocumentId: "",
+  taxIdentificationNumberDocumentId: "",
+});
+
+const documentIdFromRef = (value: unknown): string => {
+  if (typeof value === "string") return value.trim();
+  if (!value || typeof value !== "object") return "";
+
+  const fileRef = value as { id?: unknown };
+  return typeof fileRef.id === "string" ? fileRef.id.trim() : "";
+};
+
+const hasAllVerificationDocuments = (documents: DocumentsFormState) =>
+  Object.values(documents).every((documentId) => documentId.trim().length > 0);
+
+const documentsFormFromLandlord = (
+  landlord: LandlordDTO,
+): DocumentsFormState => {
+  const source = landlord as Record<string, unknown>;
+
+  return {
+    govermentIdDocumentId:
+      documentIdFromRef(landlord.govermentIdDocumentId) ||
+      documentIdFromRef(source.govermentIdDocument) ||
+      documentIdFromRef(source.governmentIdDocument),
+    landSurveyDocumentId:
+      documentIdFromRef(landlord.landSurveyDocumentId) ||
+      documentIdFromRef(source.landSurveyDocument),
+    proofOfOwnershipDocumentId:
+      documentIdFromRef(landlord.proofOfOwnershipDocumentId) ||
+      documentIdFromRef(source.proofOfOwnershipDocument),
+    taxIdentificationNumberDocumentId:
+      documentIdFromRef(landlord.taxIdentificationNumberDocumentId) ||
+      documentIdFromRef(source.taxIdentificationNumberDocument),
+  };
+};
+
 const SETTINGS_FIELD_READONLY =
   "h-11 w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-900";
 const SETTINGS_FIELD_EDITABLE =
@@ -264,10 +311,8 @@ const SettingsPage: NextPageWithLayout = () => {
   const [isUploadingDoc, setIsUploadingDoc] = React.useState<string | null>(
     null,
   );
-  const [
-    hasPendingLandlordVerification,
-    setHasPendingLandlordVerification,
-  ] = React.useState(false);
+  const [hasPendingLandlordVerification, setHasPendingLandlordVerification] =
+    React.useState(false);
 
   const [profileForm, setProfileForm] = React.useState({
     businessName: "",
@@ -279,12 +324,9 @@ const SettingsPage: NextPageWithLayout = () => {
     postalCode: "",
     country: "Nigeria",
   });
-  const [documentsForm, setDocumentsForm] = React.useState({
-    govermentIdDocumentId: "",
-    landSurveyDocumentId: "",
-    proofOfOwnershipDocumentId: "",
-    taxIdentificationNumberDocumentId: "",
-  });
+  const [documentsForm, setDocumentsForm] = React.useState<DocumentsFormState>(
+    createEmptyDocumentsForm,
+  );
   const [platformPrefsForm, setPlatformPrefsForm] = React.useState({
     defaultCurrency: "NGN",
     defaultLateFeeAmount: "0",
@@ -484,6 +526,7 @@ const SettingsPage: NextPageWithLayout = () => {
 
       if (landlordResult.success) {
         setLandlord(landlordResult.data);
+        setDocumentsForm(documentsFormFromLandlord(landlordResult.data));
         applyProfileFormFromLandlord(landlordResult.data, user?.email);
         if (typeof window !== "undefined") {
           console.info(
@@ -562,6 +605,7 @@ const SettingsPage: NextPageWithLayout = () => {
 
       if (landlordResult.success) {
         setLandlord(landlordResult.data);
+        setDocumentsForm(documentsFormFromLandlord(landlordResult.data));
         applyProfileFormFromLandlord(landlordResult.data, user?.email);
       }
 
@@ -631,38 +675,9 @@ const SettingsPage: NextPageWithLayout = () => {
 
       const result = await getLandlordByUser(user.id as string);
       if (result.success) {
-        console.log("[Settings] landlord payload for document preview:", {
-          govermentIdDocumentId: result.data.govermentIdDocumentId,
-          landSurveyDocumentId: result.data.landSurveyDocumentId,
-          proofOfOwnershipDocumentId: result.data.proofOfOwnershipDocumentId,
-          taxIdentificationNumberDocumentId:
-            result.data.taxIdentificationNumberDocumentId,
-          govermentIdDocument: (
-            result.data as unknown as Record<string, unknown>
-          ).govermentIdDocument,
-          governmentIdDocument: (
-            result.data as unknown as Record<string, unknown>
-          ).governmentIdDocument,
-          landSurveyDocument: (
-            result.data as unknown as Record<string, unknown>
-          ).landSurveyDocument,
-          proofOfOwnershipDocument: (
-            result.data as unknown as Record<string, unknown>
-          ).proofOfOwnershipDocument,
-          taxIdentificationNumberDocument: (
-            result.data as unknown as Record<string, unknown>
-          ).taxIdentificationNumberDocument,
-        });
         setLandlord(result.data);
         applyProfileFormFromLandlord(result.data, user?.email);
-        setDocumentsForm({
-          govermentIdDocumentId: result.data.govermentIdDocumentId ?? "",
-          landSurveyDocumentId: result.data.landSurveyDocumentId ?? "",
-          proofOfOwnershipDocumentId:
-            result.data.proofOfOwnershipDocumentId ?? "",
-          taxIdentificationNumberDocumentId:
-            result.data.taxIdentificationNumberDocumentId ?? "",
-        });
+        setDocumentsForm(documentsFormFromLandlord(result.data));
       }
 
       setIsLoadingLandlord(false);
@@ -1251,7 +1266,7 @@ const SettingsPage: NextPageWithLayout = () => {
   ]);
 
   const toDocumentsPayload = React.useCallback(
-    (documents: typeof documentsForm) => ({
+    (documents: DocumentsFormState) => ({
       govermentIdDocumentId: documents.govermentIdDocumentId,
       landSurveyDocumentId: documents.landSurveyDocumentId,
       proofOfOwnershipDocumentId: documents.proofOfOwnershipDocumentId,
@@ -1263,10 +1278,7 @@ const SettingsPage: NextPageWithLayout = () => {
 
   const handleSaveDocuments = React.useCallback(async () => {
     if (!landlordId) return;
-    const missingDocuments = Object.values(documentsForm).some(
-      (documentId) => !documentId,
-    );
-    if (missingDocuments) {
+    if (!hasAllVerificationDocuments(documentsForm)) {
       showToast("Please upload all verification documents.", "error");
       return;
     }
@@ -1280,7 +1292,10 @@ const SettingsPage: NextPageWithLayout = () => {
       showToast("Documents updated successfully", "success");
       if (userId) {
         const refreshed = await getLandlordByUser(userId);
-        if (refreshed.success) setLandlord(refreshed.data);
+        if (refreshed.success) {
+          setLandlord(refreshed.data);
+          setDocumentsForm(documentsFormFromLandlord(refreshed.data));
+        }
       }
     } else showToast(result.error || "Failed to update documents", "error");
   }, [documentsForm, landlordId, showToast, toDocumentsPayload, userId]);
@@ -1410,6 +1425,16 @@ const SettingsPage: NextPageWithLayout = () => {
           return;
         }
 
+        if (!hasAllVerificationDocuments(nextDocuments)) {
+          setIsUploadingDoc(null);
+          setDocumentsForm(nextDocuments);
+          showToast(
+            "Document uploaded. Upload the remaining verification documents, then save.",
+            "success",
+          );
+          return;
+        }
+
         const updateResult = await updateLandlordDocumentsSettings(
           landlordId,
           toDocumentsPayload(nextDocuments),
@@ -1427,6 +1452,9 @@ const SettingsPage: NextPageWithLayout = () => {
             const refreshedLandlord = await getLandlordByUser(userId);
             if (refreshedLandlord.success) {
               setLandlord(refreshedLandlord.data);
+              setDocumentsForm(
+                documentsFormFromLandlord(refreshedLandlord.data),
+              );
             }
           }
           return;

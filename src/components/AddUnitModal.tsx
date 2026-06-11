@@ -1,5 +1,5 @@
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { X, ArrowLeft, Check, Upload, AlertCircle } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -459,11 +459,11 @@ export const AddUnitModal = ({
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">
-                      Rent
+                      Unit rent
                     </label>
                     <input
                       type="text"
-                      placeholder="Placeholder"
+                      placeholder="e.g. 250000"
                       {...register("monthlyRent")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />

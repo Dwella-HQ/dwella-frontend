@@ -32,7 +32,10 @@ import Image from "next/image";
 import { Country, State, City } from "country-state-city";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { AddUnitModal } from "@/components/AddUnitModal";
+import {
+  AddUnitModal,
+  type AddUnitFormValues,
+} from "@/components/AddUnitModal";
 import { useToast } from "@/components/Toast";
 import { createProperty } from "@/api/properties";
 import { uploadFile, deleteFile } from "@/api/files";
@@ -797,8 +800,11 @@ const AddPropertyPage: NextPageWithLayout = () => {
   };
 
   const handleUnitAdded = React.useCallback(
-    (unitData: any) => {
+    (unitData: AddUnitFormValues & { amenities?: string[] }) => {
       const beds = parseInt(String(unitData.bedrooms ?? ""), 10);
+      const rentAmount = Number(
+        String(unitData.monthlyRent ?? "").replace(/[^0-9.]/g, ""),
+      );
       const typeLabel =
         !Number.isFinite(beds) || beds < 0
           ? "2BR Apt"
@@ -812,7 +818,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
           unitData.unitName || `A${String(units.length + 1).padStart(3, "0")}`,
         type: typeLabel,
         amenities: unitData.amenities || [],
-        rent: `N${parseInt(unitData.monthlyRent || "250000").toLocaleString()}`,
+        rent: rentAmount > 0 ? `N${rentAmount.toLocaleString()}` : "—",
         image:
           "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop",
       };
@@ -1602,7 +1608,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                       No units added yet
                     </p>
                     <p className="mt-1 text-sm text-gray-600">
-                      Click "Add Unit" to create your first unit
+                      Click &quot;Add Unit&quot; to create your first unit
                     </p>
                   </div>
                 ) : (
