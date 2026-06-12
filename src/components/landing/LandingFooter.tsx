@@ -1,18 +1,12 @@
-import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Mail, Phone } from "lucide-react";
 import logo from "@/assets/logo_white_horizontal.png";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
 
+const WAITLIST_URL = "https://app.youform.com/forms/dc4vgu65";
+
 export const LandingFooter = () => {
-  const [email, setEmail] = React.useState("");
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim()) setEmail("");
-  };
-
   return (
     <footer className="bg-[#0B0706] text-white">
       <div className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
@@ -31,21 +25,14 @@ export const LandingFooter = () => {
               Helping you find the place where memories are made and your future
               begins.
             </p>
-            <form onSubmit={handleSubscribe} className="flex gap-2">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="flex-1 rounded border border-white/20 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-500 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/40"
-              />
-              <button
-                type="submit"
-                className="rounded bg-[var(--brand-secondary)] px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
-              >
-                Subscribe
-              </button>
-            </form>
+            <a
+              href={WAITLIST_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex rounded bg-[var(--brand-secondary)] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+            >
+              Join the Waitlist
+            </a>
           </div>
           <div>
             <h3 className="mb-4 text-sm font-bold text-white">Quick links</h3>

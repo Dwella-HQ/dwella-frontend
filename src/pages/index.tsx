@@ -25,6 +25,8 @@ import {
 } from "@/api/properties";
 import type { Property } from "@/data/mockLandlordData";
 
+const WAITLIST_URL = "https://app.youform.com/forms/dc4vgu65";
+
 const FEATURE_CARDS = [
   {
     icon: Search,
@@ -133,6 +135,14 @@ export default function LandingPage() {
                 platform.
               </p>
               <div className="mt-10 flex flex-wrap items-center justify-center gap-4 md:mt-12">
+                <a
+                  href={WAITLIST_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1FC7FF] px-8 py-3 text-sm font-semibold text-[#062F5F] shadow hover:bg-[#56D6FF] md:h-[63px] md:w-[276px] md:rounded-[14px] md:px-12 md:py-[17px] md:text-base"
+                >
+                  Join the Waitlist <ArrowRight className="h-4 w-4" />
+                </a>
                 <Link
                   href="/properties"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3 text-sm font-semibold text-[#103B73] shadow hover:bg-gray-100 md:h-[63px] md:w-[276px] md:rounded-[14px] md:px-12 md:py-[17px] md:text-base"
@@ -475,11 +485,11 @@ export default function LandingPage() {
                       </div>
                     </div>
                     <span className="text-4xl leading-none text-[#D1D5DB]">
-                      "
+                      &quot;
                     </span>
                   </div>
                   <p className="mt-5 text-base leading-8 text-[#334155]">
-                    "{item.quote}"
+                    &quot;{item.quote}&quot;
                   </p>
                 </article>
               ))}
@@ -497,9 +507,17 @@ export default function LandingPage() {
                 have got you covered.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
+                <a
+                  href={WAITLIST_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl bg-[#0A4C95] px-8 py-3 text-sm font-semibold text-white shadow hover:bg-[#083E7C]"
+                >
+                  Join the Waitlist
+                </a>
                 <Link
                   href="/properties"
-                  className="rounded-xl bg-[#0A4C95] px-8 py-3 text-sm font-semibold text-white shadow hover:bg-[#083E7C]"
+                  className="rounded-xl border border-[#0A4C95] px-8 py-3 text-sm font-semibold text-[#0A4C95] hover:bg-[#0A4C95]/5"
                 >
                   Browse Properties
                 </Link>
