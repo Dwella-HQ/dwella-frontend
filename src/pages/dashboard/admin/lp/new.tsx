@@ -48,23 +48,31 @@ const AddLandlordPage: NextPageWithLayout = () => {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {[
-                "Business Name",
-                "Phone Number",
-                "Address",
-                "PIN",
-                "State",
-                "City",
+                {
+                  label: "Business Name",
+                  placeholder: "e.g. Dwelliva Homes Ltd",
+                },
+                { label: "Phone Number", placeholder: "e.g. 801 234 5678" },
+                {
+                  label: "Address",
+                  placeholder: "e.g. 24 Admiralty Way, Lekki",
+                },
+                { label: "PIN", placeholder: "e.g. 930212" },
+                { label: "State", placeholder: "e.g. Lagos" },
+                { label: "City", placeholder: "e.g. Lekki" },
               ].map((field) => (
                 <div
-                  key={field}
-                  className={field === "Business Name" ? "col-span-2" : ""}
+                  key={field.label}
+                  className={
+                    field.label === "Business Name" ? "col-span-2" : ""
+                  }
                 >
                   <label className="mb-1 block text-xs font-medium text-[#334155]">
-                    {field}
+                    {field.label}
                   </label>
                   <input
                     className="h-10 w-full rounded-md border border-[#E2E8F0] px-3 text-xs outline-none"
-                    placeholder="Placeholder"
+                    placeholder={field.placeholder}
                   />
                 </div>
               ))}

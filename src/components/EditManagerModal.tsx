@@ -162,7 +162,7 @@ export const EditManagerModal = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="Placeholder"
+                      placeholder="e.g. Chinedu Okafor"
                       {...register("fullName")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />
@@ -176,7 +176,7 @@ export const EditManagerModal = ({
                     </label>
                     <input
                       type="email"
-                      placeholder="Placeholder"
+                      placeholder="e.g. manager@example.com"
                       {...register("email")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />
@@ -190,7 +190,7 @@ export const EditManagerModal = ({
                     </label>
                     <input
                       type="tel"
-                      placeholder="Placeholder"
+                      placeholder="e.g. 801 234 5678"
                       {...register("phone")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />
@@ -234,7 +234,7 @@ export const EditManagerModal = ({
                   <div className="flex flex-col items-center justify-center py-8 px-4 rounded-lg border border-gray-200 bg-gray-50">
                     <p className="text-sm font-medium text-gray-900 mb-1">No Properties</p>
                     <p className="text-xs text-gray-500 text-center">
-                      You don't have any properties yet. Create a property first to assign it to a manager.
+                      You do not have any properties yet. Create a property first to assign it to a manager.
                     </p>
                   </div>
                 )}
@@ -290,4 +290,3 @@ export const EditManagerModal = ({
     </Dialog.Root>
   );
 };
-

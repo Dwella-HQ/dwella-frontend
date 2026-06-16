@@ -58,15 +58,16 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   );
   const [formError, setFormError] = React.useState<string | null>(null);
 
+  const userName = user?.name ?? "";
   const initials = React.useMemo(() => {
-    if (!user?.name) {
+    if (!userName) {
       return "JD";
     }
-    const parts = user.name.trim().split(/\s+/);
+    const parts = userName.trim().split(/\s+/);
     const first = parts[0]?.[0] || "";
     const last = parts.length > 1 ? parts[parts.length - 1]?.[0] || "" : "";
     return `${first}${last}`.toUpperCase() || "JD";
-  }, [user?.name]);
+  }, [userName]);
 
   const allCountries = React.useMemo(() => Country.getAllCountries(), []);
   const selectedCountry = React.useMemo(
@@ -77,10 +78,11 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
     [allCountries, details.country],
   );
 
+  const selectedCountryIsoCode = selectedCountry?.isoCode ?? "";
   const statesForCountry = React.useMemo(() => {
-    if (!selectedCountry?.isoCode) return [];
-    return State.getStatesOfCountry(selectedCountry.isoCode);
-  }, [selectedCountry?.isoCode]);
+    if (!selectedCountryIsoCode) return [];
+    return State.getStatesOfCountry(selectedCountryIsoCode);
+  }, [selectedCountryIsoCode]);
 
   const selectedState = React.useMemo(
     () =>
@@ -88,13 +90,14 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
     [details.state, statesForCountry],
   );
 
+  const selectedStateIsoCode = selectedState?.isoCode ?? "";
   const citiesForState = React.useMemo(() => {
-    if (!selectedCountry?.isoCode || !selectedState?.isoCode) return [];
+    if (!selectedCountryIsoCode || !selectedStateIsoCode) return [];
     return City.getCitiesOfState(
-      selectedCountry.isoCode,
-      selectedState.isoCode,
+      selectedCountryIsoCode,
+      selectedStateIsoCode,
     );
-  }, [selectedCountry?.isoCode, selectedState?.isoCode]);
+  }, [selectedCountryIsoCode, selectedStateIsoCode]);
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -322,7 +325,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="businessName"
                 value={details.businessName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="e.g. Dwelliva Homes Ltd"
                 className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
               />
             </div>
@@ -336,7 +339,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                   name="address"
                   value={details.address}
                   onChange={handleChange}
-                  placeholder="Placeholder"
+                  placeholder="e.g. 24 Admiralty Way, Lekki"
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                 />
               </div>

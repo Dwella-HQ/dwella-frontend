@@ -809,7 +809,7 @@ export const AddTenantModal = ({
                         </label>
                         <input
                           type="text"
-                          placeholder="Placeholder"
+                          placeholder="e.g. Ada Johnson"
                           {...register("fullName", { required: true })}
                           className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                         />
@@ -825,7 +825,7 @@ export const AddTenantModal = ({
                           </label>
                           <input
                             type="email"
-                            placeholder="Placeholder"
+                            placeholder="e.g. tenant@example.com"
                             {...register("email", { required: true })}
                             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                           />

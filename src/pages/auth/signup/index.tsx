@@ -533,7 +533,7 @@ const SignUpPage: NextPageWithLayout = () => {
               <input
                 id="email"
                 type="email"
-                placeholder="Placeholder"
+                placeholder="e.g. you@example.com"
                 className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                 aria-invalid={!!errors.email}
                 aria-describedby={errors.email ? "email-error" : undefined}
@@ -561,7 +561,7 @@ const SignUpPage: NextPageWithLayout = () => {
               <input
                 id="fullName"
                 type="text"
-                placeholder="Placeholder"
+                placeholder="e.g. Ada Johnson"
                 className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                 aria-invalid={!!errors.fullName}
                 aria-describedby={

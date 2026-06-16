@@ -971,7 +971,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         </label>
                         <input
                           type="text"
-                          placeholder="Placeholder"
+                          placeholder="e.g. Ocean View Apartments"
                           {...register("propertyName")}
                           className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                         />
@@ -1159,7 +1159,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         </label>
                         <input
                           type="text"
-                          placeholder="Placeholder"
+                          placeholder="e.g. 930212"
                           {...register("postalCode")}
                           className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                         />

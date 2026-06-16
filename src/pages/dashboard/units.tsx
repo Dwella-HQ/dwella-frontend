@@ -213,14 +213,17 @@ const UnitsPage: NextPageWithLayout = () => {
         .map((cell) => escapeCell(String(cell)))
         .join(","),
     );
-    const csv = [header.join(","), ...lines].join("\r\n");
+    const csv = `\uFEFF${[header.join(","), ...lines].join("\r\n")}`;
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `dwelliva-units-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(anchor);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }, [allUnits, showToast]);
 
   // Calculate summary stats

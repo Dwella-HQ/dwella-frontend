@@ -415,7 +415,7 @@ export const AddUnitModal = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="Placeholder"
+                      placeholder="e.g. Flat 2B"
                       {...register("unitName")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />
@@ -431,7 +431,7 @@ export const AddUnitModal = ({
                     </label>
                     <input
                       type="number"
-                      placeholder="Placeholder"
+                      placeholder="e.g. 2"
                       {...register("bedrooms")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />
@@ -447,7 +447,7 @@ export const AddUnitModal = ({
                     </label>
                     <input
                       type="number"
-                      placeholder="Placeholder"
+                      placeholder="e.g. 2"
                       {...register("bathrooms")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />
@@ -498,7 +498,7 @@ export const AddUnitModal = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="Placeholder"
+                      placeholder="e.g. 50000"
                       {...register("cautionFee")}
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                     />
