@@ -4,7 +4,18 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { getLandlords, type LandlordDTO } from "@/api/landlord";
+import {
+  getLandlords,
+  getLandlordVerificationStatus,
+  type LandlordVerificationStatus,
+  type LandlordDTO,
+} from "@/api/landlord";
+import {
+  deriveVerificationKind,
+  entityLandlordId,
+  getVerifications,
+  type VerificationDTO,
+} from "@/api/verification";
 import { getProperties, type PropertyDTO } from "@/api/properties";
 import { getRentPaymentItems } from "@/api/rent-payment";
 import type { RentPaymentItemDTO } from "@/api/rent-payment/rentPayment.schema";
@@ -62,8 +73,62 @@ function pmDisplayName(m: PropertyManagerDTO): string {
   );
 }
 
-function landlordStatus(l: LandlordDTO): string {
-  if (!l.isApproved) return "Pending";
+function normalizeVerificationStatus(
+  value: unknown,
+): LandlordVerificationStatus | null {
+  if (typeof value !== "string") return null;
+  const status = value.trim().toUpperCase();
+  if (status === "VERIFIED" || status === "PENDING" || status === "REJECTED") {
+    return status;
+  }
+  return null;
+}
+
+function verificationTimestamp(v: VerificationDTO): number {
+  const raw = v.updatedAt ?? v.createdAt ?? v.verifiedAt;
+  if (!raw) return 0;
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function buildLandlordVerificationStatusMap(
+  verifications: VerificationDTO[],
+): Map<string, LandlordVerificationStatus> {
+  const latestByLandlord = new Map<
+    string,
+    { status: LandlordVerificationStatus; timestamp: number }
+  >();
+
+  for (const verification of verifications) {
+    if (deriveVerificationKind(verification) !== "landlord") continue;
+    const landlordId = entityLandlordId(verification);
+    const status = normalizeVerificationStatus(verification.status);
+    if (!landlordId || !status) continue;
+
+    const timestamp = verificationTimestamp(verification);
+    const existing = latestByLandlord.get(landlordId);
+    if (!existing || timestamp >= existing.timestamp) {
+      latestByLandlord.set(landlordId, { status, timestamp });
+    }
+  }
+
+  return new Map(
+    Array.from(latestByLandlord, ([landlordId, row]) => [
+      landlordId,
+      row.status,
+    ]),
+  );
+}
+
+function landlordStatus(
+  l: LandlordDTO,
+  verificationStatuses: Map<string, LandlordVerificationStatus>,
+): string {
+  const verificationStatus =
+    verificationStatuses.get(l.id) ?? getLandlordVerificationStatus(l);
+  if (verificationStatus === "PENDING") return "Pending";
+  if (verificationStatus === "REJECTED") return "Rejected";
+  if (verificationStatus !== "VERIFIED") return "Pending";
   return l.isActive !== false ? "Active" : "Suspended";
 }
 
@@ -78,6 +143,9 @@ const LPPage: NextPageWithLayout = () => {
   const [lpRentItems, setLpRentItems] = React.useState<RentPaymentItemDTO[]>(
     [],
   );
+  const [verificationStatuses, setVerificationStatuses] = React.useState(
+    () => new Map<string, LandlordVerificationStatus>(),
+  );
   const [loadingLandlords, setLoadingLandlords] = React.useState(false);
   const [loadingManagers, setLoadingManagers] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -85,11 +153,17 @@ const LPPage: NextPageWithLayout = () => {
   const loadLandlords = React.useCallback(async () => {
     setLoadingLandlords(true);
     setError(null);
-    const [landlordsResult, propertiesResult, paymentsResult] =
+    const [
+      landlordsResult,
+      propertiesResult,
+      paymentsResult,
+      verificationsResult,
+    ] =
       await Promise.all([
         getLandlords(),
         getProperties(),
         getRentPaymentItems({ limit: 3000 }),
+        getVerifications(),
       ]);
     setLoadingLandlords(false);
     if (!landlordsResult.success) {
@@ -100,6 +174,11 @@ const LPPage: NextPageWithLayout = () => {
       return;
     }
     setLandlords(landlordsResult.data);
+    setVerificationStatuses(
+      verificationsResult.success
+        ? buildLandlordVerificationStatusMap(verificationsResult.data)
+        : new Map(),
+    );
     setLpProperties(propertiesResult.success ? propertiesResult.data : []);
     setLpRentItems(paymentsResult.success ? paymentsResult.data : []);
     if (!propertiesResult.success) {
@@ -107,6 +186,9 @@ const LPPage: NextPageWithLayout = () => {
     }
     if (!paymentsResult.success) {
       console.warn("LP: rent payments for metrics failed:", paymentsResult.error);
+    }
+    if (!verificationsResult.success) {
+      console.warn("LP: verifications for status failed:", verificationsResult.error);
     }
   }, []);
 
@@ -130,14 +212,26 @@ const LPPage: NextPageWithLayout = () => {
 
   const landlordRows =
     tab === "pending"
-      ? landlords.filter((l) => !l.isApproved)
-      : landlords.filter((l) => l.isApproved);
+      ? landlords.filter(
+          (l) =>
+            (verificationStatuses.get(l.id) ??
+              getLandlordVerificationStatus(l)) !== "VERIFIED",
+        )
+      : landlords.filter(
+          (l) =>
+            (verificationStatuses.get(l.id) ??
+              getLandlordVerificationStatus(l)) === "VERIFIED",
+        );
 
   const statsLandlord = React.useMemo(() => {
     const total = landlords.length;
-    const pending = landlords.filter((l) => !l.isApproved).length;
+    const pending = landlords.filter(
+      (l) =>
+        (verificationStatuses.get(l.id) ?? getLandlordVerificationStatus(l)) !==
+        "VERIFIED",
+    ).length;
     return { total, pending };
-  }, [landlords]);
+  }, [landlords, verificationStatuses]);
 
   const landlordMetricsById = React.useMemo(
     () => buildLandlordMetricsMap(lpProperties, lpRentItems),
@@ -323,6 +417,10 @@ const LPPage: NextPageWithLayout = () => {
                       landlordRows.map((row, i) => {
                         const m =
                           landlordMetricsById.get(row.id) ?? emptyMetrics;
+                        const status = landlordStatus(
+                          row,
+                          verificationStatuses,
+                        );
                         return (
                         <tr key={row.id} className="border-t border-[#F1F5F9]">
                           <td className="py-2">{i + 1}</td>
@@ -335,9 +433,9 @@ const LPPage: NextPageWithLayout = () => {
                           <td className="py-2">{formatNgn(m.totalRevenue)}</td>
                           <td className="py-2">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] ${landlordStatus(row) === "Active" ? "bg-green-100 text-green-700" : landlordStatus(row) === "Pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}
+                              className={`rounded-full px-2 py-0.5 text-[11px] ${status === "Active" ? "bg-green-100 text-green-700" : status === "Pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}
                             >
-                              {landlordStatus(row)}
+                              {status}
                             </span>
                           </td>
                           <td className="py-2">

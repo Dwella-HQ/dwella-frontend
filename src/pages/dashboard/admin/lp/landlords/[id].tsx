@@ -16,7 +16,13 @@ import {
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
-import { getLandlord, type LandlordDTO } from "@/api/landlord";
+import {
+  getLandlord,
+  getLandlordVerificationStatus,
+  type LandlordVerificationStatus,
+  type LandlordDTO,
+} from "@/api/landlord";
+import { queryVerifications, type VerificationDTO } from "@/api/verification";
 import { getPropertiesByLandlord } from "@/api/properties";
 import type { PropertyDTO } from "@/api/properties/properties.schema";
 import { getRentPaymentItems } from "@/api/rent-payment";
@@ -75,11 +81,57 @@ function landlordEmail(l: LandlordDTO): string {
   return l.businessEmail?.trim() || l.user?.email || "—";
 }
 
-function landlordStatusLabel(l: LandlordDTO): {
+function normalizeVerificationStatus(
+  value: unknown,
+): LandlordVerificationStatus | null {
+  if (typeof value !== "string") return null;
+  const status = value.trim().toUpperCase();
+  if (status === "VERIFIED" || status === "PENDING" || status === "REJECTED") {
+    return status;
+  }
+  return null;
+}
+
+function verificationTimestamp(v: VerificationDTO): number {
+  const raw = v.updatedAt ?? v.createdAt ?? v.verifiedAt;
+  if (!raw) return 0;
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function latestVerificationStatus(
+  verifications: VerificationDTO[],
+): LandlordVerificationStatus | null {
+  let latest: { status: LandlordVerificationStatus; timestamp: number } | null =
+    null;
+
+  for (const verification of verifications) {
+    const status = normalizeVerificationStatus(verification.status);
+    if (!status) continue;
+    const timestamp = verificationTimestamp(verification);
+    if (!latest || timestamp >= latest.timestamp) {
+      latest = { status, timestamp };
+    }
+  }
+
+  return latest?.status ?? null;
+}
+
+function landlordStatusLabel(
+  l: LandlordDTO,
+  verificationStatusOverride?: LandlordVerificationStatus | null,
+): {
   label: string;
   className: string;
 } {
-  if (!l.isApproved) return { label: "Pending", className: "bg-yellow-100 text-yellow-800" };
+  const verificationStatus =
+    verificationStatusOverride ?? getLandlordVerificationStatus(l);
+  if (verificationStatus === "PENDING") {
+    return { label: "Pending", className: "bg-yellow-100 text-yellow-800" };
+  }
+  if (verificationStatus === "REJECTED") {
+    return { label: "Rejected", className: "bg-red-100 text-red-700" };
+  }
   if (l.isActive === false)
     return { label: "Suspended", className: "bg-red-100 text-red-700" };
   return { label: "Active", className: "bg-green-100 text-green-700" };
@@ -162,6 +214,8 @@ const LandlordDetailPage: NextPageWithLayout = () => {
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [landlord, setLandlord] = React.useState<LandlordDTO | null>(null);
+  const [verificationStatusOverride, setVerificationStatusOverride] =
+    React.useState<LandlordVerificationStatus | null>(null);
   const [properties, setProperties] = React.useState<PropertyDTO[]>([]);
   const [unitsByProperty, setUnitsByProperty] = React.useState<
     Map<string, unknown[]>
@@ -185,17 +239,24 @@ const LandlordDetailPage: NextPageWithLayout = () => {
         propsRes,
         payRes,
         tenantRes,
+        verificationRes,
       ] = await Promise.all([
         getLandlord(landlordId),
         getPropertiesByLandlord(landlordId),
         getRentPaymentItems({ limit: 3000 }),
         getTenantList({ limit: 500 }),
+        queryVerifications({
+          landlordId,
+          type: "LANDLORD_VERIFICATION",
+          limit: 100,
+        }),
       ]);
 
       if (cancelled) return;
 
       if (!landlordRes.success) {
         setLandlord(null);
+        setVerificationStatusOverride(null);
         setProperties([]);
         setLoadError(landlordRes.error);
         setLoading(false);
@@ -203,6 +264,11 @@ const LandlordDetailPage: NextPageWithLayout = () => {
       }
 
       setLandlord(landlordRes.data);
+      setVerificationStatusOverride(
+        verificationRes.success
+          ? latestVerificationStatus(verificationRes.data)
+          : null,
+      );
       setProperties(propsRes.success ? propsRes.data : []);
       setPayments(payRes.success ? payRes.data : []);
       setTenantRows(tenantRes.success ? tenantRes.data : []);
@@ -298,7 +364,9 @@ const LandlordDetailPage: NextPageWithLayout = () => {
       : undefined;
 
   const addressInfo = landlord ? formatAddressLines(landlord) : null;
-  const status = landlord ? landlordStatusLabel(landlord) : null;
+  const status = landlord
+    ? landlordStatusLabel(landlord, verificationStatusOverride)
+    : null;
 
   if (!router.isReady || !landlordId) {
     return null;

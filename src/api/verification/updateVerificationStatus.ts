@@ -39,7 +39,12 @@ export const patchLandlordVerificationStatus = async (
   );
 
   try {
-    const verification = parseVerificationDto(result.data);
+    const verification = parseVerificationStatusUpdateResult(
+      result.data,
+      id,
+      data,
+      "LANDLORD_VERIFICATION",
+    );
     logVerificationDebug(
       `PATCH /verification/${id}/landlord/status parsed`,
       verification,
@@ -85,7 +90,12 @@ export const patchPropertyVerificationStatus = async (
   );
 
   try {
-    const verification = parseVerificationDto(result.data);
+    const verification = parseVerificationStatusUpdateResult(
+      result.data,
+      id,
+      data,
+      "PROPERTY_VERIFICATION",
+    );
     logVerificationDebug(
       `PATCH /verification/${id}/property/status parsed`,
       verification,
@@ -105,3 +115,27 @@ export const patchPropertyVerificationStatus = async (
 
 /** @deprecated Prefer `patchLandlordVerificationStatus` — name kept for existing imports. */
 export const updateVerificationStatus = patchLandlordVerificationStatus;
+
+function parseVerificationStatusUpdateResult(
+  raw: unknown,
+  verificationId: string,
+  request: UpdateVerificationStatusRequestDTO,
+  type: "LANDLORD_VERIFICATION" | "PROPERTY_VERIFICATION",
+): VerificationDTO {
+  try {
+    return parseVerificationDto(raw);
+  } catch (parseError) {
+    logVerificationDebug("Status update response was not a verification row", {
+      parseError,
+      raw,
+    });
+  }
+
+  return {
+    id: verificationId,
+    type,
+    status: request.status,
+    reason: request.reason,
+    supportingDocumentIds: request.supportingDocumentIds,
+  };
+}

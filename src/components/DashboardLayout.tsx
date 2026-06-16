@@ -8,7 +8,9 @@ import { ProfileProvider } from "@/contexts/ProfileContext";
 import { useUser } from "@/contexts/UserContext";
 import {
   getLandlordByUser,
+  getLandlordVerificationStatus,
   isApprovedLandlordVerificationComplete,
+  type LandlordVerificationStatus,
 } from "@/api/landlord";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import { savePostLoginRedirect } from "@/utils/postLoginRedirect";
@@ -24,6 +26,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [isLandlordVerified, setIsLandlordVerified] = React.useState<
     boolean | null
   >(null);
+  const [landlordVerificationStatus, setLandlordVerificationStatus] =
+    React.useState<LandlordVerificationStatus | null>(null);
 
   // Auto-logout after 1 hour of inactivity
   useInactivityLogout(60);
@@ -60,6 +64,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   React.useEffect(() => {
     if (!user?.id || user.role !== "landlord") {
       setIsLandlordVerified(null);
+      setLandlordVerificationStatus(null);
       return;
     }
     let cancelled = false;
@@ -72,10 +77,14 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         setIsLandlordVerified(
           isApprovedLandlordVerificationComplete(result.data),
         );
+        setLandlordVerificationStatus(
+          getLandlordVerificationStatus(result.data),
+        );
       } else if (result.statusCode === 404) {
         void router.replace("/onboarding/landlord/details");
       } else {
         setIsLandlordVerified(true);
+        setLandlordVerificationStatus(null);
       }
     });
     return () => {
@@ -119,11 +128,16 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 className="mx-auto flex w-[97%] sm:w-[90%] lg:w-[85%] flex-col gap-6 lg:gap-8"
               >
                 {showUnverifiedFailSafeBanner ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    Your landlord account is not approved yet. You can only
-                    access Dashboard and Settings until verification is approved.
-                    If your verification was rejected, reupload your documents
-                    from Settings for admin review.
+                  <div
+                    className={`rounded-lg border px-4 py-3 text-sm ${
+                      landlordVerificationStatus === "REJECTED"
+                        ? "border-red-200 bg-red-50 text-red-800"
+                        : "border-amber-200 bg-amber-50 text-amber-900"
+                    }`}
+                  >
+                    {landlordVerificationStatus === "REJECTED"
+                      ? "Your landlord verification was rejected. You can only access Dashboard and Settings until you reupload your documents from Settings for admin review."
+                      : "Your landlord account is not approved yet. You can only access Dashboard and Settings until verification is approved."}
                   </div>
                 ) : null}
                 {children}

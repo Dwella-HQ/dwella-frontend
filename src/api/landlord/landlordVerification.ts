@@ -1,5 +1,7 @@
 import type { LandlordDTO } from "./landlord.schema";
 
+export type LandlordVerificationStatus = "PENDING" | "VERIFIED" | "REJECTED";
+
 function hasDocumentRef(value: unknown): boolean {
   if (typeof value === "string") return value.trim().length > 0;
   if (!value || typeof value !== "object") return false;
@@ -31,5 +33,47 @@ export function hasRequiredLandlordVerificationDocuments(
 export function isApprovedLandlordVerificationComplete(
   landlord?: LandlordDTO | null,
 ): boolean {
+  const status = getLandlordVerificationStatus(landlord);
+  if (status) return status === "VERIFIED";
+
   return landlord?.isApproved === true;
+}
+
+export function getLandlordVerificationStatus(
+  landlord?: LandlordDTO | null,
+): LandlordVerificationStatus | null {
+  if (!landlord) return null;
+
+  const direct = normalizeVerificationStatus(landlord.verificationStatus);
+  if (direct) return direct;
+
+  const legacyApproval = normalizeApprovalStatus(landlord.approvalStatus);
+  if (legacyApproval) return legacyApproval;
+
+  if (landlord.isApproved === true) return "VERIFIED";
+  if (landlord.isApproved === false) return "PENDING";
+
+  return null;
+}
+
+function normalizeVerificationStatus(
+  value: unknown,
+): LandlordVerificationStatus | null {
+  if (typeof value !== "string") return null;
+  const status = value.trim().toUpperCase();
+  if (status === "VERIFIED" || status === "PENDING" || status === "REJECTED") {
+    return status;
+  }
+  return null;
+}
+
+function normalizeApprovalStatus(
+  value: unknown,
+): LandlordVerificationStatus | null {
+  if (typeof value !== "string") return null;
+  const status = value.trim().toUpperCase();
+  if (status === "APPROVED" || status === "VERIFIED") return "VERIFIED";
+  if (status === "REJECTED") return "REJECTED";
+  if (status === "PENDING") return "PENDING";
+  return null;
 }

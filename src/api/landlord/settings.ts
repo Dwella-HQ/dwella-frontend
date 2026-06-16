@@ -48,13 +48,6 @@ export type LandlordSettingsProfileUpdateDTO = {
   };
 };
 
-export type LandlordSettingsDocumentsUpdateDTO = {
-  govermentIdDocumentId: string;
-  landSurveyDocumentId: string;
-  proofOfOwnershipDocumentId: string;
-  taxIdentificationNumberDocumentId: string;
-};
-
 export type LandlordPlatformPreferencesUpdateDTO = {
   defaultCurrency: string;
   defaultLateFeeAmount: number;
@@ -179,22 +172,6 @@ export const updateLandlordProfileSettings = async (
     data: null,
     message: envelope.message,
     raw,
-  };
-};
-
-export const updateLandlordDocumentsSettings = async (
-  landlordId: string,
-  body: LandlordSettingsDocumentsUpdateDTO,
-): Promise<LandlordSettingsResult<Record<string, unknown>>> => {
-  const result = await apiPatch<
-    LandlordSettingsResponse<Record<string, unknown>>
-  >(`/landlord/${landlordId}/documents`, body);
-  if (!result.success) return result;
-  return {
-    success: true,
-    data:
-      (result.data as LandlordSettingsResponse<Record<string, unknown>>).data ??
-      (result.data as unknown as Record<string, unknown>),
   };
 };
 

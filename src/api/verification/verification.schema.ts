@@ -17,7 +17,7 @@ export type CreateVerificationRequestDTO = z.infer<
 
 export const updateVerificationStatusRequestSchema = z.object({
   status: verificationStatusEnum,
-  reason: z.string().optional(),
+  reason: z.string(),
   supportingDocumentIds: z.array(z.string().uuid()).optional(),
 });
 

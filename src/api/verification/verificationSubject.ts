@@ -14,6 +14,7 @@ export type VerificationLandlordNested = {
   businessName?: string | null;
   businessEmail?: string | null;
   businessPhoneNumber?: string | null;
+  verificationStatus?: string | null;
   isActive?: boolean;
   isApproved?: boolean;
   user?: {

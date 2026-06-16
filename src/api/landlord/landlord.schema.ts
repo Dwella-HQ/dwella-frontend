@@ -7,6 +7,9 @@ export const createLandlordRequestSchema = z.object({
   businessEmail: z.string().email().optional(),
   businessPhoneNumber: z.string().optional(),
   bvn: z.string().optional(),
+  verificationStatus: z
+    .union([z.enum(["PENDING", "VERIFIED", "REJECTED"]), z.string()])
+    .optional(),
   isApproved: z.boolean().optional(),
   isActive: z.boolean().optional(),
   profilePictureId: z.string().uuid().optional(),
@@ -65,6 +68,10 @@ export const landlordSchema = z.object({
   businessName: z.string().nullish(),
   businessEmail: z.string().nullish(),
   businessPhoneNumber: z.string().nullish(),
+  verificationStatus: z
+    .union([z.enum(["PENDING", "VERIFIED", "REJECTED"]), z.string()])
+    .nullish(),
+  approvalStatus: z.string().nullish(),
   // Some responses omit this field; normalize to empty string so parsing stays stable.
   landLordName: z
     .string()

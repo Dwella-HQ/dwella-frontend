@@ -44,7 +44,9 @@ import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { useUser } from "@/contexts/UserContext";
 import {
   getLandlordByUser,
+  getLandlordVerificationStatus,
   isApprovedLandlordVerificationComplete,
+  type LandlordVerificationStatus,
 } from "@/api/landlord";
 import type { CreatePropertyRequestDTO } from "@/api/properties";
 import type { NextPageWithLayout } from "../../_app";
@@ -189,6 +191,8 @@ const AddPropertyPage: NextPageWithLayout = () => {
   }, []);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [isLandlordVerified, setIsLandlordVerified] = React.useState(true);
+  const [landlordVerificationStatus, setLandlordVerificationStatus] =
+    React.useState<LandlordVerificationStatus | null>(null);
   const [createdPropertyId, setCreatedPropertyId] = React.useState<
     string | null
   >(null);
@@ -198,6 +202,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     if (!user?.id || user.role !== "landlord") {
       setIsLandlordVerified(true);
+      setLandlordVerificationStatus(null);
       return;
     }
     let cancelled = false;
@@ -207,8 +212,12 @@ const AddPropertyPage: NextPageWithLayout = () => {
         setIsLandlordVerified(
           isApprovedLandlordVerificationComplete(result.data),
         );
+        setLandlordVerificationStatus(
+          getLandlordVerificationStatus(result.data),
+        );
       } else {
         setIsLandlordVerified(true);
+        setLandlordVerificationStatus(null);
       }
     });
     return () => {
@@ -545,7 +554,9 @@ const AddPropertyPage: NextPageWithLayout = () => {
   const handleCreateProperty = async () => {
     if (user?.role === "landlord" && !isLandlordVerified) {
       const message =
-        "Your landlord account is not approved yet. Reupload documents from Settings if your verification was rejected.";
+        landlordVerificationStatus === "REJECTED"
+          ? "Your landlord verification was rejected. Reupload your documents from Settings for admin review."
+          : "Your landlord account is not approved yet. Property creation is disabled until verification is approved.";
       setSubmitError(message);
       showToast(message, "error");
       return;
@@ -916,13 +927,18 @@ const AddPropertyPage: NextPageWithLayout = () => {
         {/* Step Content */}
         <div className="rounded-lg border border-gray-200 bg-white p-6">
           {user?.role === "landlord" && !isLandlordVerified ? (
-            <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div
+              className={`mb-6 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+                landlordVerificationStatus === "REJECTED"
+                  ? "border-red-200 bg-red-50 text-red-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              }`}
+            >
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <p>
-                Your landlord account is not approved yet. Property creation is
-                disabled until verification is approved. If your verification
-                was rejected, reupload your documents from Settings for admin
-                review.
+                {landlordVerificationStatus === "REJECTED"
+                  ? "Your landlord verification was rejected. Reupload your documents from Settings for admin review before creating properties."
+                  : "Your landlord account is not approved yet. Property creation is disabled until verification is approved."}
               </p>
             </div>
           ) : null}

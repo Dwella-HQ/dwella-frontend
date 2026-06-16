@@ -6,8 +6,16 @@ import type { VerificationDTO } from "./verification.schema";
 import { parseVerificationList } from "./parseVerification";
 
 type QueryVerificationsParams = {
+  type?:
+    | "LANDLORD_VERIFICATION"
+    | "TENANT_VERIFICATION"
+    | "PROPERTY_VERIFICATION";
   landlordId?: string;
+  propertyId?: string;
+  verifiedById?: string;
   status?: "VERIFIED" | "PENDING" | "REJECTED";
+  minDateVerifiedAt?: string;
+  maxDateVerifiedAt?: string;
   page?: number;
   limit?: number;
 };

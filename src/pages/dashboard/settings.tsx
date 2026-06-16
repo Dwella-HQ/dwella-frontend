@@ -26,10 +26,10 @@ import {
   getLandlord,
   getLandlordByUser,
   getLandlordSettings,
+  getLandlordVerificationStatus,
   isApprovedLandlordVerificationComplete,
   resolveLandlordBusinessPhone,
   updateLandlord,
-  updateLandlordDocumentsSettings,
   updateLandlordGracePeriodsSettings,
   updateLandlordLateFeeSettings,
   updateLandlordNotificationPreferencesSettings,
@@ -47,11 +47,6 @@ import {
   resolveWithdrawalAccount,
 } from "@/api/withdrawal";
 import type { WithdrawalBankDTO } from "@/api/withdrawal";
-import {
-  deriveVerificationKind,
-  entityLandlordId,
-  queryVerifications,
-} from "@/api/verification";
 import type { NextPageWithLayout } from "../_app";
 
 type SettingsTab =
@@ -311,9 +306,6 @@ const SettingsPage: NextPageWithLayout = () => {
   const [isUploadingDoc, setIsUploadingDoc] = React.useState<string | null>(
     null,
   );
-  const [hasPendingLandlordVerification, setHasPendingLandlordVerification] =
-    React.useState(false);
-
   const [profileForm, setProfileForm] = React.useState({
     businessName: "",
     businessEmail: "",
@@ -620,6 +612,7 @@ const SettingsPage: NextPageWithLayout = () => {
 
   const landlordId = landlord?.id as string | undefined;
   const isLandlordVerified = isApprovedLandlordVerificationComplete(landlord);
+  const landlordVerificationStatus = getLandlordVerificationStatus(landlord);
 
   const hasSavedBankAccount = React.useMemo(() => {
     const digits = paymentForm.accountNumber.replace(/\D/g, "");
@@ -714,40 +707,6 @@ const SettingsPage: NextPageWithLayout = () => {
       cancelled = true;
     };
   }, [landlordId, loadLandlordData, userRole]);
-
-  React.useEffect(() => {
-    if (!landlordId || userRole !== "landlord") {
-      setHasPendingLandlordVerification(false);
-      return;
-    }
-
-    let cancelled = false;
-    void queryVerifications({ landlordId, status: "PENDING" }).then(
-      (result) => {
-        if (cancelled) return;
-        if (!result.success) {
-          setHasPendingLandlordVerification(false);
-          return;
-        }
-
-        setHasPendingLandlordVerification(
-          result.data.some((verification) => {
-            const status = String(verification.status).toUpperCase();
-            const rowLandlordId = entityLandlordId(verification);
-            return (
-              status === "PENDING" &&
-              deriveVerificationKind(verification) === "landlord" &&
-              (!rowLandlordId || rowLandlordId === landlordId)
-            );
-          }),
-        );
-      },
-    );
-
-    return () => {
-      cancelled = true;
-    };
-  }, [landlordId, userRole]);
 
   React.useEffect(() => {
     setLandlordSettingsLoaded(false);
@@ -1283,7 +1242,7 @@ const SettingsPage: NextPageWithLayout = () => {
       return;
     }
     setIsSaving(true);
-    const result = await updateLandlordDocumentsSettings(
+    const result = await updateLandlord(
       landlordId,
       toDocumentsPayload(documentsForm),
     );
@@ -1297,7 +1256,9 @@ const SettingsPage: NextPageWithLayout = () => {
           setDocumentsForm(documentsFormFromLandlord(refreshed.data));
         }
       }
-    } else showToast(result.error || "Failed to update documents", "error");
+    } else {
+      showToast(result.error || "Failed to update documents", "error");
+    }
   }, [documentsForm, landlordId, showToast, toDocumentsPayload, userId]);
 
   const handleSavePreferences = React.useCallback(async () => {
@@ -1390,7 +1351,7 @@ const SettingsPage: NextPageWithLayout = () => {
         showToast("You must be signed in to upload files", "error");
         return;
       }
-      if (isLandlordVerified && hasPendingLandlordVerification) {
+      if (landlordVerificationStatus === "PENDING") {
         showToast(
           "A landlord verification is already pending. You can reupload after admin review.",
           "info",
@@ -1435,7 +1396,7 @@ const SettingsPage: NextPageWithLayout = () => {
           return;
         }
 
-        const updateResult = await updateLandlordDocumentsSettings(
+        const updateResult = await updateLandlord(
           landlordId,
           toDocumentsPayload(nextDocuments),
         );
@@ -1443,11 +1404,7 @@ const SettingsPage: NextPageWithLayout = () => {
 
         if (updateResult.success) {
           setDocumentsForm(nextDocuments);
-          setHasPendingLandlordVerification(true);
-          showToast(
-            "Document reuploaded. A new verification has been submitted.",
-            "success",
-          );
+          showToast("Document reuploaded successfully.", "success");
           if (userId) {
             const refreshedLandlord = await getLandlordByUser(userId);
             if (refreshedLandlord.success) {
@@ -1473,8 +1430,8 @@ const SettingsPage: NextPageWithLayout = () => {
     },
     [
       documentsForm,
-      hasPendingLandlordVerification,
       isLandlordVerified,
+      landlordVerificationStatus,
       landlordId,
       showToast,
       toDocumentsPayload,
@@ -1534,8 +1491,7 @@ const SettingsPage: NextPageWithLayout = () => {
     [],
   );
 
-  const isReuploadDisabled =
-    isLandlordVerified && hasPendingLandlordVerification;
+  const isReuploadDisabled = landlordVerificationStatus === "PENDING";
   const documentUploadButtonClass = `inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition ${
     isReuploadDisabled
       ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400"
@@ -1925,11 +1881,18 @@ const SettingsPage: NextPageWithLayout = () => {
                     This account is verified. You can reupload a document to
                     submit a new verification for admin approval.
                   </div>
+                ) : landlordVerificationStatus === "REJECTED" ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <p>
+                      Your landlord verification was rejected. Reupload the
+                      required documents and save them to submit a new admin
+                      review.
+                    </p>
+                  </div>
                 ) : userRole === "landlord" ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    Your landlord account is not approved yet. If your
-                    verification was rejected, reupload the required documents
-                    and save them for admin review.
+                    Your landlord account is not approved yet. Upload the
+                    required documents and save them for admin review.
                   </div>
                 ) : null}
 

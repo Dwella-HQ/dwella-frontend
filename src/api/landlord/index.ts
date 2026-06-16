@@ -4,9 +4,11 @@ export { getLandlord } from "./getLandlord";
 export { getLandlordByUser } from "./getLandlordByUser";
 export { resolveLandlordBusinessPhone } from "./parseLandlordApiResponse";
 export {
+  getLandlordVerificationStatus,
   hasRequiredLandlordVerificationDocuments,
   isApprovedLandlordVerificationComplete,
 } from "./landlordVerification";
+export type { LandlordVerificationStatus } from "./landlordVerification";
 export { updateLandlord } from "./updateLandlord";
 export type {
   LandlordBankAccountDTO,
@@ -16,7 +18,6 @@ export { queryLandlords } from "./queryLandlords";
 export {
   getLandlordSettings,
   updateLandlordProfileSettings,
-  updateLandlordDocumentsSettings,
   updateLandlordPlatformPreferencesSettings,
   updateLandlordNotificationPreferencesSettings,
   updateLandlordGracePeriodsSettings,
@@ -31,7 +32,6 @@ export type {
 export type {
   LandlordSettingsDTO,
   LandlordSettingsProfileUpdateDTO,
-  LandlordSettingsDocumentsUpdateDTO,
   LandlordPlatformPreferencesUpdateDTO,
   LandlordNotificationPreferencesUpdateDTO,
   LandlordGracePeriodsUpdateDTO,

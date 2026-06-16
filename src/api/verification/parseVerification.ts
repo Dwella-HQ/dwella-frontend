@@ -17,14 +17,24 @@ export function parseVerificationDto(raw: unknown): VerificationDTO {
 
 /** List endpoint may return `{ data: [...] }` or a bare array. */
 export function parseVerificationList(raw: unknown): VerificationDTO[] {
-  if (Array.isArray(raw)) {
-    return raw.map((item) => verificationSchema.parse(item));
+  const list = extractVerificationArray(raw);
+  if (!list) {
+    throw new Error("Expected verification list array or data envelope");
   }
-  if (raw && typeof raw === "object" && "data" in raw) {
-    const inner = (raw as { data: unknown }).data;
-    if (Array.isArray(inner)) {
-      return inner.map((item) => verificationSchema.parse(item));
-    }
+  return list.map((item) => verificationSchema.parse(item));
+}
+
+function extractVerificationArray(raw: unknown): unknown[] | null {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return null;
+
+  const record = raw as Record<string, unknown>;
+  for (const key of ["data", "items", "results"]) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+    const nested = extractVerificationArray(value);
+    if (nested) return nested;
   }
-  throw new Error("Expected verification list array or { data: array }");
+
+  return null;
 }

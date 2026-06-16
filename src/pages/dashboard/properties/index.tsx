@@ -16,7 +16,9 @@ import {
 } from "@/api/properties";
 import {
   getLandlordByUser,
+  getLandlordVerificationStatus,
   isApprovedLandlordVerificationComplete,
+  type LandlordVerificationStatus,
 } from "@/api/landlord";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
@@ -40,6 +42,8 @@ const PropertiesPage: NextPageWithLayout = () => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [isLandlordVerified, setIsLandlordVerified] = React.useState(true);
+  const [landlordVerificationStatus, setLandlordVerificationStatus] =
+    React.useState<LandlordVerificationStatus | null>(null);
 
   // Fetch properties from API - using same logic as dashboard
   React.useEffect(() => {
@@ -114,6 +118,7 @@ const PropertiesPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     if (!user?.id || user.role !== "landlord") {
       setIsLandlordVerified(true);
+      setLandlordVerificationStatus(null);
       return;
     }
     let cancelled = false;
@@ -123,8 +128,12 @@ const PropertiesPage: NextPageWithLayout = () => {
         setIsLandlordVerified(
           isApprovedLandlordVerificationComplete(result.data),
         );
+        setLandlordVerificationStatus(
+          getLandlordVerificationStatus(result.data),
+        );
       } else {
         setIsLandlordVerified(true);
+        setLandlordVerificationStatus(null);
       }
     });
     return () => {
@@ -410,10 +419,16 @@ const PropertiesPage: NextPageWithLayout = () => {
         </div>
 
         {user?.role === "landlord" && !isLandlordVerified ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Your landlord account is not approved yet. You cannot create
-            properties until verification is approved. If your verification was
-            rejected, reupload your documents from Settings for admin review.
+          <div
+            className={`rounded-lg border px-4 py-3 text-sm ${
+              landlordVerificationStatus === "REJECTED"
+                ? "border-red-200 bg-red-50 text-red-800"
+                : "border-amber-200 bg-amber-50 text-amber-800"
+            }`}
+          >
+            {landlordVerificationStatus === "REJECTED"
+              ? "Your landlord verification was rejected. Please reupload your documents from Settings for admin review before creating properties."
+              : "Your landlord account is not approved yet. You cannot create properties until verification is approved."}
           </div>
         ) : null}
 
