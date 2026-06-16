@@ -50,8 +50,10 @@ class DwellivaDocument extends Document<DocumentProps> {
           <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
           
           {/* Favicon */}
-          <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-128x128.png" />
-          <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-96x96.png" />
+          <link rel="icon" href="/favicon.ico" sizes="any" />
+          <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48x48.png" />
+          <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png" />
+          <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png" />
           
           {/* Satoshi Font - Using CDN as fallback */}
           <link rel="preconnect" href="https://fonts.googleapis.com" />
