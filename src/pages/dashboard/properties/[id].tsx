@@ -488,6 +488,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     if (!propertyDTO) return null;
     return mapPropertyDTOToProperty(propertyDTO);
   }, [propertyDTO]);
+  const isPropertyVerified = propertyDTO?.isApproved === true;
 
   React.useEffect(() => {
     if (!id || typeof id !== "string") return;
@@ -1067,11 +1068,26 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 <>
                   <button
                     type="button"
-                    onClick={() => setIsAddTenantOpen(true)}
-                    className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2"
+                    onClick={() => {
+                      if (!isPropertyVerified) {
+                        showToast(
+                          "Verify this property before assigning tenants.",
+                          "error",
+                        );
+                        return;
+                      }
+                      setIsAddTenantOpen(true);
+                    }}
+                    className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition flex items-center justify-center gap-2 ${
+                      isPropertyVerified
+                        ? "bg-gray-900 text-white hover:bg-gray-800"
+                        : "cursor-not-allowed bg-gray-200 text-gray-500"
+                    }`}
                   >
                     <UserPlus className="h-4 w-4" />
-                    Assign Tenant
+                    {isPropertyVerified
+                      ? "Assign Tenant"
+                      : "Verify property to assign tenant"}
                   </button>
                   <button
                     type="button"
@@ -1222,6 +1238,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 <PropertyTenantsTab
                   tenants={propertyTenants}
                   propertyId={id as string}
+                  propertyIsVerified={isPropertyVerified}
                 />
               </motion.div>
             )}
@@ -1765,6 +1782,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         isOpen={isAddTenantOpen}
         onClose={() => setIsAddTenantOpen(false)}
         propertyId={id as string}
+        propertyIsVerified={isPropertyVerified}
         units={units.map((u) => ({
           id: u.id,
           unitId: u.unitId,

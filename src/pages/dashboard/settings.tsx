@@ -39,6 +39,7 @@ import {
 import type {
   LandlordBankAccountDTO,
   LandlordDTO,
+  LandlordVerificationStatus,
   LandlordSettingsDTO,
   LandlordSettingsProfileUpdateDTO,
 } from "@/api/landlord";
@@ -46,6 +47,7 @@ import {
   getWithdrawalBanksByCurrency,
   resolveWithdrawalAccount,
 } from "@/api/withdrawal";
+import { getLatestLandlordVerificationStatus } from "@/api/verification";
 import type { WithdrawalBankDTO } from "@/api/withdrawal";
 import type { NextPageWithLayout } from "../_app";
 
@@ -344,6 +346,10 @@ const SettingsPage: NextPageWithLayout = () => {
   const [profileSnapshot, setProfileSnapshot] = React.useState(profileForm);
   const [landlordSettingsLoaded, setLandlordSettingsLoaded] =
     React.useState(false);
+  const [
+    landlordVerificationStatusOverride,
+    setLandlordVerificationStatusOverride,
+  ] = React.useState<LandlordVerificationStatus | null>(null);
   const [isEditingPayment, setIsEditingPayment] = React.useState(false);
   const [isEditingNotifications, setIsEditingNotifications] =
     React.useState(false);
@@ -611,8 +617,13 @@ const SettingsPage: NextPageWithLayout = () => {
   );
 
   const landlordId = landlord?.id as string | undefined;
-  const isLandlordVerified = isApprovedLandlordVerificationComplete(landlord);
-  const landlordVerificationStatus = getLandlordVerificationStatus(landlord);
+  const landlordProfileVerificationStatus =
+    getLandlordVerificationStatus(landlord);
+  const landlordVerificationStatus =
+    landlordVerificationStatusOverride ?? landlordProfileVerificationStatus;
+  const isLandlordVerified = landlordVerificationStatus
+    ? landlordVerificationStatus === "VERIFIED"
+    : isApprovedLandlordVerificationComplete(landlord);
 
   const hasSavedBankAccount = React.useMemo(() => {
     const digits = paymentForm.accountNumber.replace(/\D/g, "");
@@ -714,7 +725,27 @@ const SettingsPage: NextPageWithLayout = () => {
     setIsEditingNotifications(false);
     setIsEditingPreferences(false);
     setIsEditingPassword(false);
+    setLandlordVerificationStatusOverride(null);
   }, [landlordId]);
+
+  React.useEffect(() => {
+    if (!landlordId || userRole !== "landlord") {
+      setLandlordVerificationStatusOverride(null);
+      return;
+    }
+
+    let cancelled = false;
+    void getLatestLandlordVerificationStatus(landlordId).then((result) => {
+      if (cancelled) return;
+      setLandlordVerificationStatusOverride(
+        result.success ? result.status : null,
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [landlordId, userRole]);
 
   React.useEffect(() => {
     if (userRole !== "landlord" && activeTab === "payment-details") {

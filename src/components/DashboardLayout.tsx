@@ -12,6 +12,7 @@ import {
   isApprovedLandlordVerificationComplete,
   type LandlordVerificationStatus,
 } from "@/api/landlord";
+import { getLatestLandlordVerificationStatus } from "@/api/verification";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import { savePostLoginRedirect } from "@/utils/postLoginRedirect";
 
@@ -68,25 +69,37 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       return;
     }
     let cancelled = false;
-    getLandlordByUser(String(user.id)).then((result) => {
+    void (async () => {
+      const result = await getLandlordByUser(String(user.id));
       if (cancelled) return;
       if (result.success) {
         if (typeof window !== "undefined" && result.data.id) {
           localStorage.setItem("landlordId", result.data.id);
         }
+
+        const profileStatus = getLandlordVerificationStatus(result.data);
+        const latestStatusResult = await getLatestLandlordVerificationStatus(
+          result.data.id,
+        );
+        if (cancelled) return;
+        const status =
+          latestStatusResult.success && latestStatusResult.status
+            ? latestStatusResult.status
+            : profileStatus;
+
         setIsLandlordVerified(
-          isApprovedLandlordVerificationComplete(result.data),
+          status
+            ? status === "VERIFIED"
+            : isApprovedLandlordVerificationComplete(result.data),
         );
-        setLandlordVerificationStatus(
-          getLandlordVerificationStatus(result.data),
-        );
+        setLandlordVerificationStatus(status);
       } else if (result.statusCode === 404) {
         void router.replace("/onboarding/landlord/details");
       } else {
         setIsLandlordVerified(true);
         setLandlordVerificationStatus(null);
       }
-    });
+    })();
     return () => {
       cancelled = true;
     };

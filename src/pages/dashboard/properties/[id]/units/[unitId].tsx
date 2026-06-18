@@ -21,6 +21,7 @@ import { AddTenantModal } from "@/components/AddTenantModal";
 import { EditUnitModal } from "@/components/EditUnitModal";
 import { NewMaintenanceRequestModal } from "@/components/NewMaintenanceRequestModal";
 import { getUnit } from "@/api/units";
+import { getProperty } from "@/api/properties";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
 import { mockPaymentHistory } from "@/data/mockPropertyDetails";
 import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
@@ -30,7 +31,7 @@ import type { NextPageWithLayout } from "@/pages/_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import { formatDateTimeDisplay } from "@/utils/formatDate";
 
-type NestedProperty = { id?: string; name?: string };
+type NestedProperty = { id?: string; name?: string; isApproved?: boolean };
 
 const messageTenantHref = (tenantId: string | number) =>
   `/dashboard/messages?tenantId=${encodeURIComponent(String(tenantId))}`;
@@ -44,6 +45,9 @@ const UnitDetailPage: NextPageWithLayout = () => {
   const [isNewRequestOpen, setIsNewRequestOpen] = React.useState(false);
   const [unit, setUnit] = React.useState<Unit | null>(null);
   const [propertyName, setPropertyName] = React.useState<string>("");
+  const [propertyIsVerified, setPropertyIsVerified] = React.useState<
+    boolean | null
+  >(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -71,6 +75,18 @@ const UnitDetailPage: NextPageWithLayout = () => {
         const propertyId =
           property?.id ?? data.propertyId ?? (id as string) ?? "";
         setPropertyName(property?.name ?? "Property");
+        if (typeof property?.isApproved === "boolean") {
+          setPropertyIsVerified(property.isApproved);
+        } else if (propertyId) {
+          const propertyResult = await getProperty(propertyId);
+          setPropertyIsVerified(
+            propertyResult.success
+              ? propertyResult.data.isApproved === true
+              : false,
+          );
+        } else {
+          setPropertyIsVerified(false);
+        }
         setUnit(mapUnitDTOToUnit(data, propertyId));
       } else {
         setError(result.error);
@@ -436,12 +452,24 @@ const UnitDetailPage: NextPageWithLayout = () => {
               </p>
               <button
                 type="button"
-                onClick={() => setIsAddTenantOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+                onClick={() => {
+                  if (propertyIsVerified) setIsAddTenantOpen(true);
+                }}
+                disabled={!propertyIsVerified}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  propertyIsVerified
+                    ? "bg-gray-900 text-white hover:bg-gray-800"
+                    : "cursor-not-allowed bg-gray-200 text-gray-500"
+                }`}
               >
                 <Plus className="h-4 w-4" />
-                Add Tenant
+                {propertyIsVerified ? "Add Tenant" : "Verify property first"}
               </button>
+              {propertyIsVerified === false && (
+                <p className="mt-3 text-xs text-amber-700">
+                  Tenants can only be assigned after this property is verified.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -559,6 +587,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
         isOpen={isAddTenantOpen}
         onClose={() => setIsAddTenantOpen(false)}
         propertyId={propertyIdForLinks}
+        propertyIsVerified={propertyIsVerified === true}
         unitId={unit.id}
         unitLabel={`${unit.unitId} • ${unit.type}`}
         onSuccess={() => loadUnit(true)}

@@ -14,6 +14,7 @@ import type { Tenant } from "@/data/mockLandlordData";
 export type PropertyTenantsTabProps = {
   tenants: Tenant[];
   propertyId: string;
+  propertyIsVerified?: boolean;
 };
 
 function displayName(inv: InvitedTenantDTO): string {
@@ -50,6 +51,7 @@ const messageTenantHref = (tenantId: string | number) =>
 export const PropertyTenantsTab = ({
   tenants,
   propertyId,
+  propertyIsVerified = true,
 }: PropertyTenantsTabProps) => {
   const router = useRouter();
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
@@ -188,13 +190,20 @@ export const PropertyTenantsTab = ({
               </p>
               <motion.button
                 type="button"
-                onClick={() => setIsAddTenantOpen(true)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+                onClick={() => {
+                  if (propertyIsVerified) setIsAddTenantOpen(true);
+                }}
+                disabled={!propertyIsVerified}
+                whileHover={propertyIsVerified ? { scale: 1.05 } : undefined}
+                whileTap={propertyIsVerified ? { scale: 0.95 } : undefined}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  propertyIsVerified
+                    ? "bg-gray-900 text-white hover:bg-gray-800"
+                    : "cursor-not-allowed bg-gray-200 text-gray-500"
+                }`}
               >
                 <Plus className="h-4 w-4" />
-                Add Tenant
+                {propertyIsVerified ? "Add Tenant" : "Verify property first"}
               </motion.button>
             </motion.div>
           )}
@@ -323,6 +332,7 @@ export const PropertyTenantsTab = ({
         isOpen={isAddTenantOpen}
         onClose={() => setIsAddTenantOpen(false)}
         propertyId={propertyId}
+        propertyIsVerified={propertyIsVerified}
         onSuccess={loadInvited}
       />
     </div>

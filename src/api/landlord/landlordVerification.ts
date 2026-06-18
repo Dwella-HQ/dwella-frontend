@@ -45,16 +45,11 @@ export function getLandlordVerificationStatus(
   if (!landlord) return null;
 
   const direct = normalizeVerificationStatus(landlord.verificationStatus);
-  if (direct === "VERIFIED") return direct;
-
-  if (landlord.isApproved === true) return "VERIFIED";
-
   const legacyApproval = normalizeApprovalStatus(landlord.approvalStatus);
-  if (legacyApproval === "VERIFIED") return legacyApproval;
-  if (legacyApproval === "REJECTED") return legacyApproval;
   if (direct) return direct;
   if (legacyApproval) return legacyApproval;
 
+  if (landlord.isApproved === true) return "VERIFIED";
   if (landlord.isApproved === false) return "PENDING";
 
   return null;

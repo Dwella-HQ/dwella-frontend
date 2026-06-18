@@ -149,6 +149,7 @@ export type UnitOption = {
 type PropertyOption = {
   id: string;
   name: string;
+  isVerified: boolean;
 };
 
 function resolveUnitLabel(unit: {
@@ -172,6 +173,8 @@ export type AddTenantModalProps = {
   unitLabel?: string;
   /** When opened from property details (no unitId), pass units so user can select one */
   units?: UnitOption[];
+  /** False blocks assignment when a fixed property is not admin-approved yet. */
+  propertyIsVerified?: boolean;
   onSuccess?: () => void;
 };
 
@@ -201,6 +204,7 @@ export const AddTenantModal = ({
   unitId,
   unitLabel,
   units,
+  propertyIsVerified,
   onSuccess,
 }: AddTenantModalProps) => {
   const { user } = useUser();
@@ -249,6 +253,14 @@ export const AddTenantModal = ({
   const fromPropertyPage = !unitId;
   const effectiveUnitId = unitId ?? selectedUnitId;
   const selectedUnit = availableUnits.find((u) => u.id === selectedUnitId);
+  const selectedProperty = availableProperties.find(
+    (p) => p.id === selectedPropertyId,
+  );
+  const selectedPropertyIsVerified = canSelectProperty
+    ? selectedProperty?.isVerified === true
+    : propertyIsVerified !== false;
+  const canAssignToSelectedProperty =
+    Boolean(effectivePropertyId) && selectedPropertyIsVerified;
 
   const {
     register,
@@ -281,10 +293,13 @@ export const AddTenantModal = ({
     getPropertiesByLandlord(landlordId).then((result) => {
       if (cancelled || !result.success) return;
       setAvailableProperties(
-        result.data.map((p) => ({
-          id: p.id,
-          name: p.name,
-        })),
+        result.data
+          .filter((p) => p.isApproved === true)
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            isVerified: p.isApproved === true,
+          })),
       );
     });
     return () => {
@@ -473,6 +488,12 @@ export const AddTenantModal = ({
   }, []);
 
   const onConfirmAssignment = React.useCallback(async () => {
+    if (!canAssignToSelectedProperty) {
+      setSubmitError(
+        "Tenant assignment is only available for verified properties.",
+      );
+      return;
+    }
     if (!effectiveUnitId) {
       setSubmitError("Unit is required.");
       return;
@@ -527,10 +548,12 @@ export const AddTenantModal = ({
       setIsSubmitting(false);
     }
   }, [
+    canAssignToSelectedProperty,
     effectiveUnitId,
     formValues,
     leaseDocumentId,
     idDocumentId,
+    onSuccess,
     resetAndClose,
     showToast,
   ]);
@@ -548,11 +571,13 @@ export const AddTenantModal = ({
       (!!formValues.employerName?.trim() &&
         !!formValues.employerContact?.trim())) &&
     (!canSelectProperty || !!selectedPropertyId) &&
+    canAssignToSelectedProperty &&
     (!fromPropertyPage || !!selectedUnitId);
   const step1Valid =
     activeTab === "applicants"
       ? !!selectedApplicantId &&
         (!canSelectProperty || !!selectedPropertyId) &&
+        canAssignToSelectedProperty &&
         (!fromPropertyPage || !!selectedUnitId)
       : step1ValidNew;
 
@@ -676,6 +701,16 @@ export const AddTenantModal = ({
               </div>
             )}
 
+            {!selectedPropertyIsVerified && effectivePropertyId && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-700 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">
+                  This property is not verified yet. Tenants can only be
+                  assigned after admin verification is approved.
+                </p>
+              </div>
+            )}
+
             <AnimatePresence mode="wait">
               {/* Step 1 */}
               {step === 1 && (
@@ -755,11 +790,16 @@ export const AddTenantModal = ({
                                   </option>
                                 ))}
                               </select>
-                              {!selectedPropertyId && (
+                              {availableProperties.length === 0 ? (
+                                <p className="mt-1 text-xs text-amber-700">
+                                  No verified properties are available for
+                                  tenant assignment.
+                                </p>
+                              ) : !selectedPropertyId ? (
                                 <p className="mt-1 text-xs text-red-600">
                                   Select a property
                                 </p>
-                              )}
+                              ) : null}
                             </div>
                           )}
                           <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -1082,11 +1122,16 @@ export const AddTenantModal = ({
                                   </option>
                                 ))}
                               </select>
-                              {!selectedPropertyId && (
+                              {availableProperties.length === 0 ? (
+                                <p className="mt-1 text-xs text-amber-700">
+                                  No verified properties are available for
+                                  tenant assignment.
+                                </p>
+                              ) : !selectedPropertyId ? (
                                 <p className="mt-1 text-xs text-red-600">
                                   Select a property
                                 </p>
-                              )}
+                              ) : null}
                             </div>
                           )}
                           <label className="mb-1 block text-sm font-medium text-gray-700">
