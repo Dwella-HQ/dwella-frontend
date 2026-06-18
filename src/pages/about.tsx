@@ -1,6 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import {
   LandingFooter,
   LandingHeader,
@@ -37,7 +38,12 @@ export default function AboutPage() {
 
           <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
             <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
-              <div>
+              <motion.div
+                initial={{ opacity: 0, y: 18 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.35 }}
+                transition={{ duration: 0.5 }}
+              >
                 <h2 className="text-4xl font-bold text-gray-900">Our Story</h2>
                 <div className="mt-6 space-y-6 text-lg leading-9 text-gray-600">
                   <p>
@@ -59,16 +65,20 @@ export default function AboutPage() {
                     Nigeria.
                   </p>
                 </div>
-              </div>
-              <div className="relative overflow-hidden rounded-3xl bg-white shadow-xl">
+              </motion.div>
+              <motion.div
+                whileHover={{ y: -6 }}
+                transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                className="relative overflow-hidden rounded-3xl bg-white shadow-xl"
+              >
                 <Image
                   src="https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1000&q=80"
                   alt="Team collaborating"
                   width={1000}
                   height={800}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover transition duration-500 hover:scale-105"
                 />
-              </div>
+              </motion.div>
             </div>
           </section>
           <StatsBar />

@@ -1,6 +1,7 @@
 import * as React from "react";
 import Head from "next/head";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { LandingHeader, LandingFooter, StatsBar } from "@/components/landing";
 
 export default function PrivacyPage() {
@@ -25,7 +26,12 @@ export default function PrivacyPage() {
             <h1 className="text-center text-3xl font-bold text-[var(--brand-main)]">
               Privacy policy
             </h1>
-            <div className="mt-8 rounded-xl border border-gray-200 bg-white p-6 text-gray-700">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45 }}
+              className="mt-8 rounded-xl border border-gray-200 bg-white p-6 text-gray-700 shadow-sm"
+            >
               <p className="leading-relaxed">
                 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
                 eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
@@ -42,7 +48,7 @@ export default function PrivacyPage() {
                 cupidatat non proident, sunt in culpa qui officia deserunt
                 mollit anim id est laborum.
               </p>
-            </div>
+            </motion.div>
           </div>
         </main>
         <StatsBar />

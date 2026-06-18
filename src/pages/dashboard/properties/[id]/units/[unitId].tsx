@@ -33,7 +33,7 @@ import { formatDateTimeDisplay } from "@/utils/formatDate";
 type NestedProperty = { id?: string; name?: string };
 
 const messageTenantHref = (tenantId: string | number) =>
-  `/dashboard/messages?role=tenant&roleId=${encodeURIComponent(String(tenantId))}`;
+  `/dashboard/messages?tenantId=${encodeURIComponent(String(tenantId))}`;
 
 const UnitDetailPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -108,6 +108,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
       leaseStart: "—",
       leaseEnd: unit.leaseEndDate || "—",
       nextPayment: unit.nextDueDate || "—",
+      monthlyRent: unit.monthlyRent,
     };
   }, [unit]);
 
@@ -360,7 +361,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
                   </div>
                 </div>
                 {/* Right: Rent/Lease Info */}
-                <div className="lg:ml-auto grid grid-cols-2 gap-6 lg:gap-10">
+                <div className="lg:ml-auto grid grid-cols-2 gap-6 lg:grid-cols-3 lg:gap-10">
                   <div>
                     <p className="text-xs text-gray-500 uppercase">
                       RENT/LEASE START
@@ -383,6 +384,16 @@ const UnitDetailPage: NextPageWithLayout = () => {
                       {tenant.leaseEnd}
                     </p>
                     <p className="mt-4 text-xs text-gray-500 uppercase">
+                      MONTHLY RENT
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {tenant.monthlyRent > 0
+                        ? `₦${tenant.monthlyRent.toLocaleString()}`
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase">
                       STATUS
                     </p>
                     <p className="mt-1">

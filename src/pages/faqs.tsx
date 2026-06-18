@@ -1,6 +1,7 @@
 import * as React from "react";
 import Head from "next/head";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { LandingHeader, LandingFooter, StatsBar } from "@/components/landing";
 
@@ -57,13 +58,18 @@ export default function FAQsPage() {
             </p>
           </div>
           <div className="mx-auto mt-8 max-w-3xl px-4">
-            <div className="rounded-2xl bg-white shadow-lg">
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45 }}
+              className="overflow-hidden rounded-2xl bg-white shadow-lg"
+            >
               {faqs.map((faq, i) => (
                 <div key={i} className="border-b border-gray-100 last:border-0">
                   <button
                     type="button"
                     onClick={() => setOpenIndex(openIndex === i ? -1 : i)}
-                    className="flex w-full items-center justify-between px-6 py-4 text-left font-medium text-gray-900 hover:bg-gray-50"
+                    className="flex w-full items-center justify-between px-6 py-4 text-left font-medium text-gray-900 transition hover:bg-gray-50"
                   >
                     <span className="pr-4">{faq.q}</span>
                     {openIndex === i ? (
@@ -72,14 +78,24 @@ export default function FAQsPage() {
                       <ChevronRight className="h-5 w-5 flex-shrink-0" />
                     )}
                   </button>
-                  {openIndex === i && (
-                    <div className="border-t border-gray-100 bg-gray-50/50 px-6 pb-4 pt-2 text-sm text-gray-600">
-                      {faq.a}
-                    </div>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {openIndex === i && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22 }}
+                        className="overflow-hidden border-t border-gray-100 bg-gray-50/50"
+                      >
+                        <div className="px-6 pb-4 pt-2 text-sm text-gray-600">
+                          {faq.a}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               ))}
-            </div>
+            </motion.div>
           </div>
         </main>
         <StatsBar />

@@ -1,6 +1,7 @@
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   CheckCircle2,
   BellRing,
@@ -18,6 +19,8 @@ const features = [
       "Filter by exact amenities, commute times, and verified neighborhood safety scores.",
     icon: Search,
     color: "bg-sky-500",
+    glow: "from-sky-500/20 via-sky-500/5 to-transparent",
+    shadow: "shadow-sky-500/25",
   },
   {
     title: "100% Verified Listings",
@@ -25,6 +28,8 @@ const features = [
       "Every property and landlord is vetted. We physically inspect homes and verify ownership documents.",
     icon: CheckCircle2,
     color: "bg-emerald-500",
+    glow: "from-emerald-500/20 via-emerald-500/5 to-transparent",
+    shadow: "shadow-emerald-500/25",
   },
   {
     title: "Digital Lease Signing",
@@ -32,6 +37,8 @@ const features = [
       "Review, negotiate, and sign your tenancy agreements entirely online.",
     icon: FileText,
     color: "bg-violet-500",
+    glow: "from-violet-500/20 via-violet-500/5 to-transparent",
+    shadow: "shadow-violet-500/25",
   },
   {
     title: "Secure Payments",
@@ -39,6 +46,8 @@ const features = [
       "Pay rent securely via bank transfer or card with auto-reminders and payment history.",
     icon: CreditCard,
     color: "bg-indigo-500",
+    glow: "from-indigo-500/20 via-indigo-500/5 to-transparent",
+    shadow: "shadow-indigo-500/25",
   },
   {
     title: "Maintenance Tracking",
@@ -46,6 +55,8 @@ const features = [
       "Log repair requests, attach photos, and track status updates in real time.",
     icon: Wrench,
     color: "bg-orange-500",
+    glow: "from-orange-500/20 via-orange-500/5 to-transparent",
+    shadow: "shadow-orange-500/25",
   },
   {
     title: "Instant Notifications",
@@ -53,6 +64,8 @@ const features = [
       "Get updates when your request is approved, your lease is due, or a new property matches your criteria.",
     icon: BellRing,
     color: "bg-rose-500",
+    glow: "from-rose-500/20 via-rose-500/5 to-transparent",
+    shadow: "shadow-rose-500/25",
   },
 ];
 
@@ -97,22 +110,38 @@ export default function FeaturesPage() {
               {features.map((feature) => {
                 const Icon = feature.icon;
                 return (
-                  <article
+                  <motion.article
                     key={feature.title}
-                    className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+                    whileHover={{ y: -8, scale: 1.01 }}
+                    transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                    className="group relative overflow-hidden rounded-2xl border border-white/70 bg-white/95 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/[0.03] transition-colors duration-300 hover:border-white hover:shadow-[0_24px_60px_rgba(31,147,208,0.18)]"
                   >
                     <div
-                      className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${feature.color} text-white`}
-                    >
-                      <Icon className="h-5 w-5" />
+                      className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${feature.glow} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+                    />
+                    <div className="relative flex items-start justify-between gap-4">
+                      <motion.div
+                        whileHover={{ rotate: -4, scale: 1.08 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 360,
+                          damping: 18,
+                        }}
+                        className={`inline-flex h-12 w-12 items-center justify-center rounded-xl ${feature.color} text-white shadow-lg ${feature.shadow} transition-transform duration-300 group-hover:-translate-y-0.5`}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </motion.div>
                     </div>
-                    <h2 className="mt-4 text-xl font-bold text-gray-900">
+                    <h2 className="relative mt-5 text-xl font-bold text-gray-900 transition-colors duration-300 group-hover:text-[#0D4DA0]">
                       {feature.title}
                     </h2>
-                    <p className="mt-3 text-sm leading-7 text-gray-600">
+                    <p className="relative mt-3 text-sm leading-7 text-gray-600">
                       {feature.description}
                     </p>
-                  </article>
+                    <div
+                      className={`relative mt-6 h-1 w-12 rounded-full ${feature.color} opacity-30 transition-all duration-300 group-hover:w-20 group-hover:opacity-80`}
+                    />
+                  </motion.article>
                 );
               })}
             </div>

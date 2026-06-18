@@ -1,5 +1,6 @@
 import * as React from "react";
 import Head from "next/head";
+import { motion } from "framer-motion";
 import {
   LandingFooter,
   LandingHeader,
@@ -51,12 +52,18 @@ export default function PropertiesPage() {
       <div className="min-h-screen bg-[#F3F5F8]">
         <LandingHeader />
         <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-[#111827] md:text-5xl">
-            Available Properties
-          </h1>
-          <p className="mt-3 text-base text-[#6B7280] md:text-lg">
-            Browse verified homes across Nigeria.
-          </p>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45 }}
+          >
+            <h1 className="text-3xl font-bold text-[#111827] md:text-5xl">
+              Available Properties
+            </h1>
+            <p className="mt-3 text-base text-[#6B7280] md:text-lg">
+              Browse verified homes across Nigeria.
+            </p>
+          </motion.div>
 
           {loading ? (
             <div className="flex min-h-[280px] items-center justify-center">
@@ -69,11 +76,16 @@ export default function PropertiesPage() {
                 : error}
             </div>
           ) : (
-            <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.35 }}
+              className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3"
+            >
               {properties.map((property) => (
                 <LandingPropertyCard key={property.id} property={property} />
               ))}
-            </div>
+            </motion.div>
           )}
         </main>
         <LandingFooter />

@@ -37,6 +37,7 @@ type ChatContextType = {
 const ChatContext = React.createContext<ChatContextType | null>(null);
 const START_CHAT_TIMEOUT_MS = 12000;
 const CHAT_SYNC_INTERVAL_MS = 15000;
+type PendingChatTarget = { role: string; roleId: string };
 
 export const useChat = () => {
   const context = React.useContext(ChatContext);
@@ -184,6 +185,21 @@ const mergeMessages = (
   );
 };
 
+const normalizeChatRole = (role: string): string =>
+  role.trim().toLowerCase().replace(/\s+/g, "_");
+
+const matchesChatTarget = (
+  participant: { role?: string; roleId?: string },
+  target: PendingChatTarget,
+): boolean => {
+  if (participant.roleId !== target.roleId) return false;
+
+  const participantRole = normalizeChatRole(participant.role ?? "");
+  if (!participantRole || participantRole === "[object_object]") return true;
+
+  return participantRole === normalizeChatRole(target.role);
+};
+
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const { user } = useUser();
@@ -192,7 +208,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const subscriptionRef = React.useRef<ChatSubscription | null>(null);
   const conversationsRef = React.useRef<ChatConversation[]>([]);
   const selectedConversationIdRef = React.useRef<string | null>(null);
-  const pendingChatTargetRef = React.useRef<string | null>(null);
+  const pendingChatTargetRef = React.useRef<PendingChatTarget | null>(null);
   const subscriptionStartedAtRef = React.useRef(0);
   const pendingChatTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -423,10 +439,10 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   React.useEffect(() => {
     setSelectedConversationId((current) => {
       if (pendingChatTargetRef.current) {
+        const pendingTarget = pendingChatTargetRef.current;
         const pending = conversations.find((chat) =>
           chat.participants.some(
-            (participant) =>
-              participant.roleId === pendingChatTargetRef.current,
+            (participant) => matchesChatTarget(participant, pendingTarget),
           ),
         );
         if (pending) {
@@ -435,12 +451,13 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           subscriptionRef.current?.loadMessages(pending.id);
           return pending.id;
         }
+        return current;
       }
 
       if (current && conversations.some((chat) => chat.id === current)) {
         return current;
       }
-      return conversations[0]?.id ?? null;
+      return null;
     });
   }, [clearPendingChatTimer, conversations]);
 
@@ -457,11 +474,15 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const createChat = React.useCallback(
     (target: { role: string; roleId: string }) => {
       if (!roleId || !user?.role || !target.roleId || !target.role) return;
-      pendingChatTargetRef.current = target.roleId;
+      const pendingTarget = {
+        role: target.role,
+        roleId: String(target.roleId),
+      };
+      pendingChatTargetRef.current = pendingTarget;
 
       const existing = conversationsRef.current.find((chat) =>
         chat.participants.some(
-          (participant) => participant.roleId === target.roleId,
+          (participant) => matchesChatTarget(participant, pendingTarget),
         ),
       );
 
@@ -474,9 +495,15 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       setIsLoading(true);
+      setSelectedConversationId(null);
       clearPendingChatTimer();
       pendingChatTimerRef.current = setTimeout(() => {
-        if (pendingChatTargetRef.current !== target.roleId) return;
+        if (
+          pendingChatTargetRef.current?.role !== pendingTarget.role ||
+          pendingChatTargetRef.current?.roleId !== pendingTarget.roleId
+        ) {
+          return;
+        }
         pendingChatTargetRef.current = null;
         pendingChatTimerRef.current = null;
         setIsLoading(false);
@@ -486,7 +513,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       }, START_CHAT_TIMEOUT_MS);
       subscriptionRef.current?.createChat([
         { role: user.role, roleId },
-        { role: target.role, roleId: target.roleId },
+        { role: pendingTarget.role, roleId: pendingTarget.roleId },
       ]);
     },
     [clearPendingChatTimer, roleId, user],

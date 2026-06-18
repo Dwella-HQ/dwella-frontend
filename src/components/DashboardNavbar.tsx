@@ -76,13 +76,9 @@ export const DashboardNavbar = ({
                   : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
               } ${restricted ? "opacity-45 cursor-not-allowed pointer-events-none" : ""}`}
             >
-              {isActive && (
-                <motion.div
-                  layoutId="activeNav"
-                  className="absolute inset-0 bg-brand-main rounded-md"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                />
-              )}
+              {isActive ? (
+                <span className="absolute inset-0 rounded-md bg-brand-main" />
+              ) : null}
               <Icon className={`relative z-10 h-4 w-4 flex-shrink-0 ${isActive ? "text-white" : "text-gray-500"}`} />
               <span className="relative z-10 hidden sm:inline">{item.name}</span>
               {itemUnreadCount > 0 ? (

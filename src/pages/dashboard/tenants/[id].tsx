@@ -99,7 +99,7 @@ const mockEmergencyContact = {
 };
 
 const messageTenantHref = (tenantId: string | number) =>
-  `/dashboard/messages?role=tenant&roleId=${encodeURIComponent(String(tenantId))}`;
+  `/dashboard/messages?tenantId=${encodeURIComponent(String(tenantId))}`;
 
 type PaymentStatusTone = "green" | "red" | "amber" | "gray";
 
@@ -142,6 +142,32 @@ function rentRowsPaymentSummary(rents: RentItemDTO[]): {
     return { label: "Overdue", tone: "red" };
   }
   return { label: "Pending", tone: "amber" };
+}
+
+function formatRentDate(value: string): string {
+  const parsed = parseRentDueDate(value);
+  return parsed ? parsed.toLocaleDateString("en-GB") : value || "—";
+}
+
+function rentRowsDetails(rents: RentItemDTO[]): {
+  nextPayment: string;
+  outstanding: number;
+} {
+  const unpaid = rents
+    .filter((r) => (r.status || "").toLowerCase() !== "paid")
+    .sort((a, b) => {
+      const aDate = parseRentDueDate(a.dueDate || "")?.getTime() ?? Infinity;
+      const bDate = parseRentDueDate(b.dueDate || "")?.getTime() ?? Infinity;
+      return aDate - bDate;
+    });
+
+  return {
+    nextPayment: unpaid[0] ? formatRentDate(unpaid[0].dueDate || "") : "—",
+    outstanding: unpaid.reduce(
+      (sum, rent) => sum + (rent.totalAmount ?? rent.amount + rent.lateFee),
+      0,
+    ),
+  };
 }
 
 type TenantMaintenanceRow = {
@@ -365,6 +391,19 @@ const TenantProfilePage: NextPageWithLayout = () => {
     );
   }, [liveTenantMaintenance, tenant]);
 
+  const rentDetails = React.useMemo(() => {
+    if (leaseRents && leaseRents.length > 0) {
+      return rentRowsDetails(leaseRents);
+    }
+
+    return {
+      nextPayment: tenant?.nextPayment ?? "—",
+      outstanding: tenantPayments
+        .filter((payment) => payment.status !== "success")
+        .reduce((sum, payment) => sum + payment.amount, 0),
+    };
+  }, [leaseRents, tenant?.nextPayment, tenantPayments]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -402,7 +441,6 @@ const TenantProfilePage: NextPageWithLayout = () => {
     .filter((p) => p.status === "success")
     .reduce((sum, payment) => sum + payment.amount, 0);
 
-  // Get monthly rent - default to 120000 for Ada Emmanuel
   const monthlyRent =
     (tenant as { monthlyRent?: number | null } | null)?.monthlyRent || 120000;
 
@@ -544,7 +582,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
           </div>
 
           {/* Financial/Rent-Lease Summary Cards */}
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
             <div
               className="rounded-lg border border-gray-200 p-4"
               style={{ backgroundColor: ADMIN_STAT_BG.blue }}
@@ -571,6 +609,28 @@ const TenantProfilePage: NextPageWithLayout = () => {
               </p>
               <p className="mt-1 text-xl font-bold text-gray-900">
                 {tenant.leaseStart === "—" ? "—" : tenant.leaseStart}
+              </p>
+            </div>
+            <div
+              className="rounded-lg border border-gray-200 p-4"
+              style={{ backgroundColor: ADMIN_STAT_BG.orange }}
+            >
+              <p
+                className="text-xs font-medium uppercase"
+                style={{ color: ADMIN_STAT_LABEL.orange }}
+              >
+                Next Payment
+              </p>
+              <p className="mt-1 text-xl font-bold text-gray-900">
+                {rentDetails.nextPayment}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase text-gray-500">
+                Outstanding
+              </p>
+              <p className="mt-1 text-xl font-bold text-gray-900">
+                ₦{rentDetails.outstanding.toLocaleString()}
               </p>
             </div>
             <div
@@ -647,7 +707,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
                 <h3 className="mb-4 text-lg font-semibold text-gray-900">
                   Rent/Lease Information
                 </h3>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <div className="rounded-lg border border-gray-200 bg-white p-4">
                     <div className="flex items-center gap-3">
                       <Calendar className="h-5 w-5 text-gray-400" />
@@ -683,6 +743,32 @@ const TenantProfilePage: NextPageWithLayout = () => {
                         </p>
                         <p className="mt-1 text-sm font-semibold text-gray-900">
                           ₦{monthlyRent.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="flex items-center gap-3">
+                      <Calendar className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">
+                          Next Payment
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-gray-900">
+                          {rentDetails.nextPayment}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="flex items-center gap-3">
+                      <DollarSign className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase">
+                          Outstanding
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-gray-900">
+                          ₦{rentDetails.outstanding.toLocaleString()}
                         </p>
                       </div>
                     </div>

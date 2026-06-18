@@ -45,7 +45,7 @@ function statusPillClass(status?: string): string {
 }
 
 const messageTenantHref = (tenantId: string | number) =>
-  `/dashboard/messages?role=tenant&roleId=${encodeURIComponent(String(tenantId))}`;
+  `/dashboard/messages?tenantId=${encodeURIComponent(String(tenantId))}`;
 
 export const PropertyTenantsTab = ({
   tenants,

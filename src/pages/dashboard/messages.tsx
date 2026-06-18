@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   Loader2,
   MessageSquare,
-  MoreVertical,
   Plus,
   Search,
   Send,
@@ -52,6 +51,9 @@ const EMOJI_OPTIONS = [
   "💬",
   "✨",
 ];
+
+const getQueryValue = (value: string | string[] | undefined): string =>
+  Array.isArray(value) ? value[0] ?? "" : value ?? "";
 
 type PendingChatMessage = ChatMessage & {
   status: "sending";
@@ -338,6 +340,14 @@ const MessagesContent = () => {
   const [isEmojiOpen, setIsEmojiOpen] = React.useState(false);
   const [isMobileThreadOpen, setIsMobileThreadOpen] = React.useState(false);
   const messageInputRef = React.useRef<HTMLInputElement | null>(null);
+  const didSetInitialChatStateRef = React.useRef(false);
+  const processedChatTargetRef = React.useRef("");
+  const queryTenantId = getQueryValue(router.query.tenantId);
+  const queryRole = getQueryValue(router.query.role);
+  const queryRoleId = getQueryValue(router.query.roleId);
+  const targetRole = queryTenantId ? "tenant" : queryRoleId ? queryRole : "";
+  const targetRoleId = queryTenantId || queryRoleId;
+  const hasChatTarget = Boolean(targetRole && targetRoleId);
 
   const loadContacts = React.useCallback(async () => {
     if (!user?.role || !currentRoleId) {
@@ -395,18 +405,38 @@ const MessagesContent = () => {
   }, [refresh]);
 
   React.useEffect(() => {
-    if (!router.isReady) return;
-    const role = typeof router.query.role === "string" ? router.query.role : "";
-    const roleId =
-      typeof router.query.roleId === "string" ? router.query.roleId : "";
+    if (!router.isReady || didSetInitialChatStateRef.current) return;
+    didSetInitialChatStateRef.current = true;
 
-    if (!role || !roleId) return;
-    if (!["tenant", "property_manager", "landlord"].includes(role)) return;
+    if (!hasChatTarget) {
+      setSelectedConversationId(null);
+      setIsMobileThreadOpen(false);
+      setIsEmojiOpen(false);
+    }
+  }, [hasChatTarget, router.isReady, setSelectedConversationId]);
+
+  React.useEffect(() => {
+    if (!router.isReady) return;
+    if (!currentRoleId || !isConnected) return;
+
+    if (!targetRole || !targetRoleId) return;
+    if (!["tenant", "property_manager", "landlord"].includes(targetRole)) {
+      return;
+    }
+    const targetKey = `${targetRole}:${targetRoleId}`;
+    if (processedChatTargetRef.current === targetKey) return;
+    processedChatTargetRef.current = targetKey;
 
     setIsMobileThreadOpen(true);
-    createChat({ role, roleId });
-    void router.replace("/dashboard/messages", undefined, { shallow: true });
-  }, [createChat, router]);
+    createChat({ role: targetRole, roleId: targetRoleId });
+  }, [
+    createChat,
+    currentRoleId,
+    isConnected,
+    router.isReady,
+    targetRole,
+    targetRoleId,
+  ]);
 
   React.useEffect(() => {
     if (!selectedConversationId) return;
@@ -508,6 +538,13 @@ const MessagesContent = () => {
     setIsEmojiOpen(false);
   }, []);
 
+  const handleCloseConversation = React.useCallback(() => {
+    setSelectedConversationId(null);
+    setIsMobileThreadOpen(false);
+    setIsEmojiOpen(false);
+    setMessageText("");
+  }, [setSelectedConversationId]);
+
   const title =
     user?.role === "tenant"
       ? "Chat with your landlord or property manager"
@@ -605,9 +642,11 @@ const MessagesContent = () => {
                 </div>
                 <button
                   type="button"
+                  onClick={handleCloseConversation}
                   className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                  aria-label="Close chat"
                 >
-                  <MoreVertical className="h-5 w-5" />
+                  <X className="h-5 w-5" />
                 </button>
               </div>
 

@@ -1004,7 +1004,7 @@ const LandlordDetailPage: NextPageWithLayout = () => {
                                 <td className="py-2">{pname}</td>
                                 <td className="py-2">
                                   <Link
-                                    href={`/dashboard/admin/messages?role=tenant&roleId=${encodeURIComponent(
+                                    href={`/dashboard/admin/messages?tenantId=${encodeURIComponent(
                                       tid,
                                     )}`}
                                     className="inline-flex items-center gap-1 text-[#0284C7] hover:underline"

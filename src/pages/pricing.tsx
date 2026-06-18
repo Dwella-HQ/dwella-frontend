@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { Check, X } from "lucide-react";
 import { LandingFooter, LandingHeader, StatsBar } from "@/components/landing";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
@@ -96,13 +97,18 @@ export default function PricingPage() {
 
           <section className="mx-auto -mt-8 max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 lg:pb-20">
             <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-3">
-              {plans.map((plan) => (
-                <article
+              {plans.map((plan, index) => (
+                <motion.article
                   key={plan.name}
-                  className={`relative rounded-3xl border p-8 shadow-lg ${
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  whileHover={{ y: -8, scale: plan.highlighted ? 1.015 : 1.01 }}
+                  viewport={{ once: true, amount: 0.3 }}
+                  transition={{ type: "spring", stiffness: 240, damping: 22, delay: index * 0.06 }}
+                  className={`relative rounded-3xl border p-8 shadow-lg transition-colors duration-300 ${
                     plan.highlighted
-                      ? "border-blue-900 bg-[#0D3E84] text-white"
-                      : "border-gray-200 bg-white text-gray-900"
+                      ? "border-blue-900 bg-[#0D3E84] text-white hover:border-sky-300 hover:shadow-[0_26px_70px_rgba(13,62,132,0.25)]"
+                      : "border-gray-200 bg-white text-gray-900 hover:border-sky-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
                   }`}
                 >
                   {plan.highlighted ? (
@@ -159,7 +165,7 @@ export default function PricingPage() {
                   </ul>
                   <button
                     type="button"
-                    className={`mt-10 w-full rounded-xl px-4 py-3.5 text-sm font-semibold transition ${
+                    className={`mt-10 w-full rounded-xl px-4 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 active:translate-y-0 ${
                       plan.highlighted
                         ? "bg-white text-[#0D3E84] hover:bg-slate-100"
                         : "bg-[#111827] text-white hover:bg-black"
@@ -167,7 +173,7 @@ export default function PricingPage() {
                   >
                     Get Started
                   </button>
-                </article>
+                </motion.article>
               ))}
             </div>
             <p className="mt-12 text-center text-sm text-gray-600">

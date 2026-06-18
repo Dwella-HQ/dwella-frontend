@@ -1,11 +1,14 @@
 import Head from "next/head";
 import * as React from "react";
 import { useRouter } from "next/router";
-import { Loader2, Search, Send, Trash2 } from "lucide-react";
+import { Loader2, Search, Send, Trash2, X } from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useChat } from "@/contexts/ChatContext";
 import { useUser } from "@/contexts/UserContext";
+
+const getQueryValue = (value: string | string[] | undefined): string =>
+  Array.isArray(value) ? value[0] ?? "" : value ?? "";
 
 const AdminMessagesPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -28,25 +31,50 @@ const AdminMessagesPage: NextPageWithLayout = () => {
   } = useChat();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [draft, setDraft] = React.useState("");
+  const didSetInitialChatStateRef = React.useRef(false);
+  const processedChatTargetRef = React.useRef("");
+  const queryTenantId = getQueryValue(router.query.tenantId);
+  const queryRole = getQueryValue(router.query.role);
+  const queryRoleId = getQueryValue(router.query.roleId);
+  const targetRole = queryTenantId ? "tenant" : queryRoleId ? queryRole : "";
+  const targetRoleId = queryTenantId || queryRoleId;
+  const hasChatTarget = Boolean(targetRole && targetRoleId);
 
   React.useEffect(() => {
     refresh();
   }, [refresh]);
 
   React.useEffect(() => {
+    if (!router.isReady || didSetInitialChatStateRef.current) return;
+    didSetInitialChatStateRef.current = true;
+
+    if (!hasChatTarget) {
+      setSelectedConversationId(null);
+      setDraft("");
+    }
+  }, [hasChatTarget, router.isReady, setSelectedConversationId]);
+
+  React.useEffect(() => {
     if (!router.isReady) return;
-    const role = typeof router.query.role === "string" ? router.query.role : "";
-    const roleId =
-      typeof router.query.roleId === "string" ? router.query.roleId : "";
+    if (!currentRoleId || !isConnected) return;
 
-    if (!role || !roleId) return;
-    if (!["tenant", "property_manager", "landlord"].includes(role)) return;
+    if (!targetRole || !targetRoleId) return;
+    if (!["tenant", "property_manager", "landlord"].includes(targetRole)) {
+      return;
+    }
+    const targetKey = `${targetRole}:${targetRoleId}`;
+    if (processedChatTargetRef.current === targetKey) return;
+    processedChatTargetRef.current = targetKey;
 
-    createChat({ role, roleId });
-    void router.replace("/dashboard/admin/messages", undefined, {
-      shallow: true,
-    });
-  }, [createChat, router]);
+    createChat({ role: targetRole, roleId: targetRoleId });
+  }, [
+    createChat,
+    currentRoleId,
+    isConnected,
+    router.isReady,
+    targetRole,
+    targetRoleId,
+  ]);
 
   React.useEffect(() => {
     if (!selectedConversationId) return;
@@ -71,6 +99,11 @@ const AdminMessagesPage: NextPageWithLayout = () => {
     sendMessage(draft, selectedConversationId);
     setDraft("");
   }, [draft, selectedConversationId, sendMessage]);
+
+  const handleCloseConversation = React.useCallback(() => {
+    setSelectedConversationId(null);
+    setDraft("");
+  }, [setSelectedConversationId]);
 
   return (
     <>
@@ -152,13 +185,23 @@ const AdminMessagesPage: NextPageWithLayout = () => {
               {selectedConversation ? (
                 <>
                   <div className="flex-1 overflow-y-auto rounded-md border border-[#E2E8F0] p-3">
-                    <div className="mb-3 border-b border-[#E2E8F0] pb-3">
-                      <p className="text-sm font-semibold text-[#0F172A]">
-                        {selectedConversation.name}
-                      </p>
-                      <p className="text-xs text-[#64748B]">
-                        {selectedConversation.subtitle}
-                      </p>
+                    <div className="mb-3 flex items-start justify-between gap-3 border-b border-[#E2E8F0] pb-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#0F172A]">
+                          {selectedConversation.name}
+                        </p>
+                        <p className="truncate text-xs text-[#64748B]">
+                          {selectedConversation.subtitle}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCloseConversation}
+                        className="rounded-md p-1.5 text-[#64748B] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                        aria-label="Close chat"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
                     <div className="space-y-3 text-xs">
                       {selectedConversation.messages.length > 0 ? (

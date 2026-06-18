@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import {
   MapPin,
   DollarSign,
@@ -35,6 +36,7 @@ export default function PropertyDetailPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [guestPreview, setGuestPreview] = React.useState(false);
   const [showGuestModal, setShowGuestModal] = React.useState(false);
+  const propertyId = property?.id;
 
   React.useEffect(() => {
     if (!id) return;
@@ -87,20 +89,20 @@ export default function PropertyDetailPage() {
   }, [id]);
 
   React.useEffect(() => {
-    if (!property) return;
+    if (!propertyId) return;
     let cancelled = false;
     getPropertiesQuery().then((result) => {
       if (cancelled || !result.success) return;
       const list = result.data
         .map(mapPropertyDTOToPublicListingProperty)
-        .filter((p) => p.id !== property.id && p.status === "active")
+        .filter((p) => p.id !== propertyId && p.status === "active")
         .slice(0, 3);
       setSimilar(list);
     });
     return () => {
       cancelled = true;
     };
-  }, [property?.id]);
+  }, [propertyId]);
 
   if (router.isFallback || loading || (!property && !error && !guestPreview)) {
     return (
@@ -207,13 +209,18 @@ export default function PropertyDetailPage() {
           >
             <div className="grid gap-8 lg:grid-cols-3">
               <div className="lg:col-span-2">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_150px]">
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45 }}
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_150px]"
+                >
                   <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-gray-100">
                     <Image
                       src={property.image}
                       alt={property.name}
                       fill
-                      className="object-cover"
+                      className="object-cover transition duration-500 hover:scale-105"
                       priority
                     />
                   </div>
@@ -227,12 +234,12 @@ export default function PropertyDetailPage() {
                           src={property.image}
                           alt={`${property.name} preview ${idx + 1}`}
                           fill
-                          className="object-cover"
+                          className="object-cover transition duration-500 hover:scale-105"
                         />
                       </div>
                     ))}
                   </div>
-                </div>
+                </motion.div>
                 <h1 className="mt-6 text-2xl font-bold text-gray-900">
                   {property.name}
                 </h1>
@@ -265,7 +272,13 @@ export default function PropertyDetailPage() {
                 </div>
               </div>
               <div>
-                <div className="sticky top-24 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ y: -4 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                  className="sticky top-24 rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+                >
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
                       <DollarSign className="h-5 w-5 text-gray-500" />
@@ -304,15 +317,21 @@ export default function PropertyDetailPage() {
                         "/auth/login?redirect=/property/" + property.id,
                       );
                     }}
-                    className="mt-6 flex w-full items-center justify-center rounded-lg bg-gray-900 py-3 text-sm font-medium text-white hover:bg-gray-800"
+                    className="mt-6 flex w-full items-center justify-center rounded-lg bg-gray-900 py-3 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:bg-gray-800 active:translate-y-0"
                   >
                     Contact Landlord
                   </button>
-                </div>
+                </motion.div>
               </div>
             </div>
             {similar.length > 0 && (
-              <section className="mt-16">
+              <motion.section
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.25 }}
+                transition={{ duration: 0.45 }}
+                className="mt-16"
+              >
                 <h2 className="text-xl font-bold text-gray-900">
                   Similar Properties
                 </h2>
@@ -321,7 +340,7 @@ export default function PropertyDetailPage() {
                     <LandingPropertyCard key={p.id} property={p} />
                   ))}
                 </div>
-              </section>
+              </motion.section>
             )}
           </div>
           {guestPreview && showGuestModal && id ? (
@@ -329,7 +348,10 @@ export default function PropertyDetailPage() {
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
               onClick={() => setShowGuestModal(false)}
             >
-              <div
+              <motion.div
+                initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.25 }}
                 className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -363,7 +385,7 @@ export default function PropertyDetailPage() {
                     Create An Account
                   </Link>
                 </div>
-              </div>
+              </motion.div>
             </div>
           ) : null}
           <StatsBar />
