@@ -50,11 +50,11 @@ export const LandingPropertyCard = ({ property, showListCta }: Props) => {
           </div>
           <div className="mt-4 flex justify-between border-t border-gray-100 pt-3">
             <div>
-              <p className="text-xs text-gray-500">MONTHLY RENT</p>
+              <p className="text-xs text-gray-500">MONTHLY AMOUNT</p>
               <p className="font-semibold text-gray-900">N{property.monthlyRent.toLocaleString()}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-500">NEXT DUE</p>
+              <p className="text-xs text-gray-500">NEXT DATE</p>
               <p className="font-medium text-gray-900">{property.nextDue}</p>
             </div>
           </div>

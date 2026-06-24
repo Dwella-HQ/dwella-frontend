@@ -89,6 +89,47 @@ function formatUpdatedAt(tx: TransactionDTO): string {
   return Number.isNaN(d.getTime()) ? u : d.toLocaleString("en-GB");
 }
 
+function normalizedSearchText(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  return String(value).toLowerCase();
+}
+
+function transactionMatchesSearch(
+  tx: TransactionDTO,
+  rentById: Map<string, RentPaymentItemDTO>,
+  query: string,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const r = tx as Record<string, unknown>;
+  const fields = [
+    fullTransactionId(tx),
+    formatTransactionRef(tx),
+    r.reference,
+    r.referenceId,
+    parseAmount(tx),
+    formatMoney(parseAmount(tx)),
+    parseCurrency(tx),
+    formatTxDate(tx),
+    formatUpdatedAt(tx),
+    normalizeStatus(tx.status),
+    formatActionLabel(tx),
+    resolveTenantLabel(tx, rentById),
+    resolveLandlordLabel(tx),
+    resolvePropertyLabel(tx, rentById),
+    resolveSenderEmail(tx),
+    resolveReceiverEmail(tx),
+    resolveNarration(tx),
+    gatewayChannel(tx),
+    r.provider,
+    r.paymentMethod,
+    r.type,
+  ];
+
+  return fields.some((field) => normalizedSearchText(field).includes(q));
+}
+
 function gatewayPaidAtDisplay(tx: TransactionDTO): string {
   const r = tx as Record<string, unknown>;
   const meta = r.metaData;
@@ -128,6 +169,8 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
   const [status, setStatus] = React.useState<"All" | "Pending" | "Success">(
     "All",
   );
+  const [actionFilter, setActionFilter] = React.useState("All");
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [rows, setRows] = React.useState<TransactionDTO[]>([]);
   const [rentById, setRentById] = React.useState<
@@ -225,15 +268,31 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
 
   const detailShown = detailRemote ?? detailListRow;
 
+  const actionOptions = React.useMemo(() => {
+    const options = new Set<string>();
+    rows.forEach((tx) => {
+      const label = formatActionLabel(tx);
+      if (label !== "—") options.add(label);
+    });
+    return [...options].sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
   const filtered = React.useMemo(() => {
     return rows.filter((tx) => {
       const u = uiStatus(tx);
-      if (status === "All") return true;
-      if (status === "Pending") return u === "Pending";
-      if (status === "Success") return u === "Success";
-      return true;
+      const action = formatActionLabel(tx);
+      const matchesStatus =
+        status === "All" ||
+        (status === "Pending" && u === "Pending") ||
+        (status === "Success" && u === "Success");
+      const matchesAction = actionFilter === "All" || action === actionFilter;
+      return (
+        matchesStatus &&
+        matchesAction &&
+        transactionMatchesSearch(tx, rentById, searchQuery)
+      );
     });
-  }, [rows, status]);
+  }, [actionFilter, rentById, rows, searchQuery, status]);
 
   const stats = React.useMemo(() => {
     const total = rows.length;
@@ -258,14 +317,40 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
 
   React.useEffect(() => {
     setPage(1);
-  }, [status, rows.length]);
+  }, [actionFilter, searchQuery, status, rows.length]);
+
+  const paginationItems = React.useMemo<(number | "ellipsis")[]>(() => {
+    if (pageCount <= 7) {
+      return Array.from({ length: pageCount }, (_, index) => index + 1);
+    }
+
+    const pages = new Set([1, pageCount, safePage - 1, safePage, safePage + 1]);
+    const sorted = [...pages]
+      .filter((n) => n >= 1 && n <= pageCount)
+      .sort((a, b) => a - b);
+    const items: (number | "ellipsis")[] = [];
+
+    sorted.forEach((pageNumber, index) => {
+      const previous = sorted[index - 1];
+      if (previous && pageNumber - previous > 1) {
+        items.push("ellipsis");
+      }
+      items.push(pageNumber);
+    });
+
+    return items;
+  }, [pageCount, safePage]);
+
+  const firstVisibleRecord =
+    filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const lastVisibleRecord = Math.min(safePage * PAGE_SIZE, filtered.length);
 
   return (
     <>
       <Head>
         <title>Dwelliva · Transactions</title>
       </Head>
-      <AdminLayout title="Transactions">
+      <AdminLayout title="Transactions" showHeaderSearch={false}>
         <section className="w-full min-w-0 space-y-4">
           <div className="flex justify-end">
             <button
@@ -292,7 +377,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                 "Other status",
                 String(stats.total - stats.success - stats.pending),
               ],
-              ["Records shown", String(rows.length)],
+              ["Records shown", String(filtered.length)],
               ["Total volume", formatMoney(stats.volume)],
             ].map(([label, value]) => (
               <div
@@ -312,8 +397,13 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
           ) : null}
 
           <div className="rounded-xl border border-[#E2E8F0] bg-white p-3">
-            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-[1fr_300px_auto] lg:items-center">
-              <input className={fieldShell} placeholder="Search..." disabled />
+            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-[1fr_220px_220px_auto] lg:items-center">
+              <input
+                className={fieldShell}
+                placeholder="Search by reference, user, amount, status, action..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
               <select
                 value={status}
                 onChange={(event) =>
@@ -321,16 +411,35 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                 }
                 className={fieldShell}
               >
-                <option value="All">All</option>
+                <option value="All">All statuses</option>
                 <option value="Pending">Pending</option>
                 <option value="Success">Success</option>
               </select>
-              <button
-                type="button"
-                className={`${fieldShell} inline-flex cursor-default items-center justify-center px-4`}
+              <select
+                value={actionFilter}
+                onChange={(event) => setActionFilter(event.target.value)}
+                className={fieldShell}
               >
-                Filters
-              </button>
+                <option value="All">All actions</option>
+                {actionOptions.map((action) => (
+                  <option key={action} value={action}>
+                    {action}
+                  </option>
+                ))}
+              </select>
+              {searchQuery || status !== "All" || actionFilter !== "All" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setStatus("All");
+                    setActionFilter("All");
+                  }}
+                  className={`${fieldShell} inline-flex items-center justify-center px-4 hover:bg-[#F8FAFC]`}
+                >
+                  Clear
+                </button>
+              ) : null}
             </div>
           </div>
           <div className="w-full min-w-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white p-4">
@@ -409,25 +518,51 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
               </table>
               {!loading && filtered.length === 0 ? (
                 <p className="py-8 text-center text-[12px] text-[#64748B]">
-                  No transactions available.
+                  No transactions match your filters.
                 </p>
               ) : null}
             </div>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-[#64748B]">
               <p>
-                Page {safePage} · {filtered.length} record(s) shown
+                Showing {firstVisibleRecord}-{lastVisibleRecord} of{" "}
+                {filtered.length} record(s) · Page {safePage} of {pageCount}
               </p>
-              <div className="inline-flex items-center gap-3">
+              <div className="inline-flex flex-wrap items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
                   disabled={safePage <= 1}
-                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 disabled:opacity-40"
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 hover:bg-[#F8FAFC] disabled:opacity-40"
+                  aria-label="Previous page"
                 >
-                  {"<"}
+                  Prev
                 </button>
-                <span className="rounded bg-[#1E66FF] px-2 py-0.5 text-white">
-                  {safePage}
+                {paginationItems.map((item, index) =>
+                  item === "ellipsis" ? (
+                    <span
+                      key={`ellipsis-${index}`}
+                      className="px-1 text-[#94A3B8]"
+                    >
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setPage(item)}
+                      aria-current={item === safePage ? "page" : undefined}
+                      className={`rounded border px-2 py-0.5 ${
+                        item === safePage
+                          ? "border-[#1E66FF] bg-[#1E66FF] text-white"
+                          : "border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+                <span className="px-1 text-[#64748B]">
+                  / {pageCount}
                 </span>
                 <button
                   type="button"
@@ -435,9 +570,10 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                     setPage((prev) => Math.min(pageCount, prev + 1))
                   }
                   disabled={safePage >= pageCount}
-                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 disabled:opacity-40"
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 hover:bg-[#F8FAFC] disabled:opacity-40"
+                  aria-label="Next page"
                 >
-                  {">"}
+                  Next
                 </button>
               </div>
             </div>

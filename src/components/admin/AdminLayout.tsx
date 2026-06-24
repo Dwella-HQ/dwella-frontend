@@ -25,6 +25,7 @@ import { logout as logoutRequest } from "@/api/auth";
 type AdminLayoutProps = {
   title: string;
   children: React.ReactNode;
+  showHeaderSearch?: boolean;
 };
 
 const adminNav = [
@@ -53,7 +54,11 @@ const adminNav = [
   { name: "Settings", href: "/dashboard/admin/settings", icon: Settings },
 ];
 
-export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
+export const AdminLayout = ({
+  title,
+  children,
+  showHeaderSearch = true,
+}: AdminLayoutProps) => {
   const router = useRouter();
   const { user, isLoading, logout } = useUser();
   const { unreadCount } = useNotifications();
@@ -177,15 +182,22 @@ export const AdminLayout = ({ title, children }: AdminLayoutProps) => {
             <h1 className="truncate text-sm font-semibold sm:text-[15px]">
               {title}
             </h1>
-            <div className="hidden min-w-0 flex-1 items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-1 md:flex lg:max-w-[306px]">
-              <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-              <input
-                readOnly
-                value=""
-                placeholder="Search by user, action type, log ID, or keywords."
-                className="w-full min-w-0 bg-white text-xs text-[#0F172A] outline-none placeholder:text-gray-400"
+            {showHeaderSearch ? (
+              <div className="hidden min-w-0 flex-1 items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-1 md:flex lg:max-w-[306px]">
+                <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                <input
+                  readOnly
+                  value=""
+                  placeholder="Search by user, action type, log ID, or keywords."
+                  className="w-full min-w-0 bg-white text-xs text-[#0F172A] outline-none placeholder:text-gray-400"
+                />
+              </div>
+            ) : (
+              <div
+                className="hidden min-w-0 flex-1 md:block lg:max-w-[306px]"
+                aria-hidden="true"
               />
-            </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-4">
             <button

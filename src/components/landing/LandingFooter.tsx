@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Mail, Phone } from "lucide-react";
+import { ArrowRight, Mail, Phone } from "lucide-react";
 import logo from "@/assets/logo_white_horizontal.png";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
 
@@ -8,9 +8,10 @@ const WAITLIST_URL = "https://app.youform.com/forms/dc4vgu65";
 
 export const LandingFooter = () => {
   return (
-    <footer className="bg-[#0B0706] text-white">
-      <div className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-8 lg:px-10">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="relative overflow-hidden bg-[#041B3A] text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(31,199,255,0.18),transparent_32%),radial-gradient(circle_at_86%_30%,rgba(15,99,222,0.2),transparent_34%)]" />
+      <div className="relative mx-auto w-full max-w-7xl px-6 py-14 sm:px-8 lg:px-10">
+        <div className="grid gap-10 lg:grid-cols-[1.25fr_0.8fr_0.8fr_1fr]">
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-2 text-white">
               <Image
@@ -22,38 +23,38 @@ export const LandingFooter = () => {
               />
             </Link>
             <p className="text-sm text-white/90">
-              Helping you find the place where memories are made and your future
-              begins.
+              Helping property teams run smarter, clearer, and more reliable
+              operations.
             </p>
             <a
               href={WAITLIST_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex rounded bg-[var(--brand-secondary)] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#1FC7FF] px-5 py-3 text-sm font-semibold text-[#062F5F] shadow-[0_16px_36px_rgba(31,199,255,0.22)] transition hover:-translate-y-0.5 hover:bg-[#56D6FF] active:translate-y-0"
             >
-              Join the Waitlist
+              Join the Waitlist <ArrowRight className="h-4 w-4" />
             </a>
           </div>
           <div>
             <h3 className="mb-4 text-sm font-bold text-white">Quick links</h3>
-            <ul className="space-y-2.5 text-sm text-white/90">
+            <ul className="space-y-3 text-sm text-white/72">
               <li>
-                <Link href="/pricing" className="hover:text-white transition">
+                <Link href="/pricing" className="transition hover:text-white">
                   Pricing
                 </Link>
               </li>
               <li>
-                <Link href="/faqs" className="hover:text-white transition">
+                <Link href="/faqs" className="transition hover:text-white">
                   FAQs
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-white transition">
+                <Link href="/terms" className="transition hover:text-white">
                   Terms and conditions
                 </Link>
               </li>
               <li>
-                <Link href="/privacy" className="hover:text-white transition">
+                <Link href="/privacy" className="transition hover:text-white">
                   Privacy policy
                 </Link>
               </li>
@@ -61,22 +62,19 @@ export const LandingFooter = () => {
           </div>
           <div>
             <h3 className="mb-4 text-sm font-bold text-white">Get Started</h3>
-            <ul className="space-y-2.5 text-sm text-white/90">
+            <ul className="space-y-3 text-sm text-white/72">
               <li>
                 <Link
-                  href="/auth/signup?role=tenant"
-                  className="hover:text-white transition"
+                  href="/auth/signup?role=landlord"
+                  className="transition hover:text-white"
                 >
-                  As Tenant
+                  As Landlord
                 </Link>
-              </li>
-              <li>
-                <Link href="/auth/signup?role=landlord" className="hover:text-white transition">As LandLord</Link>
               </li>
               <li>
                 <Link
                   href="/auth/signup/manager"
-                  className="hover:text-white transition"
+                  className="transition hover:text-white"
                 >
                   As Property Manager
                 </Link>
@@ -85,21 +83,21 @@ export const LandingFooter = () => {
           </div>
           <div>
             <h3 className="mb-4 text-sm font-bold text-white">Contact us</h3>
-            <ul className="space-y-3 text-sm text-white/90">
+            <ul className="space-y-3 text-sm text-white/72">
               <li className="flex items-center gap-2">
-                <Mail className="h-4 w-4 flex-shrink-0 text-white/90" />
+                <Mail className="h-4 w-4 flex-shrink-0 text-[#1FC7FF]" />
                 <a
                   href={SUPPORT_MAILTO}
-                  className="hover:text-white transition"
+                  className="transition hover:text-white"
                 >
                   {SUPPORT_EMAIL}
                 </a>
               </li>
               <li className="flex items-center gap-2">
-                <Phone className="h-4 w-4 flex-shrink-0 text-white/90" />
+                <Phone className="h-4 w-4 flex-shrink-0 text-[#1FC7FF]" />
                 <a
                   href="tel:+2347896743888"
-                  className="hover:text-white transition"
+                  className="transition hover:text-white"
                 >
                   +234 789 674 3888
                 </a>
@@ -109,11 +107,11 @@ export const LandingFooter = () => {
                   href="https://x.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white/90 hover:text-white transition"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white/85 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/[0.14] hover:text-white"
                   aria-label="X"
                 >
                   <svg
-                    className="h-6 w-6"
+                    className="h-5 w-5"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -124,11 +122,11 @@ export const LandingFooter = () => {
                   href="https://instagram.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white/90 hover:text-white transition"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white/85 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/[0.14] hover:text-white"
                   aria-label="Instagram"
                 >
                   <svg
-                    className="h-6 w-6"
+                    className="h-5 w-5"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -139,11 +137,11 @@ export const LandingFooter = () => {
                   href="https://facebook.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white/90 hover:text-white transition"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white/85 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/[0.14] hover:text-white"
                   aria-label="Facebook"
                 >
                   <svg
-                    className="h-6 w-6"
+                    className="h-5 w-5"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -153,6 +151,10 @@ export const LandingFooter = () => {
               </li>
             </ul>
           </div>
+        </div>
+        <div className="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-white/55 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} Dwelliva. All rights reserved.</p>
+          <p>Property operations made clearer.</p>
         </div>
       </div>
     </footer>

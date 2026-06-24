@@ -24,10 +24,11 @@ export const HeroSearch = () => {
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center text-white">
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl">
-            Find Your Perfect Home
+            Manage Real Estate Operations
           </h1>
           <p className="mt-2 text-lg opacity-90">
-            Discover verified properties across Nigeria
+            Organize properties, records, payments, and service activity across
+            Nigeria.
           </p>
         </div>
         <div className="mx-auto mt-8 max-w-4xl">
@@ -36,23 +37,21 @@ export const HeroSearch = () => {
               <span className="text-gray-400">📍</span>
               <input
                 type="text"
-                placeholder="Search destinations (Lagos, Abuja, Uyo...)"
+                placeholder="Search city or portfolio area"
                 className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-500 focus:outline-none"
               />
             </div>
             <select className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-[var(--brand-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-main)]">
-              <option value="">Type</option>
-              <option value="self-contain">Self Contain</option>
-              <option value="2br">2 Bedroom Flat</option>
-              <option value="3br">3 Bedroom Flat</option>
-              <option value="duplex">Duplex</option>
+              <option value="">Portfolio type</option>
+              <option value="residential">Residential</option>
+              <option value="commercial">Commercial</option>
+              <option value="mixed-use">Mixed Use</option>
             </select>
             <select className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-[var(--brand-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-main)]">
-              <option value="">Budget</option>
-              <option value="100-200">N100k - N200k</option>
-              <option value="200-400">N200k - N400k</option>
-              <option value="400-600">N400k - N600k</option>
-              <option value="600+">N600k+</option>
+              <option value="">Portfolio size</option>
+              <option value="1-5">1 - 5 units</option>
+              <option value="6-20">6 - 20 units</option>
+              <option value="21+">21+ units</option>
             </select>
             <select className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-[var(--brand-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-main)]">
               <option value="">Amenity</option>

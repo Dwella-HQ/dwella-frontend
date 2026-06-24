@@ -14,27 +14,27 @@ import { LandingFooter, LandingHeader, StatsBar } from "@/components/landing";
 
 const features = [
   {
-    title: "Smart Property Search",
+    title: "Portfolio Overview",
     description:
-      "Filter by exact amenities, commute times, and verified neighborhood safety scores.",
+      "See portfolio activity, service requests, payments, and records from one focused workspace.",
     icon: Search,
     color: "bg-sky-500",
     glow: "from-sky-500/20 via-sky-500/5 to-transparent",
     shadow: "shadow-sky-500/25",
   },
   {
-    title: "100% Verified Listings",
+    title: "Verified Records",
     description:
-      "Every property and landlord is vetted. We physically inspect homes and verify ownership documents.",
+      "Keep ownership, compliance, and supporting documents organized for review.",
     icon: CheckCircle2,
     color: "bg-emerald-500",
     glow: "from-emerald-500/20 via-emerald-500/5 to-transparent",
     shadow: "shadow-emerald-500/25",
   },
   {
-    title: "Digital Lease Signing",
+    title: "Digital Documentation",
     description:
-      "Review, negotiate, and sign your tenancy agreements entirely online.",
+      "Manage agreements, uploads, approvals, and supporting files entirely online.",
     icon: FileText,
     color: "bg-violet-500",
     glow: "from-violet-500/20 via-violet-500/5 to-transparent",
@@ -43,7 +43,7 @@ const features = [
   {
     title: "Secure Payments",
     description:
-      "Pay rent securely via bank transfer or card with auto-reminders and payment history.",
+      "Track payment activity, account details, and financial records with clearer visibility.",
     icon: CreditCard,
     color: "bg-indigo-500",
     glow: "from-indigo-500/20 via-indigo-500/5 to-transparent",
@@ -61,7 +61,7 @@ const features = [
   {
     title: "Instant Notifications",
     description:
-      "Get updates when your request is approved, your lease is due, or a new property matches your criteria.",
+      "Get updates when requests, approvals, messages, and operational tasks need attention.",
     icon: BellRing,
     color: "bg-rose-500",
     glow: "from-rose-500/20 via-rose-500/5 to-transparent",
@@ -96,11 +96,12 @@ export default function FeaturesPage() {
             </div>
             <div className="relative mx-auto max-w-4xl px-4 pb-16 pt-4 text-center sm:px-6 lg:px-8 lg:pb-20">
               <h1 className="text-4xl font-bold leading-tight sm:text-5xl">
-                Everything you need to rent with confidence
+                Everything you need to manage with confidence
               </h1>
               <p className="mx-auto mt-5 max-w-3xl text-base text-blue-100 sm:text-lg">
-                Dwelliva provides a complete toolkit for tenants and landlords
-                to manage the entire rental lifecycle in one place.
+                Dwelliva provides a complete toolkit for property teams to
+                manage operations, records, payments, and service workflows in
+                one place.
               </p>
             </div>
           </section>
@@ -150,24 +151,23 @@ export default function FeaturesPage() {
           <section className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:px-8 lg:py-16">
             <div>
               <h2 className="text-4xl font-bold leading-tight text-gray-900">
-                Move in faster, with zero paperwork
+                Work faster, with less paperwork
               </h2>
               <p className="mt-5 text-lg leading-8 text-gray-600">
-                We&apos;ve digitized the entire move-in process. From paying
-                your first month&apos;s rent and security deposit to signing the
-                final lease agreement, you can do it all from your phone in
-                under 10 minutes.
+                We&apos;ve digitized the operational paperwork that slows teams
+                down. From records and approvals to payment visibility and
+                service coordination, your team can manage more from one place.
               </p>
               <ul className="mt-6 space-y-3 text-sm font-medium text-gray-700">
-                <li>- Instant deposit transfers</li>
-                <li>- Digital inventory checklist</li>
-                <li>- Key handover scheduling</li>
+                <li>- Digital records and approvals</li>
+                <li>- Portfolio activity tracking</li>
+                <li>- Maintenance coordination</li>
               </ul>
             </div>
             <div className="overflow-hidden rounded-3xl bg-white shadow-xl">
               <Image
                 src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1200&q=80"
-                alt="Keys and home move-in"
+                alt="Modern property operations"
                 width={1200}
                 height={900}
                 className="h-full w-full object-cover"

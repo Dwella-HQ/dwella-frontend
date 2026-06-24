@@ -15,7 +15,8 @@ export const LandingHeader = () => {
   const pathname = router.pathname;
   const nav = [
     { label: "Home", href: "/" },
-    { label: "Properties", href: "/properties" },
+    // Public properties nav hidden for now.
+    // { label: "Properties", href: "/properties" },
     { label: "About Us", href: "/about" },
     { label: "Features", href: "/features" },
     { label: "Pricing", href: "/pricing" },
@@ -67,9 +68,13 @@ export const LandingHeader = () => {
   }, [router, user]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/20 bg-[#1F93D0] font-sans shadow-sm">
-      <div className="mx-auto flex h-[69px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 text-white">
+    <header className="sticky top-0 z-50 w-full border-b border-white/[0.15] bg-[#168BC8]/[0.92] font-sans shadow-[0_10px_30px_rgba(2,8,23,0.08)] backdrop-blur-xl">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.08),transparent_34%,rgba(255,255,255,0.06))]" />
+      <div className="mx-auto grid h-[69px] max-w-7xl grid-cols-[1fr_auto] items-center px-4 sm:px-6 md:grid-cols-[1fr_auto_1fr] lg:px-8">
+        <Link
+          href="/"
+          className="relative flex items-center gap-2 justify-self-start text-white transition hover:-translate-y-0.5"
+        >
           <Image
             src={logo}
             alt="Dwelliva"
@@ -78,36 +83,36 @@ export const LandingHeader = () => {
             className="h-8 w-auto object-contain"
           />
         </Link>
-        <nav className="hidden items-center gap-1 rounded-lg bg-[#2A9AD6] p-1 text-sm text-white/95 md:flex">
+        <nav className="relative hidden items-center gap-1 justify-self-center rounded-2xl border border-white/10 bg-white/[0.08] p-1 text-sm text-white/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_14px_28px_rgba(2,8,23,0.08)] backdrop-blur md:flex">
           {nav.map((item) => (
             <Link
               key={item.label}
               href={item.href}
-              className={`rounded-md px-3 py-1.5 transition duration-200 hover:-translate-y-0.5 ${
+              className={`rounded-xl px-4 py-2 transition duration-200 hover:-translate-y-0.5 ${
                 isActiveRoute(item.href)
-                  ? "bg-white/15 font-semibold text-white"
-                  : "text-white/90 hover:bg-white/10 hover:text-white"
+                  ? "bg-white/[0.18] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+                  : "text-white/[0.88] hover:bg-white/10 hover:text-white"
               }`}
             >
               {item.label}
             </Link>
           ))}
         </nav>
-        <nav className="hidden items-center gap-3 md:flex">
+        <nav className="relative hidden items-center gap-3 justify-self-end md:flex">
           {user ? (
             <>
               <button
                 type="button"
                 onClick={() => void handleDashboardClick()}
                 disabled={isRoutingDashboard}
-                className="rounded-lg border border-white/60 bg-transparent px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10 active:translate-y-0 disabled:cursor-wait disabled:translate-y-0 disabled:opacity-70"
+                className="rounded-xl border border-white/[0.55] bg-white/[0.06] px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition hover:-translate-y-0.5 hover:bg-white/[0.14] active:translate-y-0 disabled:cursor-wait disabled:translate-y-0 disabled:opacity-70"
               >
                 {isRoutingDashboard ? "Opening..." : "Dashboard"}
               </button>
               <button
                 type="button"
                 onClick={() => void handleLogout()}
-                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-[#0D4B73] transition hover:-translate-y-0.5 hover:bg-gray-100 active:translate-y-0"
+                className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#0D4B73] shadow-[0_14px_28px_rgba(2,8,23,0.1)] transition hover:-translate-y-0.5 hover:bg-[#F8FBFF] active:translate-y-0"
               >
                 Logout
               </button>
@@ -116,13 +121,13 @@ export const LandingHeader = () => {
             <>
               <Link
                 href="/auth/login"
-                className="rounded-lg border border-white/60 bg-transparent px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10 active:translate-y-0"
+                className="rounded-xl border border-white/[0.55] bg-white/[0.06] px-5 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition hover:-translate-y-0.5 hover:bg-white/[0.14] active:translate-y-0"
               >
                 Log In
               </Link>
               <Link
                 href="/auth/signup"
-                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-[#0D4B73] transition hover:-translate-y-0.5 hover:bg-gray-100 active:translate-y-0"
+                className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#0D4B73] shadow-[0_14px_28px_rgba(2,8,23,0.1)] transition hover:-translate-y-0.5 hover:bg-[#F8FBFF] active:translate-y-0"
               >
                 Sign Up
               </Link>
@@ -132,8 +137,9 @@ export const LandingHeader = () => {
         <button
           type="button"
           aria-label="Toggle menu"
+          aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center justify-center rounded-lg border border-white/40 p-2 text-white md:hidden"
+          className="inline-flex items-center justify-center justify-self-end rounded-lg border border-white/40 p-2 text-white md:hidden"
         >
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
