@@ -615,7 +615,7 @@ export function AdminTenantProfile({
                 <p className="text-base font-semibold text-[#0F172A]">
                   Communication History
                 </p>
-                <EmptyTab text="No communication endpoint is available for this tenant profile yet." />
+                <EmptyTab text="Communication history is not available for this tenant profile yet." />
               </div>
             ) : null}
           </div>

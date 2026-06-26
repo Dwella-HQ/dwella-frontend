@@ -124,7 +124,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
     }
 
     setLoadingProfile(false);
-  }, [user?.token, user?.id, showToast]);
+  }, [user, showToast]);
 
   React.useEffect(() => {
     void loadProfileAndSettings();
@@ -228,7 +228,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
     } else {
       showToast(result.error || "Could not update password", "error");
     }
-  }, [user?.id, currentPw, newPw, confirmPw, showToast]);
+  }, [user, currentPw, newPw, confirmPw, showToast]);
 
   const initials = getInitials(fullName || user?.name || "");
 
@@ -275,8 +275,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
               <div className="max-w-[520px] space-y-4">
                 <p className="text-base font-semibold">Profile Information</p>
                 <p className="text-xs text-[#64748B]">
-                  Loaded from <code className="text-[11px]">GET /user/me</code>{" "}
-                  and saved with <code className="text-[11px]">PATCH /user/&#123;id&#125;</code>.
+                  Update the admin profile details used across the dashboard.
                 </p>
                 <div className="flex items-center gap-3">
                   {avatarUrl ? (
@@ -336,10 +335,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
                   Notification Preferences
                 </p>
                 <p className="text-xs text-[#64748B]">
-                  Stored via{" "}
-                  <code className="text-[11px]">GET /settings</code> and{" "}
-                  <code className="text-[11px]">PATCH /settings/update</code>,
-                  using the same channel codes as landlord notification settings.
+                  Choose how this account should receive platform updates.
                 </p>
                 {settingsNote ? (
                   <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -410,9 +406,8 @@ const AdminSettingsPage: NextPageWithLayout = () => {
               <div className="max-w-[700px] space-y-4">
                 <p className="text-base font-semibold">Change Password</p>
                 <p className="text-xs text-[#64748B]">
-                  Uses{" "}
-                  <code className="text-[11px]">PATCH /user/&#123;id&#125;/password</code>{" "}
-                  (not the partners-only change-password route).
+                  Use a strong password that is not shared with another
+                  account.
                 </p>
                 <div className="space-y-3 text-sm">
                   <div className="relative">

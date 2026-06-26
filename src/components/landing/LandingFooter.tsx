@@ -3,6 +3,7 @@ import Image from "next/image";
 import { ArrowRight, Mail, Phone } from "lucide-react";
 import logo from "@/assets/logo_white_horizontal.png";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/lib/supportContact";
+import { SOCIAL_LINKS } from "@/lib/socialLinks";
 
 const WAITLIST_URL = "https://app.youform.com/forms/dc4vgu65";
 
@@ -104,7 +105,7 @@ export const LandingFooter = () => {
               </li>
               <li className="flex gap-4 pt-2">
                 <a
-                  href="https://x.com"
+                  href={SOCIAL_LINKS.x}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white/85 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/[0.14] hover:text-white"
@@ -119,7 +120,7 @@ export const LandingFooter = () => {
                   </svg>
                 </a>
                 <a
-                  href="https://instagram.com"
+                  href={SOCIAL_LINKS.instagram}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white/85 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/[0.14] hover:text-white"
@@ -134,7 +135,7 @@ export const LandingFooter = () => {
                   </svg>
                 </a>
                 <a
-                  href="https://facebook.com"
+                  href={SOCIAL_LINKS.facebook}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white/85 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/[0.14] hover:text-white"

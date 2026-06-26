@@ -249,9 +249,8 @@ const PropertyManagerDetailPage: NextPageWithLayout = () => {
               </div>
             </div>
             <p className="mt-3 text-[11px] text-[#64748B]">
-              Counts for properties, units, and tenants are not included on this
-              response — use list/query endpoints or nested expansions when the
-              API adds them.
+              Some portfolio totals may appear once more manager activity is
+              available.
             </p>
           </div>
 

@@ -12,6 +12,10 @@ import {
 import { getRentPaymentItems } from "@/api/rent-payment";
 import type { RentPaymentItemDTO } from "@/api/rent-payment/rentPayment.schema";
 import {
+  getWithdrawalItems,
+  type WithdrawalItemDTO,
+} from "@/api/withdrawal";
+import {
   buildRentPaymentIndex,
   formatActionLabel,
   formatTransactionRef,
@@ -25,15 +29,20 @@ import {
 } from "@/lib/admin/transactionDisplay";
 
 function parseAmount(tx: TransactionDTO): number {
-  const r = tx as Record<string, unknown>;
-  const raw =
-    r.amount ?? r.totalAmount ?? r.value ?? r.payableAmount ?? r.amountInKobo;
+  const raw = rawTransactionAmount(tx);
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : 0;
   if (typeof raw === "string") {
     const n = parseFloat(raw.replace(/[^0-9.-]/g, ""));
     return Number.isFinite(n) ? n : 0;
   }
   return 0;
+}
+
+function rawTransactionAmount(tx: TransactionDTO): unknown {
+  const r = tx as Record<string, unknown>;
+  return (
+    r.amount ?? r.totalAmount ?? r.value ?? r.payableAmount ?? r.amountInKobo
+  );
 }
 
 function formatMoney(n: number): string {
@@ -97,6 +106,7 @@ function normalizedSearchText(value: unknown): string {
 function transactionMatchesSearch(
   tx: TransactionDTO,
   rentById: Map<string, RentPaymentItemDTO>,
+  withdrawal: WithdrawalItemDTO | null,
   query: string,
 ): boolean {
   const q = query.trim().toLowerCase();
@@ -125,6 +135,12 @@ function transactionMatchesSearch(
     r.provider,
     r.paymentMethod,
     r.type,
+    withdrawal?.id,
+    withdrawal?.status,
+    withdrawal?.recipientDetails?.accountName,
+    withdrawal?.recipientDetails?.fullName,
+    withdrawal?.recipientDetails?.bankName,
+    withdrawal?.recipientDetails?.accountNumber,
   ];
 
   return fields.some((field) => normalizedSearchText(field).includes(q));
@@ -160,6 +176,252 @@ function fullTransactionId(tx: TransactionDTO): string {
   return r.id != null ? String(r.id) : "—";
 }
 
+function amountToNumber(raw: unknown): number | null {
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  if (typeof raw === "string") {
+    const n = Number(raw.replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function formatDateTime(raw: unknown): string {
+  if (typeof raw !== "string" || !raw.trim()) return "—";
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString("en-GB");
+}
+
+function nestedString(source: unknown, path: string[]): string | null {
+  let current = source;
+  for (const key of path) {
+    if (!current || typeof current !== "object") return null;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.trim() ? current.trim() : null;
+}
+
+function candidateStrings(source: unknown, paths: string[][]): string[] {
+  return paths
+    .map((path) => nestedString(source, path))
+    .filter((value): value is string => Boolean(value));
+}
+
+function isWithdrawalTransaction(tx: TransactionDTO): boolean {
+  return formatActionLabel(tx).toLowerCase().includes("withdrawal");
+}
+
+function findWithdrawalForTransaction(
+  tx: TransactionDTO,
+  withdrawals: WithdrawalItemDTO[],
+): WithdrawalItemDTO | null {
+  if (!isWithdrawalTransaction(tx) || withdrawals.length === 0) return null;
+
+  const txRecord = tx as Record<string, unknown>;
+  const txIds = new Set(
+    [
+      fullTransactionId(tx),
+      formatTransactionRef(tx),
+      nestedString(tx, ["reference"]),
+      nestedString(tx, ["referenceId"]),
+      nestedString(tx, ["walletTransactionId"]),
+      nestedString(tx, ["walletTransaction", "id"]),
+    ]
+      .filter((id): id is string => Boolean(id && id !== "—"))
+      .map((id) => id.toLowerCase()),
+  );
+  const txWalletId = nestedString(tx, ["walletId"]);
+  const txAmount = parseAmount(tx);
+  const txCreated = new Date(String(txRecord.createdAt ?? ""));
+
+  let best: { item: WithdrawalItemDTO; score: number } | null = null;
+
+  for (const item of withdrawals) {
+    const itemRecord = item as Record<string, unknown>;
+    let score = 0;
+
+    const withdrawalIds = candidateStrings(item, [
+      ["id"],
+      ["reference"],
+      ["referenceId"],
+      ["transactionId"],
+      ["walletTransactionId"],
+      ["transaction", "id"],
+      ["walletTransaction", "id"],
+    ]).map((id) => id.toLowerCase());
+    if (withdrawalIds.some((id) => txIds.has(id))) score += 12;
+
+    if (txWalletId && item.walletId === txWalletId) score += 4;
+
+    const itemAmount = amountToNumber(item.amount);
+    if (itemAmount !== null && Math.abs(itemAmount - txAmount) < 0.01) {
+      score += 3;
+    }
+
+    const itemCreated = new Date(String(itemRecord.createdAt ?? ""));
+    if (
+      !Number.isNaN(txCreated.getTime()) &&
+      !Number.isNaN(itemCreated.getTime())
+    ) {
+      const diffHours =
+        Math.abs(txCreated.getTime() - itemCreated.getTime()) / 36e5;
+      if (diffHours <= 48) score += 2;
+    }
+
+    if (score > (best?.score ?? 0)) best = { item, score };
+  }
+
+  return best && best.score >= 7 ? best.item : null;
+}
+
+type DetailField = {
+  label: string;
+  value: React.ReactNode;
+  breakAll?: boolean;
+  emphasis?: boolean;
+  mono?: boolean;
+};
+
+function cleanDetailValue(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : null;
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || text === "—" || text.toLowerCase() === "n/a") return null;
+  return text;
+}
+
+function detailField(
+  label: string,
+  value: unknown,
+  options: Omit<DetailField, "label" | "value"> = {},
+): DetailField | null {
+  const text = cleanDetailValue(value);
+  return text ? { label, value: text, ...options } : null;
+}
+
+function compactFields(
+  fields: Array<DetailField | null | undefined>,
+): DetailField[] {
+  return fields.filter((field): field is DetailField => Boolean(field));
+}
+
+function transactionAmountLabel(tx: TransactionDTO): string | null {
+  const amount = amountToNumber(rawTransactionAmount(tx));
+  if (amount === null) return null;
+  const currency = parseCurrency(tx);
+  return `${formatMoney(amount)} (${currency})`;
+}
+
+function nestedDetailValue(source: unknown, paths: string[][]): string | null {
+  for (const path of paths) {
+    const value = nestedString(source, path);
+    if (value) return value;
+  }
+  return null;
+}
+
+function paymentSummaryFields(tx: TransactionDTO): DetailField[] {
+  const r = tx as Record<string, unknown>;
+  return compactFields([
+    detailField("Amount", transactionAmountLabel(tx), { emphasis: true }),
+    detailField("Status", normalizeStatus(tx.status)),
+    detailField("Action", formatActionLabel(tx)),
+    detailField("Ledger type", r.type),
+    detailField("Provider", r.provider),
+    detailField("Method", r.paymentMethod),
+    detailField("Created", formatDateTime(r.createdAt ?? r.transactionDate)),
+    detailField("Updated", formatDateTime(r.updatedAt)),
+    detailField("Reference", formatTransactionRef(tx), { mono: true }),
+  ]);
+}
+
+function partyFields(
+  tx: TransactionDTO,
+  rentById: Map<string, RentPaymentItemDTO>,
+): DetailField[] {
+  return compactFields([
+    detailField("From", resolveTenantLabel(tx, rentById), { emphasis: true }),
+    detailField("Payer email", resolveSenderEmail(tx), { breakAll: true }),
+    detailField("To", resolveLandlordLabel(tx), { emphasis: true }),
+    detailField("Payee email", resolveReceiverEmail(tx), { breakAll: true }),
+    detailField("Property / unit", resolvePropertyLabel(tx, rentById)),
+  ]);
+}
+
+function gatewayFields(tx: TransactionDTO): DetailField[] {
+  const r = tx as Record<string, unknown>;
+  return compactFields([
+    detailField("Channel", gatewayChannel(tx)),
+    detailField("Paid at", gatewayPaidAtDisplay(tx)),
+    detailField("Payment link", r.paymentUrl, { breakAll: true }),
+    detailField(
+      "Gateway ref",
+      nestedDetailValue(tx, [
+        ["metaData", "reference"],
+        ["metaData", "gatewayReference"],
+        ["gatewayReference"],
+      ]),
+      { breakAll: true },
+    ),
+    detailField(
+      "Virtual account",
+      nestedDetailValue(tx, [
+        ["vba", "accountNumber"],
+        ["virtualAccount", "accountNumber"],
+      ]),
+    ),
+  ]);
+}
+
+function withdrawalFields(item: WithdrawalItemDTO): DetailField[] {
+  const amount = amountToNumber(item.amount);
+  return compactFields([
+    detailField("Request ID", item.id, { breakAll: true, mono: true }),
+    detailField("Status", item.status),
+    detailField("Amount", amount === null ? null : formatMoney(amount), {
+      emphasis: true,
+    }),
+    detailField("Created", formatDateTime(item.createdAt)),
+    detailField("Updated", formatDateTime(item.updatedAt)),
+    detailField(
+      "Bank",
+      item.recipientDetails?.bankName ?? item.recipientDetails?.bankCode,
+    ),
+    detailField(
+      "Account",
+      [
+        item.recipientDetails?.accountName ?? item.recipientDetails?.fullName,
+        item.recipientDetails?.accountNumber,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    ),
+    detailField("Narration", item.narration),
+  ]);
+}
+
+function DetailRows({ fields }: { fields: DetailField[] }) {
+  return (
+    <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-2">
+      {fields.map((field) => (
+        <React.Fragment key={field.label}>
+          <dt className="text-[#64748B]">{field.label}</dt>
+          <dd
+            className={`${field.emphasis ? "font-medium" : ""} ${
+              field.breakAll ? "break-all" : ""
+            } ${field.mono ? "font-mono text-[11px]" : ""}`}
+          >
+            {field.value}
+          </dd>
+        </React.Fragment>
+      ))}
+    </dl>
+  );
+}
+
 const PAGE_SIZE = 15;
 
 const fieldShell =
@@ -176,6 +438,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
   const [rentById, setRentById] = React.useState<
     Map<string, RentPaymentItemDTO>
   >(() => new Map());
+  const [withdrawals, setWithdrawals] = React.useState<WithdrawalItemDTO[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -193,9 +456,10 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
   const load = React.useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [txResult, rentResult] = await Promise.all([
+    const [txResult, rentResult, withdrawalResult] = await Promise.all([
       getTransactions(),
       getRentPaymentItems({ limit: 500 }),
+      getWithdrawalItems(),
     ]);
     setLoading(false);
     if (rentResult.success) {
@@ -203,6 +467,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
     } else {
       setRentById(new Map());
     }
+    setWithdrawals(withdrawalResult.success ? withdrawalResult.data : []);
     if (!txResult.success) {
       setError(txResult.error);
       setRows([]);
@@ -252,15 +517,15 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
         setDetailFetchNote(null);
       } else if (candidates.length === 0) {
         setDetailFetchNote(
-          "This row has no transaction id — showing list payload only.",
+          "Only the available table details are shown for this transaction.",
         );
       } else if (sawNetworkError) {
         setDetailFetchNote(
-          "Could not load details from the server — showing list payload only.",
+          "We could not refresh this transaction right now, so the available details are shown.",
         );
       } else {
         setDetailFetchNote(
-          "Detail endpoint did not return usable data — showing list payload only.",
+          "No extra details were returned for this transaction.",
         );
       }
     })();
@@ -281,6 +546,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
     return rows.filter((tx) => {
       const u = uiStatus(tx);
       const action = formatActionLabel(tx);
+      const withdrawal = findWithdrawalForTransaction(tx, withdrawals);
       const matchesStatus =
         status === "All" ||
         (status === "Pending" && u === "Pending") ||
@@ -289,10 +555,10 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
       return (
         matchesStatus &&
         matchesAction &&
-        transactionMatchesSearch(tx, rentById, searchQuery)
+        transactionMatchesSearch(tx, rentById, withdrawal, searchQuery)
       );
     });
-  }, [actionFilter, rentById, rows, searchQuery, status]);
+  }, [actionFilter, rentById, rows, searchQuery, status, withdrawals]);
 
   const stats = React.useMemo(() => {
     const total = rows.length;
@@ -344,6 +610,29 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
   const firstVisibleRecord =
     filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
   const lastVisibleRecord = Math.min(safePage * PAGE_SIZE, filtered.length);
+  const detailWithdrawal = React.useMemo(
+    () =>
+      detailShown
+        ? findWithdrawalForTransaction(detailShown, withdrawals)
+        : null,
+    [detailShown, withdrawals],
+  );
+  const detailPaymentFields = React.useMemo(
+    () => (detailShown ? paymentSummaryFields(detailShown) : []),
+    [detailShown],
+  );
+  const detailPartyFields = React.useMemo(
+    () => (detailShown ? partyFields(detailShown, rentById) : []),
+    [detailShown, rentById],
+  );
+  const detailGatewayFields = React.useMemo(
+    () => (detailShown ? gatewayFields(detailShown) : []),
+    [detailShown],
+  );
+  const detailWithdrawalFields = React.useMemo(
+    () => (detailWithdrawal ? withdrawalFields(detailWithdrawal) : []),
+    [detailWithdrawal],
+  );
 
   return (
     <>
@@ -450,10 +739,8 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
               ) : null}
             </div>
             <p className="mb-3 text-xs text-[#64748B]">
-              From <code className="text-[11px]">GET /transaction</code>. Payer,
-              property hint, and narration come from each row; rent-payment
-              links fill gaps when IDs match. Open a row for full structured
-              details (no raw JSON).
+              Review payments, deposits, and withdrawals. Open any row to see
+              the details available for that transaction.
             </p>
             <div className="overflow-auto">
               <table className="w-full min-w-[1050px] text-xs">
@@ -601,8 +888,8 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                   </Dialog.Title>
                   <Dialog.Description className="mt-1 text-[12px] text-[#64748B]">
                     {detailLoading
-                      ? "Loading from GET /transaction/{id}…"
-                      : "Structured fields from the transaction record."}
+                      ? "Refreshing the latest transaction details…"
+                      : "Showing the details available for this transaction."}
                   </Dialog.Description>
                 </div>
                 <Dialog.Close asChild>
@@ -624,82 +911,42 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
 
               {detailShown ? (
                 <div className="mt-4 space-y-4 text-[12px]">
-                  <section>
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-                      Payment
-                    </h3>
-                    <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-2">
-                      <dt className="text-[#64748B]">Amount</dt>
-                      <dd className="font-medium">
-                        {formatMoney(parseAmount(detailShown))}{" "}
-                        <span className="font-normal text-[#64748B]">
-                          ({parseCurrency(detailShown)})
-                        </span>
-                      </dd>
-                      <dt className="text-[#64748B]">Status</dt>
-                      <dd>{normalizeStatus(detailShown.status) || "—"}</dd>
-                      <dt className="text-[#64748B]">Created</dt>
-                      <dd>{formatTxDate(detailShown)}</dd>
-                      <dt className="text-[#64748B]">Updated</dt>
-                      <dd>{formatUpdatedAt(detailShown)}</dd>
-                      <dt className="text-[#64748B]">Action</dt>
-                      <dd>{formatActionLabel(detailShown)}</dd>
-                      <dt className="text-[#64748B]">Method</dt>
-                      <dd>
-                        {typeof (detailShown as Record<string, unknown>)
-                          .paymentMethod === "string"
-                          ? String(
-                              (detailShown as Record<string, unknown>)
-                                .paymentMethod,
-                            )
-                          : "—"}
-                      </dd>
-                      <dt className="text-[#64748B]">Provider</dt>
-                      <dd>
-                        {typeof (detailShown as Record<string, unknown>)
-                          .provider === "string"
-                          ? String(
-                              (detailShown as Record<string, unknown>).provider,
-                            )
-                          : "—"}
-                      </dd>
-                      <dt className="text-[#64748B]">Ledger type</dt>
-                      <dd>
-                        {typeof (detailShown as Record<string, unknown>)
-                          .type === "string"
-                          ? String(
-                              (detailShown as Record<string, unknown>).type,
-                            )
-                          : "—"}
-                      </dd>
-                    </dl>
-                  </section>
+                  {detailPaymentFields.length ? (
+                    <section>
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                        Summary
+                      </h3>
+                      <DetailRows fields={detailPaymentFields} />
+                    </section>
+                  ) : null}
 
-                  <section>
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-                      Parties
-                    </h3>
-                    <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-2">
-                      <dt className="text-[#64748B]">From (payer)</dt>
-                      <dd className="font-medium">
-                        {resolveTenantLabel(detailShown, rentById)}
-                      </dd>
-                      <dt className="text-[#64748B]">Payer email</dt>
-                      <dd className="break-all">
-                        {resolveSenderEmail(detailShown)}
-                      </dd>
-                      <dt className="text-[#64748B]">To (payee)</dt>
-                      <dd className="font-medium">
-                        {resolveLandlordLabel(detailShown)}
-                      </dd>
-                      <dt className="text-[#64748B]">Payee email</dt>
-                      <dd className="break-all">
-                        {resolveReceiverEmail(detailShown)}
-                      </dd>
-                      <dt className="text-[#64748B]">Property / unit</dt>
-                      <dd>{resolvePropertyLabel(detailShown, rentById)}</dd>
-                    </dl>
-                  </section>
+                  {detailPartyFields.length ? (
+                    <section>
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                        People and property
+                      </h3>
+                      <DetailRows fields={detailPartyFields} />
+                    </section>
+                  ) : null}
+
+                  {isWithdrawalTransaction(detailShown) ? (
+                    <section>
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                        Withdrawal request
+                      </h3>
+                      {detailWithdrawalFields.length ? (
+                        <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                          <DetailRows fields={detailWithdrawalFields} />
+                        </div>
+                      ) : (
+                        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                          No linked withdrawal request was found for this
+                          transaction yet. Approval controls are not available
+                          for this record.
+                        </p>
+                      )}
+                    </section>
+                  ) : null}
 
                   <section>
                     <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
@@ -715,17 +962,14 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                     </p>
                   </section>
 
-                  <section>
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
-                      Payment gateway
-                    </h3>
-                    <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-2">
-                      <dt className="text-[#64748B]">Channel</dt>
-                      <dd>{gatewayChannel(detailShown)}</dd>
-                      <dt className="text-[#64748B]">Paid at</dt>
-                      <dd>{gatewayPaidAtDisplay(detailShown)}</dd>
-                    </dl>
-                  </section>
+                  {detailGatewayFields.length ? (
+                    <section>
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                        Payment gateway
+                      </h3>
+                      <DetailRows fields={detailGatewayFields} />
+                    </section>
+                  ) : null}
 
                   <p className="border-t border-[#F1F5F9] pt-3 font-mono text-[10px] leading-relaxed text-[#94A3B8]">
                     Transaction ID: {fullTransactionId(detailShown)}

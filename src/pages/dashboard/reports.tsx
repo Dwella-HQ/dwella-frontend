@@ -479,7 +479,7 @@ const ReportsPage: NextPageWithLayout = () => {
     {
       id: "rent-collection",
       title: "Rent Collection Summary",
-      description: "Rent collected by property using /rent-payment records.",
+      description: "Rent collected by property based on available payment records.",
       lastGenerated: scopedPayments.length
         ? "Updated from live payments"
         : "No payments yet",
