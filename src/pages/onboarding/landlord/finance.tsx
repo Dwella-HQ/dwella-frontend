@@ -710,7 +710,7 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
                 "Processing..."
               ) : (
                 <>
-                  Continue
+                  Submit
                   <ArrowRight className="h-4 w-4" aria-hidden />
                 </>
               )}
