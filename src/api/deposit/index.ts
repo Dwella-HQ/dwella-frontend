@@ -1,5 +1,6 @@
 export { createDeposit } from "./createDeposit";
 export type { CreateDepositResult } from "./createDeposit";
+export { extractDepositCheckoutUrl } from "./extractDepositCheckoutUrl";
 
 export { getDeposits } from "./getDeposits";
 export type { GetDepositsResult } from "./getDeposits";

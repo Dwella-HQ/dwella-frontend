@@ -19,10 +19,12 @@ import type { LandlordBankAccountDTO } from "@/api/landlord";
 import { resolvePayoutAccount } from "@/utils/payoutAccount";
 import {
   createDeposit,
+  extractDepositCheckoutUrl,
   getDepositsByWallet,
   type DepositItemDTO,
   type DepositCreateDTO,
 } from "@/api/deposit";
+import { SUPPORT_EMAIL } from "@/lib/supportContact";
 import { format, parseISO } from "date-fns";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
@@ -43,15 +45,18 @@ const extractWithdrawalList = (payload: unknown): WithdrawalItemDTO[] => {
   if (Array.isArray(payload)) return payload as WithdrawalItemDTO[];
 
   const p = payload as { data?: unknown; withdrawals?: unknown };
+  const data = p.data as
+    | { withdrawals?: unknown; transactions?: unknown }
+    | undefined;
   const maybeList =
     p?.data && Array.isArray(p.data)
       ? p.data
       : Array.isArray(p.withdrawals)
         ? p.withdrawals
-        : Array.isArray((p.data as any)?.withdrawals)
-          ? (p.data as any).withdrawals
-          : Array.isArray((p.data as any)?.transactions)
-            ? (p.data as any).transactions
+        : Array.isArray(data?.withdrawals)
+          ? data.withdrawals
+          : Array.isArray(data?.transactions)
+            ? data.transactions
             : [];
 
   return maybeList as WithdrawalItemDTO[];
@@ -73,6 +78,11 @@ function withdrawalRecipientLabel(w: WithdrawalItemDTO): string {
   if (name) return name;
   if (tail) return String(tail);
   return "—";
+}
+
+function withdrawalWalletId(w: WithdrawalItemDTO): string {
+  const record = w as WithdrawalItemDTO & { wallet?: { id?: unknown } };
+  return String(record.walletId ?? record.wallet?.id ?? "");
 }
 
 const FinancePage: NextPageWithLayout = () => {
@@ -236,7 +246,7 @@ const FinancePage: NextPageWithLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeWallet?.id]);
+  }, [activeWallet]);
 
   // Withdraw form state (destination is fixed server-side on the wallet)
   const [withdrawAmount, setWithdrawAmount] = React.useState("");
@@ -272,8 +282,7 @@ const FinancePage: NextPageWithLayout = () => {
     if (wResult.success) {
       const all = extractWithdrawalList(wResult.data);
       const scoped = all.filter((w) => {
-        const walletField = (w as any).walletId ?? (w as any).wallet?.id ?? "";
-        return String(walletField) === String(activeWallet.id);
+        return withdrawalWalletId(w) === String(activeWallet.id);
       });
       setWithdrawals(scoped);
     } else {
@@ -298,13 +307,13 @@ const FinancePage: NextPageWithLayout = () => {
 
     setDepositsLoading(false);
     setWithdrawalsLoading(false);
-  }, [activeWallet?.id]);
+  }, [activeWallet]);
 
   React.useEffect(() => {
     if (activeWallet?.id) {
       refreshLists();
     }
-  }, [activeWallet?.id, refreshLists]);
+  }, [activeWallet, refreshLists]);
 
   const handleSubmitWithdrawal = React.useCallback(async () => {
     if (!activeWallet?.id) {
@@ -343,7 +352,7 @@ const FinancePage: NextPageWithLayout = () => {
     }
     setWithdrawSubmitting(false);
   }, [
-    activeWallet?.id,
+    activeWallet,
     payoutAccount.configured,
     refreshLists,
     showToast,
@@ -372,16 +381,23 @@ const FinancePage: NextPageWithLayout = () => {
     };
     const result = await createDeposit(payload);
     if (result.success) {
-      showToast("Deposit request created", "success");
-      setDepositAmount("");
-      setDepositNarration("");
+      const checkoutUrl = extractDepositCheckoutUrl(result.data);
+      if (checkoutUrl) {
+        showToast("Deposit started. Redirecting to payment...", "success");
+        window.location.href = checkoutUrl;
+        return;
+      }
+      showToast(
+        `Deposit started, but no checkout link was returned. Try again, or contact ${SUPPORT_EMAIL} if this keeps happening.`,
+        "error",
+      );
       refreshLists();
     } else {
       showToast(result.error || "Failed to create deposit", "error");
     }
     setDepositSubmitting(false);
   }, [
-    activeWallet?.id,
+    activeWallet,
     depositAmount,
     depositNarration,
     refreshLists,
@@ -398,25 +414,25 @@ const FinancePage: NextPageWithLayout = () => {
       createdAt?: string;
     }> = [];
 
-    withdrawals.forEach((w) => {
+    withdrawals.forEach((w, index) => {
       items.push({
         type: "withdrawal",
-        id: String(w.id ?? Math.random()),
-        amount: w.amount as any,
+        id: String(w.id ?? `withdrawal-${index}`),
+        amount: w.amount,
         status: w.status,
         narration: w.narration,
         createdAt: w.createdAt,
       });
     });
 
-    deposits.forEach((d) => {
+    deposits.forEach((d, index) => {
       items.push({
         type: "deposit",
-        id: String(d.id ?? Math.random()),
-        amount: d.amount as any,
-        status: (d as any).status,
+        id: String(d.id ?? `deposit-${index}`),
+        amount: d.amount,
+        status: d.status,
         narration: d.narration,
-        createdAt: d.createdAt ?? (d as any).createdAt,
+        createdAt: d.createdAt,
       });
     });
 
@@ -741,7 +757,7 @@ const FinancePage: NextPageWithLayout = () => {
                   disabled={depositSubmitting}
                   className="rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white hover:bg-brand-main/90 transition disabled:opacity-60"
                 >
-                  {depositSubmitting ? "Submitting..." : "Request Deposit"}
+                  {depositSubmitting ? "Starting..." : "Continue to Payment"}
                 </button>
               </div>
             </div>
@@ -784,10 +800,10 @@ const FinancePage: NextPageWithLayout = () => {
                             {d.amount ?? "—"}
                           </td>
                           <td className="py-3 pr-3 text-sm text-gray-700">
-                            {(d as any).status ?? "—"}
+                            {d.status ?? "—"}
                           </td>
                           <td className="py-3 pr-3 text-sm text-gray-700">
-                            {formatDateValue((d as any).createdAt)}
+                            {formatDateValue(d.createdAt)}
                           </td>
                         </tr>
                       ))}
