@@ -6,6 +6,14 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useNotifications } from "@/contexts/NotificationsContext";
 import type { Notification } from "@/api/notifications";
 
+const PAGE_SIZE = 10;
+
+function dateMs(value?: string): number {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 const AdminNotificationsPage: NextPageWithLayout = () => {
   const {
     notifications,
@@ -18,6 +26,7 @@ const AdminNotificationsPage: NextPageWithLayout = () => {
   const [selectedNotification, setSelectedNotification] =
     React.useState<Notification | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [page, setPage] = React.useState(1);
 
   React.useEffect(() => {
     refresh();
@@ -25,25 +34,54 @@ const AdminNotificationsPage: NextPageWithLayout = () => {
 
   React.useEffect(() => {
     setSelectedNotification((prev) => {
-      if (!notifications.length) return null;
-      if (!prev) return notifications[0];
+      const sorted = [...notifications].sort(
+        (a, b) => dateMs(b.createdAt) - dateMs(a.createdAt),
+      );
+      if (!sorted.length) return null;
+      if (!prev) return sorted[0];
       return (
-        notifications.find((notification) => notification.id === prev.id) ??
-        notifications[0]
+        sorted.find((notification) => notification.id === prev.id) ?? sorted[0]
       );
     });
   }, [notifications]);
 
   const filteredNotifications = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return notifications;
-    return notifications.filter(
-      (notification) =>
-        notification.title.toLowerCase().includes(query) ||
-        notification.description.toLowerCase().includes(query) ||
-        notification.fullDescription.toLowerCase().includes(query),
-    );
+    return [...notifications]
+      .filter((notification) => {
+        if (!query) return true;
+        return (
+          notification.title.toLowerCase().includes(query) ||
+          notification.description.toLowerCase().includes(query) ||
+          notification.fullDescription.toLowerCase().includes(query)
+        );
+      })
+      .sort((a, b) => dateMs(b.createdAt) - dateMs(a.createdAt));
   }, [notifications, searchQuery]);
+
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filteredNotifications.length / PAGE_SIZE),
+  );
+  const safePage = Math.min(page, pageCount);
+  const paginatedNotifications = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredNotifications.slice(start, start + PAGE_SIZE);
+  }, [filteredNotifications, safePage]);
+  const firstVisibleRecord =
+    filteredNotifications.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const lastVisibleRecord = Math.min(
+    safePage * PAGE_SIZE,
+    filteredNotifications.length,
+  );
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [searchQuery, notifications.length]);
+
+  React.useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
 
   const handleSelectNotification = React.useCallback(
     (notification: Notification) => {
@@ -105,26 +143,57 @@ const AdminNotificationsPage: NextPageWithLayout = () => {
                   No notifications found.
                 </p>
               ) : (
-                filteredNotifications.map((notification) => (
-                  <button
-                    key={notification.id}
-                    type="button"
-                    onClick={() => handleSelectNotification(notification)}
-                    className={`w-full cursor-pointer rounded-md border p-2 text-left text-xs ${
-                      selectedNotification?.id === notification.id
-                        ? "border-[#BFDBFE] bg-[#EFF6FF]"
-                        : "border-[#E2E8F0]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium">{notification.title}</p>
-                      {!notification.isRead ? (
-                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#1E66FF]" />
-                      ) : null}
+                <>
+                  {paginatedNotifications.map((notification) => (
+                    <button
+                      key={notification.id}
+                      type="button"
+                      onClick={() => handleSelectNotification(notification)}
+                      className={`w-full cursor-pointer rounded-md border p-2 text-left text-xs ${
+                        selectedNotification?.id === notification.id
+                          ? "border-[#BFDBFE] bg-[#EFF6FF]"
+                          : "border-[#E2E8F0]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium">{notification.title}</p>
+                        {!notification.isRead ? (
+                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#1E66FF]" />
+                        ) : null}
+                      </div>
+                      <p className="text-[#64748B]">{notification.time}</p>
+                    </button>
+                  ))}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-[#64748B]">
+                    <span>
+                      {firstVisibleRecord}-{lastVisibleRecord} of{" "}
+                      {filteredNotifications.length}
+                    </span>
+                    <div className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                        disabled={safePage <= 1}
+                        className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 disabled:opacity-40"
+                      >
+                        Prev
+                      </button>
+                      <span>
+                        {safePage}/{pageCount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPage((prev) => Math.min(pageCount, prev + 1))
+                        }
+                        disabled={safePage >= pageCount}
+                        className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 disabled:opacity-40"
+                      >
+                        Next
+                      </button>
                     </div>
-                    <p className="text-[#64748B]">{notification.time}</p>
-                  </button>
-                ))
+                  </div>
+                </>
               )}
             </div>
             <div className="min-w-0 w-full">

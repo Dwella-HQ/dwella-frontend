@@ -3,39 +3,15 @@ import Link from "next/link";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/router";
-import {
-  ChevronDown,
-  Loader2,
-  MoreVertical,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Loader2, MoreVertical, RefreshCw, Search } from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import {
-  approveProperty,
-  getProperties,
-  type PropertyDTO,
-} from "@/api/properties";
+import { getProperties, type PropertyDTO } from "@/api/properties";
 
 function formatAddress(p: PropertyDTO): string {
   const a = p.address;
   if (!a) return "—";
   return [a.address, a.city, a.state].filter(Boolean).join(", ") || "—";
-}
-
-function landlordDisplayName(p: PropertyDTO): string {
-  const l = p.landlord;
-  if (!l) return "—";
-  const ext = l as Record<string, unknown>;
-  const bn = ext.businessName;
-  if (typeof bn === "string" && bn.trim()) return bn;
-  return (
-    (l.landLordName && String(l.landLordName).trim()) ||
-    l.user?.fullName ||
-    l.user?.email ||
-    "—"
-  );
 }
 
 function listingDate(p: PropertyDTO): string {
@@ -46,69 +22,25 @@ function listingDate(p: PropertyDTO): string {
     : d.toLocaleDateString("en-GB");
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-NG", {
-    style: "currency",
-    currency: "NGN",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function inferRent(p: PropertyDTO): string {
-  const units = Array.isArray(p.units) ? p.units : [];
-  const rents = units
-    .map((unit) => {
-      if (!unit || typeof unit !== "object") return null;
-      const rent = (unit as Record<string, unknown>).rentAmount;
-      if (typeof rent === "number" && Number.isFinite(rent)) return rent;
-      if (typeof rent === "string") {
-        const parsed = Number(rent);
-        return Number.isFinite(parsed) ? parsed : null;
-      }
-      return null;
-    })
-    .filter((value): value is number => value !== null);
-
-  if (!rents.length) return "—";
-  const min = Math.min(...rents);
-  const max = Math.max(...rents);
-  if (min === max) return formatCurrency(min);
-  return `${formatCurrency(min)} - ${formatCurrency(max)}`;
-}
-
-function inferDuration(p: PropertyDTO): string {
-  const units = Array.isArray(p.units) ? p.units : [];
-  const durationValues = units
-    .map((unit) => {
-      if (!unit || typeof unit !== "object") return null;
-      const record = unit as Record<string, unknown>;
-      const raw =
-        record.rentFrequency ??
-        record.paymentFrequency ??
-        record.rentDuration ??
-        record.billingCycle;
-      return typeof raw === "string" ? raw : null;
-    })
-    .filter((value): value is string => !!value?.trim());
-
-  if (!durationValues.length) return "—";
-  const first = durationValues[0].trim().toLowerCase();
-  const normalized =
-    first === "month" || first === "monthly"
-      ? "Monthly"
-      : first === "year" || first === "yearly" || first === "annual"
-        ? "Yearly"
-        : first === "week" || first === "weekly"
-          ? "Weekly"
-          : first === "day" || first === "daily"
-            ? "Daily"
-            : durationValues[0];
-  return normalized;
+function propertyStatusLabel(p: PropertyDTO): string {
+  if (!p.isApproved) return "Pending";
+  return p.isActive === false ? "Inactive" : "Active";
 }
 
 const ACTION_MENU_WIDTH = 144;
-/** Two action rows + padding */
-const ACTION_MENU_HEIGHT = 76;
+/** Up to three action rows + padding */
+const ACTION_MENU_HEIGHT = 112;
+const PAGE_SIZE = 10;
+
+function dateMs(value?: string | null): number {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function propertySortTime(p: PropertyDTO): number {
+  return dateMs(p.createdAt) || dateMs(p.updatedAt);
+}
 
 function computeActionMenuPosition(btn: DOMRect): {
   top: number;
@@ -129,7 +61,9 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
   const [properties, setProperties] = React.useState<PropertyDTO[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [approvingId, setApprovingId] = React.useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState("all");
+  const [page, setPage] = React.useState(1);
 
   const [actionMenu, setActionMenu] = React.useState<{
     propertyId: string;
@@ -155,10 +89,58 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
   }, [load]);
 
   const visibleRows = React.useMemo(() => {
-    return properties.filter((p) =>
-      tab === "pending" ? !p.isApproved : !!p.isApproved,
-    );
-  }, [properties, tab]);
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return properties
+      .filter((p) => {
+        if (tab === "pending" ? !!p.isApproved : !p.isApproved) return false;
+
+        const status = propertyStatusLabel(p).toLowerCase();
+        if (statusFilter !== "all" && status !== statusFilter) return false;
+        if (!normalizedSearch) return true;
+
+        return [p.name, formatAddress(p), status, p.id]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearch);
+      })
+      .sort((a, b) => propertySortTime(b) - propertySortTime(a));
+  }, [properties, searchTerm, statusFilter, tab]);
+
+  const pageCount = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paginatedRows = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return visibleRows.slice(start, start + PAGE_SIZE);
+  }, [safePage, visibleRows]);
+  const firstVisibleRecord =
+    visibleRows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const lastVisibleRecord = Math.min(safePage * PAGE_SIZE, visibleRows.length);
+
+  const paginationItems = React.useMemo<(number | "ellipsis")[]>(() => {
+    if (pageCount <= 7) {
+      return Array.from({ length: pageCount }, (_, index) => index + 1);
+    }
+    const pages = new Set([1, pageCount, safePage - 1, safePage, safePage + 1]);
+    const sorted = [...pages]
+      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= pageCount)
+      .sort((a, b) => a - b);
+    const items: (number | "ellipsis")[] = [];
+    sorted.forEach((pageNumber, index) => {
+      const previous = sorted[index - 1];
+      if (previous && pageNumber - previous > 1) items.push("ellipsis");
+      items.push(pageNumber);
+    });
+    return items;
+  }, [pageCount, safePage]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter, tab, properties.length]);
+
+  React.useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
 
   const stats = React.useMemo(() => {
     const total = properties.length;
@@ -167,27 +149,30 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
     const activeListed = properties.filter(
       (p) => p.isApproved && p.isActive !== false,
     ).length;
-    return { total, pendingApproval, approved, activeListed };
+    const inactive = properties.filter((p) => p.isActive === false).length;
+    const units = properties.reduce(
+      (sum, p) => sum + Number(p.numberOfUnits || 0),
+      0,
+    );
+    return { total, pendingApproval, approved, activeListed, inactive, units };
   }, [properties]);
 
   const statusPill = (p: PropertyDTO) => {
-    const active = p.isActive !== false;
-    return active
-      ? "bg-[#D9F99D] text-[#3F6212]"
-      : "bg-[#E5E7EB] text-[#374151]";
+    const status = propertyStatusLabel(p);
+    if (status === "Pending") return "bg-amber-100 text-amber-900";
+    if (status === "Inactive") return "bg-[#E5E7EB] text-[#374151]";
+    return "bg-[#D9F99D] text-[#3F6212]";
   };
 
-  const handleApprove = async (propertyId: string) => {
-    setApprovingId(propertyId);
-    const result = await approveProperty(propertyId);
-    setApprovingId(null);
-    setActionMenu(null);
-    if (!result.success) {
-      window.alert(result.error || "Approval failed.");
-      return;
-    }
-    await load();
-  };
+  const openPropertyVerification = React.useCallback(
+    (propertyId: string) => {
+      void router.push({
+        pathname: "/dashboard/admin/verifications",
+        query: { kind: "property", propertyId },
+      });
+    },
+    [router],
+  );
 
   React.useEffect(() => {
     const handleWindowClick = () => setActionMenu(null);
@@ -217,14 +202,20 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             <div className="inline-flex w-fit max-w-full flex-wrap rounded-lg border border-[#E2E8F0] bg-white p-1">
               <button
                 type="button"
-                onClick={() => setTab("active")}
+                onClick={() => {
+                  setTab("active");
+                  setStatusFilter("all");
+                }}
                 className={`rounded-md px-3 py-1.5 text-[12px] ${tab === "active" ? "bg-[#E0F2FE] text-[#0284C7]" : "text-[#64748B]"}`}
               >
                 Active Properties
               </button>
               <button
                 type="button"
-                onClick={() => setTab("pending")}
+                onClick={() => {
+                  setTab("pending");
+                  setStatusFilter("all");
+                }}
                 className={`rounded-md px-3 py-1.5 text-[12px] ${tab === "pending" ? "bg-[#E0F2FE] text-[#0284C7]" : "text-[#64748B]"}`}
               >
                 Pending Approval
@@ -232,10 +223,12 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             </div>
             <button
               type="button"
-              className="rounded-[10px] bg-[#111827] px-6 py-2 text-[13px] font-medium text-white opacity-60"
-              title="Use landlord dashboard to add properties"
+              onClick={() => void load()}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2 text-[13px] font-medium text-[#475569] transition hover:bg-[#F8FAFC] disabled:opacity-60"
             >
-              Add New
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
             </button>
           </div>
 
@@ -243,10 +236,10 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             {[
               ["Total Properties", String(stats.total)],
               ["Approved", String(stats.approved)],
-              ["Active listings", String(stats.activeListed)],
               ["Pending approval", String(stats.pendingApproval)],
-              ["Under review", String(stats.pendingApproval)],
-              ["Vacant / Other", "—"],
+              ["Active listings", String(stats.activeListed)],
+              ["Inactive", String(stats.inactive)],
+              ["Total units", String(stats.units)],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -266,28 +259,26 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             </p>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-2.5 rounded-[10px] border border-[#E2E8F0] bg-white p-2.5 sm:grid-cols-2 lg:grid-cols-[1fr_210px_210px_auto] lg:items-center">
-            <div className="flex items-center gap-2 rounded-md bg-white px-3 py-2">
+          <div className="grid grid-cols-1 gap-2.5 rounded-[10px] border border-[#E2E8F0] bg-white p-2.5 sm:grid-cols-[1fr_210px] sm:items-center">
+            <div className="flex items-center gap-2 rounded-md border border-[#E2E8F0] bg-white px-3 py-2">
               <Search className="h-4 w-4 text-[#94A3B8]" />
               <input
-                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, address, status, or ID..."
                 className="w-full bg-white text-[12px] text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
               />
             </div>
-            <button className="flex items-center justify-between rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] text-[#64748B]">
-              <span>Status</span>
-              <span className="text-[#0F172A]">All</span>
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            <button className="flex items-center justify-between rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] text-[#64748B]">
-              <span>Property Type</span>
-              <span className="text-[#0F172A]">All</span>
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            <button className="inline-flex items-center gap-2 rounded-md px-2 py-2 text-[13px] text-[#475569]">
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters
-            </button>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-10 rounded-md border border-[#E2E8F0] bg-white px-3 text-[12px] text-[#0F172A] outline-none"
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="pending">Pending</option>
+            </select>
           </div>
 
           <div className="w-full min-w-0 overflow-hidden rounded-[10px] border border-[#E2E8F0] bg-white p-4">
@@ -300,44 +291,27 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
               ) : null}
             </div>
             <p className="mb-4 mt-1 text-[12px] text-[#64748B]">
-              Review property listings and approve pending records when ready.
+              Review property listings and open pending verifications when
+              needed.
             </p>
             <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full min-w-[1080px] table-fixed text-[11px]">
+              <table className="w-full min-w-[760px] table-fixed text-[11px]">
                 <thead className="text-[#64748B]">
                   <tr>
-                    <th className="w-[72px] py-2.5 text-center font-medium">
-                      Serial Number
+                    <th className="w-[60px] py-2.5 text-left font-medium">
+                      S/N
                     </th>
-                    <th className="w-[56px] py-2.5 text-center font-medium">
-                      Image
+                    <th className="w-[220px] py-2.5 text-left font-medium">
+                      Property
                     </th>
-                    <th className="w-[140px] py-2.5 text-center font-medium">
-                      Name
-                    </th>
-                    <th className="w-[100px] py-2.5 text-center font-medium">
-                      Type
-                    </th>
-                    <th className="w-[150px] py-2.5 text-center font-medium">
+                    <th className="w-[240px] py-2.5 text-left font-medium">
                       Address
                     </th>
-                    <th className="w-[56px] py-2.5 text-center font-medium">
+                    <th className="w-[72px] py-2.5 text-center font-medium">
                       Units
                     </th>
-                    <th className="w-[110px] py-2.5 text-center font-medium">
-                      Rent
-                    </th>
-                    <th className="w-[90px] py-2.5 text-center font-medium">
-                      Duration
-                    </th>
-                    <th className="w-[130px] py-2.5 text-center font-medium">
-                      LandLord Name
-                    </th>
-                    <th className="w-[56px] py-2.5 text-center font-medium">
-                      Image
-                    </th>
-                    <th className="w-[96px] py-2.5 text-center font-medium">
-                      Listing Date
+                    <th className="w-[104px] py-2.5 text-left font-medium">
+                      Listed
                     </th>
                     <th className="w-[120px] py-2.5 text-center font-medium">
                       Status
@@ -347,98 +321,53 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
                 </thead>
                 <tbody>
                   {!loading &&
-                    visibleRows.map((row, idx) => {
+                    paginatedRows.map((row, idx) => {
                       const thumb = row.photos?.[0]?.url;
-                      const landlordAvatar = row.landlord?.profilePicture?.url;
-                      const initials =
-                        landlordDisplayName(row)
-                          .split(/\s+/)
-                          .filter(Boolean)
-                          .slice(0, 2)
-                          .map((s) => s[0]?.toUpperCase())
-                          .join("") || "?";
                       return (
                         <tr key={row.id} className="border-t border-[#F1F5F9]">
-                          <td className="whitespace-nowrap py-2.5 text-center">
-                            {idx + 1}
+                          <td className="whitespace-nowrap py-2.5 text-left">
+                            {(safePage - 1) * PAGE_SIZE + idx + 1}
                           </td>
-                          <td className="py-2.5 text-center">
-                            {thumb ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={thumb}
-                                alt=""
-                                className="mx-auto h-7 w-7 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="mx-auto h-7 w-7 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#0EA5E9]" />
-                            )}
+                          <td className="py-2.5 text-left">
+                            <div className="flex items-center gap-3">
+                              {thumb ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={thumb}
+                                  alt=""
+                                  className="h-9 w-9 rounded-lg object-cover"
+                                />
+                              ) : (
+                                <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#38BDF8] to-[#0EA5E9]" />
+                              )}
+                              <div className="min-w-0">
+                                <Link
+                                  className="block truncate font-medium text-[#0F172A] hover:underline"
+                                  href={`/dashboard/admin/properties/${row.id}`}
+                                >
+                                  {row.name}
+                                </Link>
+                                <p className="truncate text-[10px] text-[#94A3B8]">
+                                  {row.id}
+                                </p>
+                              </div>
+                            </div>
                           </td>
-                          <td className="py-2.5 text-center">
-                            <Link
-                              className="hover:underline"
-                              href={`/dashboard/admin/properties/${row.id}`}
-                            >
-                              {row.name}
-                            </Link>
-                          </td>
-                          <td className="py-2.5 text-center">
-                            {row.propertyType ?? "—"}
-                          </td>
-                          <td className="py-2.5 text-center">
+                          <td className="py-2.5 text-left">
                             {formatAddress(row)}
                           </td>
                           <td className="whitespace-nowrap py-2.5 text-center">
                             {row.numberOfUnits ?? "—"}
                           </td>
-                          <td className="truncate py-2.5 text-center">
-                            {inferRent(row)}
-                          </td>
-                          <td className="truncate py-2.5 text-center">
-                            {inferDuration(row)}
-                          </td>
-                          <td className="py-2.5 text-center">
-                            {landlordDisplayName(row)}
-                          </td>
-                          <td className="py-2.5 text-center">
-                            {landlordAvatar ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={landlordAvatar}
-                                alt=""
-                                className="mx-auto h-7 w-7 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="mx-auto flex h-7 w-7 items-center justify-center rounded-full bg-[#FECACA] text-[10px] font-semibold text-[#7F1D1D]">
-                                {initials.slice(0, 2)}
-                              </div>
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap py-2.5 text-center">
+                          <td className="whitespace-nowrap py-2.5 text-left">
                             {listingDate(row)}
                           </td>
                           <td className="py-2.5 text-center">
-                            {tab === "pending" ? (
-                              <div className="flex justify-center gap-2">
-                                <button
-                                  type="button"
-                                  disabled={approvingId === row.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void handleApprove(row.id);
-                                  }}
-                                  className="rounded border border-green-500 px-2 py-0.5 text-[10px] text-green-600 disabled:opacity-50"
-                                >
-                                  {approvingId === row.id ? "…" : "Approve"}
-                                </button>
-                              </div>
-                            ) : (
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusPill(row)}`}
-                              >
-                                {row.isActive !== false ? "Active" : "Inactive"}
-                              </span>
-                            )}
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusPill(row)}`}
+                            >
+                              {propertyStatusLabel(row)}
+                            </span>
                           </td>
                           <td className="py-2.5 text-center">
                             <button
@@ -470,16 +399,64 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
               </table>
               {!loading && visibleRows.length === 0 ? (
                 <p className="py-8 text-center text-[12px] text-[#64748B]">
-                  No properties in this tab.
+                  No properties match the current view.
                 </p>
               ) : null}
             </div>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[12px] text-[#64748B]">
+            <div className="mt-4 flex flex-col gap-2 text-[12px] text-[#64748B] sm:flex-row sm:items-center sm:justify-between">
               <div className="inline-flex items-center gap-2">
-                <span>Records shown</span>
-                <span className="font-medium text-[#0F172A]">
+                <span>
+                  Showing {firstVisibleRecord}-{lastVisibleRecord} of{" "}
                   {visibleRows.length}
                 </span>
+                {visibleRows.length !== properties.length ? (
+                  <span>({properties.length} total)</span>
+                ) : null}
+              </div>
+              <div className="inline-flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safePage <= 1 || loading}
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 hover:bg-[#F8FAFC] disabled:opacity-40"
+                >
+                  Prev
+                </button>
+                {paginationItems.map((item, index) =>
+                  item === "ellipsis" ? (
+                    <span
+                      key={`ellipsis-${index}`}
+                      className="px-1 text-[#94A3B8]"
+                    >
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setPage(item)}
+                      aria-current={item === safePage ? "page" : undefined}
+                      className={`rounded border px-2 py-0.5 ${
+                        item === safePage
+                          ? "border-[#1E66FF] bg-[#1E66FF] text-white"
+                          : "border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+                <span className="px-1">/ {pageCount}</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPage((prev) => Math.min(pageCount, prev + 1))
+                  }
+                  disabled={safePage >= pageCount || loading}
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 hover:bg-[#F8FAFC] disabled:opacity-40"
+                >
+                  Next
+                </button>
               </div>
             </div>
           </div>
@@ -497,6 +474,19 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
             }}
             onMouseDown={(event) => event.stopPropagation()}
           >
+            {tab === "pending" ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setActionMenu(null);
+                  openPropertyVerification(actionMenu.propertyId);
+                }}
+                className="block w-full rounded px-2 py-1.5 text-left text-xs text-[#0F172A] hover:bg-[#F8FAFC]"
+              >
+                View Verification
+              </button>
+            ) : null}
             <button
               type="button"
               role="menuitem"

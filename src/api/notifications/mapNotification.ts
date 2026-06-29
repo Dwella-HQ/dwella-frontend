@@ -63,6 +63,7 @@ export interface Notification {
   description: string;
   fullDescription: string;
   dateTime: string;
+  createdAt: string;
   isRead: boolean;
   type: string;
   // Store original notification id for socket actions.
@@ -86,9 +87,9 @@ export const mapNotification = (notification: NotificationDTO): Notification => 
     description: truncatedMessage,
     fullDescription: notification.message,
     dateTime: formatDateTime(notification.createdAt),
+    createdAt: notification.createdAt,
     isRead: notification.read,
     type: notification.type,
     apiId: String(notification.id),
   };
 };
-

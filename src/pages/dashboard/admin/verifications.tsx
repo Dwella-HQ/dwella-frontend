@@ -1,4 +1,5 @@
 import Head from "next/head";
+import { useRouter } from "next/router";
 import * as React from "react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -57,6 +58,18 @@ function kindLabel(kind: "landlord" | "property"): string {
   return kind === "property" ? "Property" : "Landlord";
 }
 
+const QUEUE_PAGE_SIZE = 10;
+
+function dateMs(value?: string | null): number {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function verificationSortTime(row: VerificationDTO): number {
+  return dateMs(row.updatedAt) || dateMs(row.createdAt) || dateMs(row.verifiedAt);
+}
+
 function DocLink({
   label,
   file,
@@ -95,6 +108,7 @@ function DocLink({
 }
 
 const AdminVerificationsPage: NextPageWithLayout = () => {
+  const router = useRouter();
   const { user } = useUser();
   const { showToast } = useToast();
   const [rows, setRows] = React.useState<VerificationDTO[]>([]);
@@ -111,6 +125,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
   const [filterKind, setFilterKind] = React.useState<
     "all" | "landlord" | "property"
   >("all");
+  const [queuePage, setQueuePage] = React.useState(1);
 
   const [actionBusy, setActionBusy] = React.useState<
     "verify" | "reject" | null
@@ -121,6 +136,11 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
   const [actionReason, setActionReason] = React.useState("");
   const [supportingFiles, setSupportingFiles] = React.useState<File[]>([]);
   const [modalError, setModalError] = React.useState<string | null>(null);
+
+  const queryPropertyId = React.useMemo(() => {
+    const value = router.query.propertyId;
+    return Array.isArray(value) ? value[0] : value;
+  }, [router.query.propertyId]);
 
   const loadList = React.useCallback(async () => {
     setListLoading(true);
@@ -163,14 +183,85 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
   }, [selectedId, loadDetail]);
 
   const filteredRows = React.useMemo(() => {
-    return rows.filter((row) => {
-      const kind = deriveVerificationKind(row);
-      if (filterKind !== "all" && kind !== filterKind) return false;
-      const st = String(row.status).toUpperCase();
-      if (filterStatus !== "all" && st !== filterStatus) return false;
-      return true;
-    });
+    return rows
+      .filter((row) => {
+        const kind = deriveVerificationKind(row);
+        if (filterKind !== "all" && kind !== filterKind) return false;
+        const st = String(row.status).toUpperCase();
+        if (filterStatus !== "all" && st !== filterStatus) return false;
+        return true;
+      })
+      .sort((a, b) => verificationSortTime(b) - verificationSortTime(a));
   }, [rows, filterKind, filterStatus]);
+
+  const queuePageCount = Math.max(
+    1,
+    Math.ceil(filteredRows.length / QUEUE_PAGE_SIZE),
+  );
+  const safeQueuePage = Math.min(queuePage, queuePageCount);
+  const paginatedRows = React.useMemo(() => {
+    const start = (safeQueuePage - 1) * QUEUE_PAGE_SIZE;
+    return filteredRows.slice(start, start + QUEUE_PAGE_SIZE);
+  }, [filteredRows, safeQueuePage]);
+  const firstQueueRecord =
+    filteredRows.length === 0 ? 0 : (safeQueuePage - 1) * QUEUE_PAGE_SIZE + 1;
+  const lastQueueRecord = Math.min(
+    safeQueuePage * QUEUE_PAGE_SIZE,
+    filteredRows.length,
+  );
+
+  const queuePaginationItems = React.useMemo<(number | "ellipsis")[]>(() => {
+    if (queuePageCount <= 5) {
+      return Array.from({ length: queuePageCount }, (_, index) => index + 1);
+    }
+    const pages = new Set([
+      1,
+      queuePageCount,
+      safeQueuePage - 1,
+      safeQueuePage,
+      safeQueuePage + 1,
+    ]);
+    const sorted = [...pages]
+      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= queuePageCount)
+      .sort((a, b) => a - b);
+    const items: (number | "ellipsis")[] = [];
+    sorted.forEach((pageNumber, index) => {
+      const previous = sorted[index - 1];
+      if (previous && pageNumber - previous > 1) items.push("ellipsis");
+      items.push(pageNumber);
+    });
+    return items;
+  }, [queuePageCount, safeQueuePage]);
+
+  React.useEffect(() => {
+    setQueuePage(1);
+  }, [filterKind, filterStatus, rows.length]);
+
+  React.useEffect(() => {
+    setQueuePage((current) => Math.min(current, queuePageCount));
+  }, [queuePageCount]);
+
+  React.useEffect(() => {
+    if (!router.isReady || !queryPropertyId || listLoading) return;
+    const match = rows.find((row) => {
+      return (
+        deriveVerificationKind(row) === "property" &&
+        entityPropertyId(row) === queryPropertyId
+      );
+    });
+    setFilterKind("property");
+    setFilterStatus("all");
+    if (match) {
+      setSelectedId((current) => (current === match.id ? current : match.id));
+      const matchingRows = rows
+        .filter((row) => deriveVerificationKind(row) === "property")
+        .sort((a, b) => verificationSortTime(b) - verificationSortTime(a));
+      const matchIndex = matchingRows.findIndex((row) => row.id === match.id);
+      if (matchIndex >= 0) {
+        setQueuePage(Math.floor(matchIndex / QUEUE_PAGE_SIZE) + 1);
+      }
+    }
+  }, [listLoading, queryPropertyId, router.isReady, rows]);
 
   const selectedKind = detail ? deriveVerificationKind(detail) : null;
 
@@ -355,7 +446,7 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                 )}
                 {!listLoading &&
                   !listError &&
-                  filteredRows.map((row) => {
+                  paginatedRows.map((row) => {
                     const kind = deriveVerificationKind(row);
                     const active = selectedId === row.id;
                     return (
@@ -401,6 +492,65 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                     );
                   })}
               </div>
+              {!listLoading && !listError && filteredRows.length > 0 ? (
+                <div className="flex flex-col gap-2 border-t border-[#E2E8F0] px-3 py-2 text-[11px] text-[#64748B]">
+                  <p>
+                    Showing {firstQueueRecord}-{lastQueueRecord} of{" "}
+                    {filteredRows.length}
+                  </p>
+                  <div className="inline-flex flex-wrap items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setQueuePage((prev) => Math.max(1, prev - 1))
+                      }
+                      disabled={safeQueuePage <= 1}
+                      className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 hover:bg-[#F8FAFC] disabled:opacity-40"
+                    >
+                      Prev
+                    </button>
+                    {queuePaginationItems.map((item, index) =>
+                      item === "ellipsis" ? (
+                        <span
+                          key={`queue-ellipsis-${index}`}
+                          className="px-1 text-[#94A3B8]"
+                        >
+                          ...
+                        </span>
+                      ) : (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setQueuePage(item)}
+                          aria-current={
+                            item === safeQueuePage ? "page" : undefined
+                          }
+                          className={`rounded border px-2 py-0.5 ${
+                            item === safeQueuePage
+                              ? "border-[#1E66FF] bg-[#1E66FF] text-white"
+                              : "border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      ),
+                    )}
+                    <span className="px-1">/ {queuePageCount}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setQueuePage((prev) =>
+                          Math.min(queuePageCount, prev + 1),
+                        )
+                      }
+                      disabled={safeQueuePage >= queuePageCount}
+                      className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 hover:bg-[#F8FAFC] disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="min-h-[420px] min-w-0 overflow-hidden rounded-lg border border-[#E2E8F0] bg-white p-5">

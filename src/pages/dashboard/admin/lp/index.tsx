@@ -73,6 +73,19 @@ function pmDisplayName(m: PropertyManagerDTO): string {
   );
 }
 
+const PAGE_SIZE = 10;
+
+function dateMs(value: unknown): number {
+  if (typeof value !== "string") return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function recordSortTime(value: unknown): number {
+  const row = value as Record<string, unknown>;
+  return dateMs(row.createdAt) || dateMs(row.updatedAt);
+}
+
 function normalizeVerificationStatus(
   value: unknown,
 ): LandlordVerificationStatus | null {
@@ -149,6 +162,7 @@ const LPPage: NextPageWithLayout = () => {
   const [loadingLandlords, setLoadingLandlords] = React.useState(false);
   const [loadingManagers, setLoadingManagers] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [page, setPage] = React.useState(1);
 
   const loadLandlords = React.useCallback(async () => {
     setLoadingLandlords(true);
@@ -173,7 +187,11 @@ const LPPage: NextPageWithLayout = () => {
       setLpRentItems([]);
       return;
     }
-    setLandlords(landlordsResult.data);
+    setLandlords(
+      [...landlordsResult.data].sort(
+        (a, b) => recordSortTime(b) - recordSortTime(a),
+      ),
+    );
     setVerificationStatuses(
       verificationsResult.success
         ? buildLandlordVerificationStatusMap(verificationsResult.data)
@@ -202,7 +220,9 @@ const LPPage: NextPageWithLayout = () => {
       setManagers([]);
       return;
     }
-    setManagers(result.data);
+    setManagers(
+      [...result.data].sort((a, b) => recordSortTime(b) - recordSortTime(a)),
+    );
   }, []);
 
   React.useEffect(() => {
@@ -210,18 +230,62 @@ const LPPage: NextPageWithLayout = () => {
     else void loadLandlords();
   }, [tab, loadLandlords, loadManagers]);
 
-  const landlordRows =
-    tab === "pending"
-      ? landlords.filter(
-          (l) =>
-            (verificationStatuses.get(l.id) ??
-              getLandlordVerificationStatus(l)) !== "VERIFIED",
-        )
-      : landlords.filter(
-          (l) =>
-            (verificationStatuses.get(l.id) ??
-              getLandlordVerificationStatus(l)) === "VERIFIED",
-        );
+  const landlordRows = React.useMemo(
+    () =>
+      tab === "pending"
+        ? landlords.filter(
+            (l) =>
+              (verificationStatuses.get(l.id) ??
+                getLandlordVerificationStatus(l)) !== "VERIFIED",
+          )
+        : landlords.filter(
+            (l) =>
+              (verificationStatuses.get(l.id) ??
+                getLandlordVerificationStatus(l)) === "VERIFIED",
+          ),
+    [landlords, tab, verificationStatuses],
+  );
+
+  const activeRowCount =
+    tab === "managers" ? managers.length : landlordRows.length;
+  const pageCount = Math.max(1, Math.ceil(activeRowCount / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paginatedManagers = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return managers.slice(start, start + PAGE_SIZE);
+  }, [managers, safePage]);
+  const paginatedLandlords = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return landlordRows.slice(start, start + PAGE_SIZE);
+  }, [landlordRows, safePage]);
+  const firstVisibleRecord =
+    activeRowCount === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const lastVisibleRecord = Math.min(safePage * PAGE_SIZE, activeRowCount);
+
+  const paginationItems = React.useMemo<(number | "ellipsis")[]>(() => {
+    if (pageCount <= 7) {
+      return Array.from({ length: pageCount }, (_, index) => index + 1);
+    }
+    const pages = new Set([1, pageCount, safePage - 1, safePage, safePage + 1]);
+    const sorted = [...pages]
+      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= pageCount)
+      .sort((a, b) => a - b);
+    const items: (number | "ellipsis")[] = [];
+    sorted.forEach((pageNumber, index) => {
+      const previous = sorted[index - 1];
+      if (previous && pageNumber - previous > 1) items.push("ellipsis");
+      items.push(pageNumber);
+    });
+    return items;
+  }, [pageCount, safePage]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [tab]);
+
+  React.useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
 
   const statsLandlord = React.useMemo(() => {
     const total = landlords.length;
@@ -364,9 +428,11 @@ const LPPage: NextPageWithLayout = () => {
                   </thead>
                   <tbody>
                     {!loadingManagers &&
-                      managers.map((row, i) => (
+                      paginatedManagers.map((row, i) => (
                         <tr key={row.id} className="border-t border-[#F1F5F9]">
-                          <td className="py-2">{i + 1}</td>
+                          <td className="py-2">
+                            {(safePage - 1) * PAGE_SIZE + i + 1}
+                          </td>
                           <td className="py-2">{pmDisplayName(row)}</td>
                           <td className="py-2">
                             {row.email ?? row.user?.email ?? "—"}
@@ -414,7 +480,7 @@ const LPPage: NextPageWithLayout = () => {
                   </thead>
                   <tbody>
                     {!loadingLandlords &&
-                      landlordRows.map((row, i) => {
+                      paginatedLandlords.map((row, i) => {
                         const m =
                           landlordMetricsById.get(row.id) ?? emptyMetrics;
                         const status = landlordStatus(
@@ -423,7 +489,9 @@ const LPPage: NextPageWithLayout = () => {
                         );
                         return (
                         <tr key={row.id} className="border-t border-[#F1F5F9]">
-                          <td className="py-2">{i + 1}</td>
+                          <td className="py-2">
+                            {(safePage - 1) * PAGE_SIZE + i + 1}
+                          </td>
                           <td className="py-2">{landlordDisplayName(row)}</td>
                           <td className="py-2">{landlordPhone(row)}</td>
                           <td className="py-2">{landlordEmail(row)}</td>
@@ -480,9 +548,54 @@ const LPPage: NextPageWithLayout = () => {
             </div>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-[#64748B]">
               <p>
-                Rows:{" "}
-                {tab === "managers" ? managers.length : landlordRows.length}
+                Showing {firstVisibleRecord}-{lastVisibleRecord} of{" "}
+                {activeRowCount}
               </p>
+              <div className="inline-flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safePage <= 1}
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 hover:bg-[#F8FAFC] disabled:opacity-40"
+                >
+                  Prev
+                </button>
+                {paginationItems.map((item, index) =>
+                  item === "ellipsis" ? (
+                    <span
+                      key={`lp-ellipsis-${index}`}
+                      className="px-1 text-[#94A3B8]"
+                    >
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setPage(item)}
+                      aria-current={item === safePage ? "page" : undefined}
+                      className={`rounded border px-2 py-0.5 ${
+                        item === safePage
+                          ? "border-[#1E66FF] bg-[#1E66FF] text-white"
+                          : "border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+                <span className="px-1">/ {pageCount}</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPage((prev) => Math.min(pageCount, prev + 1))
+                  }
+                  disabled={safePage >= pageCount}
+                  className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 hover:bg-[#F8FAFC] disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </section>

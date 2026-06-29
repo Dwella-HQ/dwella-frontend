@@ -65,6 +65,14 @@ function formatTxDate(tx: TransactionDTO): string {
   return Number.isNaN(d.getTime()) ? raw : d.toLocaleDateString("en-GB");
 }
 
+function transactionSortTime(tx: TransactionDTO): number {
+  const r = tx as Record<string, unknown>;
+  const raw = r.createdAt ?? r.transactionDate ?? r.updatedAt;
+  if (typeof raw !== "string") return 0;
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 function normalizeStatus(raw: unknown): string {
   if (raw === undefined || raw === null) return "";
   return String(raw).trim();
@@ -473,7 +481,11 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
       setRows([]);
       return;
     }
-    setRows(txResult.data);
+    setRows(
+      [...txResult.data].sort(
+        (a, b) => transactionSortTime(b) - transactionSortTime(a),
+      ),
+    );
   }, []);
 
   React.useEffect(() => {

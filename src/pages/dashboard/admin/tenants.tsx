@@ -48,6 +48,12 @@ function formatNGN(n: number): string {
   }).format(n);
 }
 
+function dateMs(value?: string): number {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 function mapTenantRecord(rec: TenantRecordDTO): TenantTableRow {
   const r = rec as Record<string, unknown>;
   const user =
@@ -180,7 +186,11 @@ const AdminTenantsPage: NextPageWithLayout = () => {
       setRows([]);
       return;
     }
-    setRows(result.data.map(mapTenantRecord));
+    setRows(
+      result.data
+        .map(mapTenantRecord)
+        .sort((a, b) => dateMs(b.createdAtIso) - dateMs(a.createdAtIso)),
+    );
   }, []);
 
   React.useEffect(() => {

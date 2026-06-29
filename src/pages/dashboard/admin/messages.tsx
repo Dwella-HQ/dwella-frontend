@@ -10,6 +10,8 @@ import { useUser } from "@/contexts/UserContext";
 const getQueryValue = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? value[0] ?? "" : value ?? "";
 
+const PAGE_SIZE = 10;
+
 const AdminMessagesPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { user } = useUser();
@@ -31,6 +33,7 @@ const AdminMessagesPage: NextPageWithLayout = () => {
   } = useChat();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [draft, setDraft] = React.useState("");
+  const [page, setPage] = React.useState(1);
   const didSetInitialChatStateRef = React.useRef(false);
   const processedChatTargetRef = React.useRef("");
   const queryTenantId = getQueryValue(router.query.tenantId);
@@ -94,6 +97,30 @@ const AdminMessagesPage: NextPageWithLayout = () => {
     );
   }, [conversations, searchQuery]);
 
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filteredConversations.length / PAGE_SIZE),
+  );
+  const safePage = Math.min(page, pageCount);
+  const paginatedConversations = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredConversations.slice(start, start + PAGE_SIZE);
+  }, [filteredConversations, safePage]);
+  const firstVisibleRecord =
+    filteredConversations.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const lastVisibleRecord = Math.min(
+    safePage * PAGE_SIZE,
+    filteredConversations.length,
+  );
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [searchQuery, conversations.length]);
+
+  React.useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
+
   const handleSend = React.useCallback(() => {
     if (!draft.trim() || !selectedConversationId) return;
     sendMessage(draft, selectedConversationId);
@@ -153,31 +180,62 @@ const AdminMessagesPage: NextPageWithLayout = () => {
                   No conversations found.
                 </p>
               ) : (
-                filteredConversations.map((conversation) => (
-                  <button
-                    key={conversation.id}
-                    type="button"
-                    onClick={() => setSelectedConversationId(conversation.id)}
-                    className={`w-full rounded-md border p-2 text-left text-xs ${
-                      selectedConversationId === conversation.id
-                        ? "border-[#BFDBFE] bg-[#EFF6FF]"
-                        : "border-[#E2E8F0]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium">{conversation.name}</p>
-                      {conversation.unreadCount > 0 ? (
-                        <span className="rounded-full bg-[#1E66FF] px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                          {conversation.unreadCount}
-                        </span>
-                      ) : null}
+                <>
+                  {paginatedConversations.map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => setSelectedConversationId(conversation.id)}
+                      className={`w-full rounded-md border p-2 text-left text-xs ${
+                        selectedConversationId === conversation.id
+                          ? "border-[#BFDBFE] bg-[#EFF6FF]"
+                          : "border-[#E2E8F0]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium">{conversation.name}</p>
+                        {conversation.unreadCount > 0 ? (
+                          <span className="rounded-full bg-[#1E66FF] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            {conversation.unreadCount}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-[#64748B]">{conversation.subtitle}</p>
+                      <p className="truncate text-[#475569]">
+                        {conversation.lastMessage}
+                      </p>
+                    </button>
+                  ))}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-[#64748B]">
+                    <span>
+                      {firstVisibleRecord}-{lastVisibleRecord} of{" "}
+                      {filteredConversations.length}
+                    </span>
+                    <div className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                        disabled={safePage <= 1}
+                        className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 disabled:opacity-40"
+                      >
+                        Prev
+                      </button>
+                      <span>
+                        {safePage}/{pageCount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPage((prev) => Math.min(pageCount, prev + 1))
+                        }
+                        disabled={safePage >= pageCount}
+                        className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5 disabled:opacity-40"
+                      >
+                        Next
+                      </button>
                     </div>
-                    <p className="text-[#64748B]">{conversation.subtitle}</p>
-                    <p className="truncate text-[#475569]">
-                      {conversation.lastMessage}
-                    </p>
-                  </button>
-                ))
+                  </div>
+                </>
               )}
             </div>
 

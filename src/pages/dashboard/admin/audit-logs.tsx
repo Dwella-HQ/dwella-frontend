@@ -7,6 +7,8 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 const fieldCls =
   "h-9 rounded-md border border-[#E2E8F0] bg-white px-3 text-[12px] text-[#0F172A] placeholder:text-[#94A3B8]";
 
+const PAGE_SIZE = 10;
+
 const AdminAuditLogsPage: NextPageWithLayout = () => {
   const [page, setPage] = React.useState(1);
   const [severity, setSeverity] = React.useState<"All" | "Critical" | "Info">(
@@ -19,14 +21,37 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
     "All" | "Admin" | "Landlord" | "Tenant"
   >("All");
 
-  const rows = Array.from({ length: 14 }, (_, i) => ({
-    id: i,
-    role: i % 3 === 0 ? "Admin" : "Landlord",
-    action: i % 4 === 0 ? "Suspended User" : "Approved Property",
-    entity: i % 4 === 0 ? "User" : "Property",
-    severity: i % 3 === 0 ? "Critical" : "Info",
-    status: i % 5 === 0 ? "Pending" : "Success",
-  })).filter((row) => severity === "All" || row.severity === severity);
+  const rows = React.useMemo(
+    () =>
+      Array.from({ length: 14 }, (_, i) => ({
+        id: i,
+        role: i % 3 === 0 ? "Admin" : "Landlord",
+        action: i % 4 === 0 ? "Suspended User" : "Approved Property",
+        entity: i % 4 === 0 ? "User" : "Property",
+        severity: i % 3 === 0 ? "Critical" : "Info",
+        status: i % 5 === 0 ? "Pending" : "Success",
+      }))
+        .filter((row) => severity === "All" || row.severity === severity)
+        .sort((a, b) => b.id - a.id),
+    [severity],
+  );
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paginatedRows = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return rows.slice(start, start + PAGE_SIZE);
+  }, [rows, safePage]);
+  const firstVisibleRecord =
+    rows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const lastVisibleRecord = Math.min(safePage * PAGE_SIZE, rows.length);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [severity]);
+
+  React.useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
 
   return (
     <>
@@ -125,7 +150,7 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {paginatedRows.map((row) => (
                     <tr key={row.id} className="border-t border-[#F1F5F9]">
                       <td className="py-2.5">LOG001</td>
                       <td className="py-2.5">Sarah James</td>
@@ -148,15 +173,15 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
               </table>
             </div>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px] text-[#64748B]">
-              <p>Number Of Items displayed per page</p>
+              <p>
+                Showing {firstVisibleRecord}-{lastVisibleRecord} of{" "}
+                {rows.length}
+              </p>
               <div className="inline-flex items-center gap-3">
-                <span className="rounded bg-[#E0F2FE] px-2 py-0.5 text-[#0284C7]">
-                  12
-                </span>
-                <span>1-12 of 20 items</span>
                 <button
                   type="button"
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safePage <= 1}
                   className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5"
                 >
                   {"<"}
@@ -165,11 +190,15 @@ const AdminAuditLogsPage: NextPageWithLayout = () => {
                   type="button"
                   className="rounded bg-[#1E66FF] px-2 py-0.5 text-white"
                 >
-                  {page}
+                  {safePage}
                 </button>
+                <span>/ {pageCount}</span>
                 <button
                   type="button"
-                  onClick={() => setPage((prev) => prev + 1)}
+                  onClick={() =>
+                    setPage((prev) => Math.min(pageCount, prev + 1))
+                  }
+                  disabled={safePage >= pageCount}
                   className="rounded border border-[#E2E8F0] bg-white px-2 py-0.5"
                 >
                   {">"}
