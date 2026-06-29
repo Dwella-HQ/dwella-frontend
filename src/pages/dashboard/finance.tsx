@@ -29,7 +29,16 @@ import { format, parseISO } from "date-fns";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 
-type FinanceTab = "overview" | "withdraw" | "deposit" | "transactions";
+type FinanceTab = "overview" | "withdraw" | "deposit";
+
+type FinanceTransaction = {
+  type: "deposit" | "withdrawal";
+  id: string;
+  amount?: string | number;
+  status?: string;
+  narration?: string;
+  createdAt?: string;
+};
 
 const formatDateValue = (value?: string) => {
   if (!value) return "—";
@@ -39,6 +48,35 @@ const formatDateValue = (value?: string) => {
     return value;
   }
 };
+
+function amountToNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatCurrencyValue(value: unknown): string {
+  const amount = amountToNumber(value);
+  if (amount === null) return "—";
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function isPendingStatus(status: unknown): boolean {
+  if (typeof status !== "string") return false;
+  const normalized = status.toLowerCase();
+  return (
+    normalized.includes("pending") ||
+    normalized.includes("processing") ||
+    normalized.includes("init")
+  );
+}
 
 const extractWithdrawalList = (payload: unknown): WithdrawalItemDTO[] => {
   if (!payload) return [];
@@ -63,6 +101,8 @@ const extractWithdrawalList = (payload: unknown): WithdrawalItemDTO[] => {
 };
 
 const WITHDRAW_MIN = 0.01;
+const DEPOSIT_MIN = 100;
+const TRANSACTION_PAGE_SIZE = 10;
 
 /** Filter DevTools console by this string to inspect withdrawal queue API probes. */
 const WITHDRAWAL_QUEUE_LOG = "[Dwelliva Finance · Withdrawal queue]";
@@ -90,6 +130,7 @@ const FinancePage: NextPageWithLayout = () => {
   const router = useRouter();
 
   const [tab, setTab] = React.useState<FinanceTab>("overview");
+  const [transactionPage, setTransactionPage] = React.useState(1);
 
   const { user, isLoading: isUserLoading } = useUser();
   const { selectedLandlord } = useSelectedLandlord();
@@ -368,9 +409,9 @@ const FinancePage: NextPageWithLayout = () => {
     if (
       !depositAmount ||
       Number.isNaN(Number(depositAmount)) ||
-      Number(depositAmount) <= 0
+      Number(depositAmount) < DEPOSIT_MIN
     ) {
-      showToast("Enter a valid amount", "error");
+      showToast(`Enter an amount of at least ${DEPOSIT_MIN}`, "error");
       return;
     }
     setDepositSubmitting(true);
@@ -405,14 +446,7 @@ const FinancePage: NextPageWithLayout = () => {
   ]);
 
   const transactions = React.useMemo(() => {
-    const items: Array<{
-      type: "deposit" | "withdrawal";
-      id: string;
-      amount?: string | number;
-      status?: string;
-      narration?: string;
-      createdAt?: string;
-    }> = [];
+    const items: FinanceTransaction[] = [];
 
     withdrawals.forEach((w, index) => {
       items.push({
@@ -442,6 +476,62 @@ const FinancePage: NextPageWithLayout = () => {
       return tb - ta;
     });
   }, [deposits, withdrawals]);
+
+  const overviewStats = React.useMemo(() => {
+    const totalDeposits = deposits.reduce(
+      (sum, item) => sum + (amountToNumber(item.amount) ?? 0),
+      0,
+    );
+    const totalWithdrawals = withdrawals.reduce(
+      (sum, item) => sum + (amountToNumber(item.amount) ?? 0),
+      0,
+    );
+    const pendingCount = transactions.filter((item) =>
+      isPendingStatus(item.status),
+    ).length;
+    return {
+      totalDeposits,
+      totalWithdrawals,
+      pendingCount,
+      transactionCount: transactions.length,
+    };
+  }, [deposits, transactions, withdrawals]);
+
+  const totalTransactionPages = Math.max(
+    1,
+    Math.ceil(transactions.length / TRANSACTION_PAGE_SIZE),
+  );
+  const paginatedTransactions = React.useMemo(() => {
+    const start = (transactionPage - 1) * TRANSACTION_PAGE_SIZE;
+    return transactions.slice(start, start + TRANSACTION_PAGE_SIZE);
+  }, [transactionPage, transactions]);
+  const transactionStart = transactions.length
+    ? (transactionPage - 1) * TRANSACTION_PAGE_SIZE + 1
+    : 0;
+  const transactionEnd = Math.min(
+    transactionPage * TRANSACTION_PAGE_SIZE,
+    transactions.length,
+  );
+  const transactionPageNumbers = React.useMemo(() => {
+    if (totalTransactionPages <= 5) {
+      return Array.from({ length: totalTransactionPages }, (_, i) => i + 1);
+    }
+    const start = Math.max(
+      1,
+      Math.min(transactionPage - 2, totalTransactionPages - 4),
+    );
+    return Array.from({ length: 5 }, (_, i) => start + i);
+  }, [totalTransactionPages, transactionPage]);
+
+  React.useEffect(() => {
+    if (transactionPage > totalTransactionPages) {
+      setTransactionPage(totalTransactionPages);
+    }
+  }, [totalTransactionPages, transactionPage]);
+
+  React.useEffect(() => {
+    setTransactionPage(1);
+  }, [activeWallet?.id]);
 
   if (isUserLoading || (walletLoading && !activeWallet)) {
     return (
@@ -503,7 +593,7 @@ const FinancePage: NextPageWithLayout = () => {
               <div className="rounded-md border border-gray-100 bg-gray-50 p-3">
                 <p className="text-xs text-gray-500">Balance</p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">
-                  {activeWallet?.balance ?? "0"}
+                  {formatCurrencyValue(activeWallet?.balance ?? 0)}
                 </p>
               </div>
             </div>
@@ -517,7 +607,6 @@ const FinancePage: NextPageWithLayout = () => {
               { id: "overview", label: "Overview" },
               { id: "withdraw", label: "Withdraw" },
               { id: "deposit", label: "Deposit" },
-              { id: "transactions", label: "Transactions" },
             ] as const
           ).map((t) => (
             <button
@@ -537,11 +626,147 @@ const FinancePage: NextPageWithLayout = () => {
 
         {/* Tab content */}
         {tab === "overview" ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-sm text-gray-600">
-              Use the tabs above to create deposits/withdrawals and view your
-              transaction history.
-            </p>
+          <div className="space-y-6">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: "Total deposits",
+                  value: formatCurrencyValue(overviewStats.totalDeposits),
+                },
+                {
+                  label: "Total withdrawals",
+                  value: formatCurrencyValue(overviewStats.totalWithdrawals),
+                },
+                {
+                  label: "Pending activity",
+                  value: String(overviewStats.pendingCount),
+                },
+                {
+                  label: "Records",
+                  value: String(overviewStats.transactionCount),
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-gray-900">
+                    {item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">
+                    Transaction history
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Deposits and withdrawals for this wallet.
+                  </p>
+                </div>
+                {depositsLoading || withdrawalsLoading ? (
+                  <p className="text-sm text-gray-500">Refreshing...</p>
+                ) : null}
+              </div>
+
+              {transactions.length === 0 ? (
+                <p className="mt-4 text-sm text-gray-600">
+                  No transactions found yet.
+                </p>
+              ) : (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full min-w-[720px] border-collapse">
+                    <thead>
+                      <tr className="text-left text-xs uppercase text-gray-500">
+                        <th className="py-3 pr-3">Type</th>
+                        <th className="py-3 pr-3">ID</th>
+                        <th className="py-3 pr-3">Amount</th>
+                        <th className="py-3 pr-3">Status</th>
+                        <th className="py-3 pr-3">Created</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedTransactions.map((t) => (
+                        <tr key={t.id} className="border-t border-gray-100">
+                          <td className="py-3 pr-3 text-sm font-medium capitalize text-gray-900">
+                            {t.type}
+                          </td>
+                          <td className="py-3 pr-3 text-sm text-gray-700">
+                            {t.id}
+                          </td>
+                          <td className="py-3 pr-3 text-sm text-gray-700">
+                            {formatCurrencyValue(t.amount)}
+                          </td>
+                          <td className="py-3 pr-3 text-sm text-gray-700">
+                            {t.status ?? "—"}
+                          </td>
+                          <td className="py-3 pr-3 text-sm text-gray-700">
+                            {formatDateValue(t.createdAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {transactions.length > 0 ? (
+                <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-gray-600">
+                    Showing {transactionStart}-{transactionEnd} of{" "}
+                    {transactions.length} record
+                    {transactions.length === 1 ? "" : "s"}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTransactionPage((page) => Math.max(1, page - 1))
+                      }
+                      disabled={transactionPage === 1}
+                      className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+                    {transactionPageNumbers.map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setTransactionPage(page)}
+                        className={`h-8 min-w-8 rounded-md border px-2 text-sm font-medium transition ${
+                          transactionPage === page
+                            ? "border-brand-main bg-brand-main text-white"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <span className="px-1 text-sm text-gray-500">
+                      / {totalTransactionPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTransactionPage((page) =>
+                          Math.min(totalTransactionPages, page + 1),
+                        )
+                      }
+                      disabled={transactionPage === totalTransactionPages}
+                      className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -698,7 +923,7 @@ const FinancePage: NextPageWithLayout = () => {
                             {w.id ?? "—"}
                           </td>
                           <td className="py-3 pr-3 text-sm text-gray-700">
-                            {w.amount ?? "—"}
+                            {formatCurrencyValue(w.amount)}
                           </td>
                           <td className="py-3 pr-3 text-sm text-gray-700">
                             {w.status ?? "—"}
@@ -736,6 +961,9 @@ const FinancePage: NextPageWithLayout = () => {
                     placeholder="e.g. 1000"
                     className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Minimum {formatCurrencyValue(DEPOSIT_MIN)}
+                  </p>
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -797,7 +1025,7 @@ const FinancePage: NextPageWithLayout = () => {
                             {d.reference ?? "—"}
                           </td>
                           <td className="py-3 pr-3 text-sm text-gray-700">
-                            {d.amount ?? "—"}
+                            {formatCurrencyValue(d.amount)}
                           </td>
                           <td className="py-3 pr-3 text-sm text-gray-700">
                             {d.status ?? "—"}
@@ -815,53 +1043,6 @@ const FinancePage: NextPageWithLayout = () => {
           </div>
         ) : null}
 
-        {tab === "transactions" ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-gray-900">
-              Transactions
-            </h2>
-            {transactions.length === 0 ? (
-              <p className="mt-3 text-sm text-gray-600">
-                No transactions found yet.
-              </p>
-            ) : (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[720px] border-collapse">
-                  <thead>
-                    <tr className="text-left text-xs uppercase text-gray-500">
-                      <th className="py-3 pr-3">Type</th>
-                      <th className="py-3 pr-3">ID</th>
-                      <th className="py-3 pr-3">Amount</th>
-                      <th className="py-3 pr-3">Status</th>
-                      <th className="py-3 pr-3">Created</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((t) => (
-                      <tr key={t.id} className="border-t border-gray-100">
-                        <td className="py-3 pr-3 text-sm text-gray-900">
-                          {t.type}
-                        </td>
-                        <td className="py-3 pr-3 text-sm text-gray-700">
-                          {t.id}
-                        </td>
-                        <td className="py-3 pr-3 text-sm text-gray-700">
-                          {t.amount ?? "—"}
-                        </td>
-                        <td className="py-3 pr-3 text-sm text-gray-700">
-                          {t.status ?? "—"}
-                        </td>
-                        <td className="py-3 pr-3 text-sm text-gray-700">
-                          {formatDateValue(t.createdAt)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        ) : null}
       </section>
     </>
   );
