@@ -21,6 +21,7 @@ import { getUnitsByProperty } from "@/api/units";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
 import type { UnitDTO } from "@/api/units/units.schema";
 import { useToast } from "@/components/Toast";
+import { downloadCsv, todayStamp } from "@/utils/exportCsv";
 
 type UnitListRow = {
   id: string;
@@ -181,49 +182,21 @@ const UnitsPage: NextPageWithLayout = () => {
       showToast("No units to export.", "error");
       return;
     }
-    const escapeCell = (value: string) => {
-      if (/[",\r\n]/.test(value)) {
-        return `"${value.replace(/"/g, '""')}"`;
-      }
-      return value;
-    };
-    const header = [
-      "S/N",
-      "Unit ID",
-      "Property",
-      "Type",
-      "Status",
-      "Tenant",
-      "Rent",
-      "Rent Status",
-      "Next Due Date",
-    ];
-    const lines = allUnits.map((u, index) =>
+    downloadCsv(
+      `dwelliva-units-${todayStamp()}.csv`,
       [
-        String(index + 1),
-        u.unitId,
-        u.propertyName,
-        u.type,
-        u.status,
-        u.tenantName ?? "",
-        String(u.monthlyRent),
-        u.rentStatus,
-        u.nextDueDate,
-      ]
-        .map((cell) => escapeCell(String(cell)))
-        .join(","),
+        { header: "S/N", value: (_u, index) => index + 1 },
+        { header: "Unit ID", value: (u) => u.unitId },
+        { header: "Property", value: (u) => u.propertyName },
+        { header: "Type", value: (u) => u.type },
+        { header: "Status", value: (u) => u.status },
+        { header: "Tenant", value: (u) => u.tenantName ?? "" },
+        { header: "Rent", value: (u) => u.monthlyRent },
+        { header: "Rent Status", value: (u) => u.rentStatus },
+        { header: "Next Due Date", value: (u) => u.nextDueDate },
+      ],
+      allUnits,
     );
-    const csv = `\uFEFF${[header.join(","), ...lines].join("\r\n")}`;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `dwelliva-units-${new Date().toISOString().slice(0, 10)}.csv`;
-    anchor.style.display = "none";
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }, [allUnits, showToast]);
 
   // Calculate summary stats

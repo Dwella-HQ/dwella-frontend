@@ -27,6 +27,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
 import { useUser } from "@/contexts/UserContext";
 import type { MaintenanceRequestWithDetails } from "@/data/mockLandlordData";
+import { downloadCsv, safeExportFilename, todayStamp } from "@/utils/exportCsv";
 import type { NextPageWithLayout } from "../_app";
 
 type ReportProperty = Omit<PropertyDTO, "units"> & { units: UnitDTO[] };
@@ -53,6 +54,19 @@ type ReportsState = {
   rentPayments: RentPaymentItemDTO[];
   transactions: TransactionDTO[];
   maintenance: MaintenanceRequestWithDetails[];
+};
+
+type ReportExportRow = {
+  section: string;
+  name: string;
+  units?: number;
+  occupied?: number;
+  vacant?: number;
+  occupancy?: string;
+  collected?: number;
+  outstanding?: number;
+  transactions?: number;
+  count?: number;
 };
 
 const LAST_12_MONTHS = 12;
@@ -141,15 +155,9 @@ function getPropertyName(property: ReportProperty): string {
 }
 
 function getPropertyId(property: ReportProperty): string {
-  return typeof property.id === "string" ? property.id : String(property.id || "");
-}
-
-function getUnitPropertyId(unit: UnitDTO): string {
-  if (unit.propertyId) return unit.propertyId;
-  if (unit.property && typeof unit.property === "object") {
-    return getNestedString(unit.property, ["id"]);
-  }
-  return "";
+  return typeof property.id === "string"
+    ? property.id
+    : String(property.id || "");
 }
 
 function isUnitOccupied(unit: UnitDTO): boolean {
@@ -240,7 +248,10 @@ const ReportsPage: NextPageWithLayout = () => {
 
         const unitsResults = await Promise.all(
           propertiesResult.data.map(async (property) => {
-            const propertyId = typeof property.id === "string" ? property.id : String(property.id || "");
+            const propertyId =
+              typeof property.id === "string"
+                ? property.id
+                : String(property.id || "");
             const result = await getUnitsByProperty(propertyId);
             return {
               propertyId,
@@ -253,7 +264,12 @@ const ReportsPage: NextPageWithLayout = () => {
         );
         const properties = propertiesResult.data.map((property) => ({
           ...property,
-          units: unitsByProperty.get(typeof property.id === "string" ? property.id : String(property.id || "")) || [],
+          units:
+            unitsByProperty.get(
+              typeof property.id === "string"
+                ? property.id
+                : String(property.id || ""),
+            ) || [],
         }));
 
         const [paymentsResult, maintenanceResult, transactionsResult] =
@@ -272,7 +288,9 @@ const ReportsPage: NextPageWithLayout = () => {
           properties,
           rentPayments: paymentsResult.success ? paymentsResult.data : [],
           maintenance: maintenanceResult.success ? maintenanceResult.data : [],
-          transactions: transactionsResult.success ? transactionsResult.data : [],
+          transactions: transactionsResult.success
+            ? transactionsResult.data
+            : [],
         });
       } catch (err) {
         if (!cancelled) {
@@ -298,12 +316,7 @@ const ReportsPage: NextPageWithLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [
-    isUserLoading,
-    refreshKey,
-    selectedLandlord?.id,
-    user,
-  ]);
+  }, [isUserLoading, refreshKey, selectedLandlord?.id, user]);
 
   const propertyOptions = reportsState.properties;
 
@@ -322,7 +335,9 @@ const ReportsPage: NextPageWithLayout = () => {
   const propertyNameSet = React.useMemo(
     () =>
       new Set(
-        scopedProperties.map((property) => getPropertyName(property).toLowerCase()),
+        scopedProperties.map((property) =>
+          getPropertyName(property).toLowerCase(),
+        ),
       ),
     [scopedProperties],
   );
@@ -448,7 +463,8 @@ const ReportsPage: NextPageWithLayout = () => {
           const paymentPropertyName = getPaymentPropertyName(payment);
           return (
             paymentPropertyId === getPropertyId(property) ||
-            paymentPropertyName.toLowerCase() === getPropertyName(property).toLowerCase()
+            paymentPropertyName.toLowerCase() ===
+              getPropertyName(property).toLowerCase()
           );
         })
         .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
@@ -479,7 +495,8 @@ const ReportsPage: NextPageWithLayout = () => {
     {
       id: "rent-collection",
       title: "Rent Collection Summary",
-      description: "Rent collected by property based on available payment records.",
+      description:
+        "Rent collected by property based on available payment records.",
       lastGenerated: scopedPayments.length
         ? "Updated from live payments"
         : "No payments yet",
@@ -508,7 +525,8 @@ const ReportsPage: NextPageWithLayout = () => {
     {
       id: "revenue",
       title: "Revenue Trends",
-      description: "Month-by-month revenue from rent payments and transactions.",
+      description:
+        "Month-by-month revenue from rent payments and transactions.",
       lastGenerated: revenueTrend.some((item) => item.revenue > 0)
         ? "Updated from live finance data"
         : "No revenue yet",
@@ -519,7 +537,7 @@ const ReportsPage: NextPageWithLayout = () => {
 
   const recentExports = [
     {
-      fileName: `${selectedReportType} - ${selectedDateRange}.${selectedExportFormat.toLowerCase()}`,
+      fileName: `${selectedReportType} - ${selectedDateRange}.csv`,
       date: new Date().toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
@@ -528,6 +546,72 @@ const ReportsPage: NextPageWithLayout = () => {
       size: "Generated locally",
     },
   ];
+
+  const reportRows = React.useMemo<ReportExportRow[]>(() => {
+    if (selectedReportType === "Rent Collection") {
+      return rentCollectionData.map((row) => ({
+        section: "Rent Collection",
+        name: row.property,
+        collected: row.collected,
+        outstanding: row.outstanding,
+      }));
+    }
+    if (selectedReportType === "Occupancy") {
+      return scopedProperties.map((property) => {
+        const units = property.units || [];
+        const occupied = units.filter(isUnitOccupied).length;
+        return {
+          section: "Occupancy",
+          name: getPropertyName(property),
+          units: units.length,
+          occupied,
+          vacant: Math.max(units.length - occupied, 0),
+          occupancy:
+            units.length > 0
+              ? `${Math.round((occupied / units.length) * 100)}%`
+              : "0%",
+        };
+      });
+    }
+    if (selectedReportType === "Maintenance Activity") {
+      return maintenanceActivityData.map((row) => ({
+        section: "Maintenance Activity",
+        name: row.category,
+        count: row.count,
+      }));
+    }
+    return revenueTrend.map((row) => ({
+      section: "Revenue Trends",
+      name: row.month,
+      collected: row.revenue,
+      transactions: row.transactions,
+    }));
+  }, [
+    maintenanceActivityData,
+    rentCollectionData,
+    revenueTrend,
+    scopedProperties,
+    selectedReportType,
+  ]);
+
+  const handleExportReport = React.useCallback(() => {
+    downloadCsv(
+      `${safeExportFilename(`${selectedReportType}-${selectedDateRange}`)}-${todayStamp()}.csv`,
+      [
+        { header: "Section", value: (row) => row.section },
+        { header: "Name", value: (row) => row.name },
+        { header: "Units", value: (row) => row.units },
+        { header: "Occupied", value: (row) => row.occupied },
+        { header: "Vacant", value: (row) => row.vacant },
+        { header: "Occupancy", value: (row) => row.occupancy },
+        { header: "Collected", value: (row) => row.collected },
+        { header: "Outstanding", value: (row) => row.outstanding },
+        { header: "Transactions", value: (row) => row.transactions },
+        { header: "Count", value: (row) => row.count },
+      ],
+      reportRows,
+    );
+  }, [reportRows, selectedDateRange, selectedReportType]);
 
   const maxTrend = Math.max(
     1,
@@ -925,7 +1009,10 @@ const ReportsPage: NextPageWithLayout = () => {
               >
                 <option>All Properties</option>
                 {propertyOptions.map((property) => (
-                  <option key={getPropertyId(property)} value={getPropertyId(property)}>
+                  <option
+                    key={getPropertyId(property)}
+                    value={getPropertyId(property)}
+                  >
                     {getPropertyName(property)}
                   </option>
                 ))}
@@ -941,14 +1028,13 @@ const ReportsPage: NextPageWithLayout = () => {
                 className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option>CSV</option>
-                <option>PDF</option>
-                <option>Excel</option>
               </select>
             </div>
           </div>
           <div className="mt-6">
             <button
               type="button"
+              onClick={handleExportReport}
               className="inline-flex items-center gap-2 rounded-lg bg-brand-main px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-main/90"
             >
               <FileDown className="h-4 w-4" />
@@ -1004,6 +1090,7 @@ const ReportsPage: NextPageWithLayout = () => {
                     <td className="whitespace-nowrap px-6 py-4">
                       <button
                         type="button"
+                        onClick={handleExportReport}
                         className="inline-flex items-center gap-1 text-sm font-medium text-brand-main transition hover:text-brand-main/80"
                       >
                         <Download className="h-4 w-4" />

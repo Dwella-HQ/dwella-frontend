@@ -30,8 +30,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [landlordVerificationStatus, setLandlordVerificationStatus] =
     React.useState<LandlordVerificationStatus | null>(null);
 
-  // Auto-logout after 1 hour of inactivity
-  useInactivityLogout(60);
+  // Auto-logout after 12 hours of inactivity.
+  useInactivityLogout(720);
 
   // Check authentication on mount
   React.useEffect(() => {

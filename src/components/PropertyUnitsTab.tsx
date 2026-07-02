@@ -5,6 +5,7 @@ import { Download, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import type { Unit, Tenant } from "@/data/mockLandlordData";
+import { downloadCsv, todayStamp } from "@/utils/exportCsv";
 
 export type PropertyUnitsTabProps = {
   units: Unit[];
@@ -25,6 +26,37 @@ export const PropertyUnitsTab = ({
     },
     [router, propertyId],
   );
+
+  const handleExportCsv = React.useCallback(() => {
+    downloadCsv(
+      `property-units-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_unit, index) => index + 1 },
+        { header: "Unit ID", value: (unit) => unit.unitId },
+        { header: "Type", value: (unit) => unit.type },
+        { header: "Bedrooms", value: (unit) => unit.bedrooms },
+        { header: "Bathrooms", value: (unit) => unit.bathrooms },
+        { header: "Size", value: (unit) => unit.size },
+        { header: "Floor", value: (unit) => unit.floor },
+        { header: "Status", value: (unit) => unit.status },
+        { header: "Rent Status", value: (unit) => unit.rentStatus },
+        { header: "Monthly Rent", value: (unit) => unit.monthlyRent },
+        { header: "Caution Fee", value: (unit) => unit.cautionFee },
+        {
+          header: "Tenant",
+          value: (unit) => {
+            const tenant = unit.tenantId
+              ? tenants.find((t) => t.id === unit.tenantId)
+              : null;
+            return tenant?.name || unit.tenantName || "";
+          },
+        },
+        { header: "Next Due Date", value: (unit) => unit.nextDueDate },
+        { header: "Amenities", value: (unit) => unit.amenities.join(", ") },
+      ],
+      units,
+    );
+  }, [tenants, units]);
   const getStatusColor = (status: Unit["status"]) => {
     switch (status) {
       case "occupied":
@@ -85,6 +117,7 @@ export const PropertyUnitsTab = ({
         </div>
         <button
           type="button"
+          onClick={handleExportCsv}
           className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
         >
           <Download className="h-4 w-4" />

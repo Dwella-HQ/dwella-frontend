@@ -49,6 +49,7 @@ import type { NextPageWithLayout } from "../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import { SUPPORT_EMAIL } from "@/lib/supportContact";
 import { useToast } from "@/components/Toast";
+import { downloadCsv, todayStamp } from "@/utils/exportCsv";
 
 /** Default days until due date when creating a rent charge from this page. */
 const CREATE_RENT_DUE_OFFSET_DAYS = 7;
@@ -1175,6 +1176,29 @@ const LandlordRentPage = () => {
       payment.unit.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  const handleExportRent = React.useCallback(() => {
+    downloadCsv(
+      `dwelliva-rent-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_payment, index) => index + 1 },
+        { header: "Tenant", value: (payment) => payment.tenantName },
+        { header: "Property", value: (payment) => payment.propertyName },
+        { header: "Unit", value: (payment) => payment.unit },
+        { header: "Total Rent", value: (payment) => payment.rentAmount },
+        { header: "Base Rent", value: (payment) => payment.rentBaseAmount },
+        { header: "Late Fee", value: (payment) => payment.rentLateFeeAmount },
+        { header: "Due Date", value: (payment) => payment.dueDate },
+        {
+          header: "Last Payment",
+          value: (payment) => payment.lastPayment ?? "",
+        },
+        { header: "Status", value: (payment) => payment.status },
+        { header: "Balance", value: (payment) => payment.balance ?? "" },
+      ],
+      filteredPayments,
+    );
+  }, [filteredPayments]);
+
   const filteredCreateRentPicks = React.useMemo(() => {
     const q = createRentSearch.trim().toLowerCase();
     if (!q) return createRentPicks;
@@ -1254,6 +1278,7 @@ const LandlordRentPage = () => {
         </div>
         <motion.button
           type="button"
+          onClick={handleExportRent}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="w-full lg:w-auto h-10 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-gray-800 flex items-center justify-center gap-2 whitespace-nowrap"

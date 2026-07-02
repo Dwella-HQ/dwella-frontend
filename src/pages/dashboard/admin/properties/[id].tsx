@@ -9,7 +9,11 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { RecentPayments } from "@/components/RecentPayments";
 import { MaintenanceRequests } from "@/components/MaintenanceRequests";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
-import { getProperty, updateProperty, type PropertyDTO } from "@/api/properties";
+import {
+  getProperty,
+  updateProperty,
+  type PropertyDTO,
+} from "@/api/properties";
 import { getUnitsByProperty, type UnitDTO } from "@/api/units";
 import { getTenantList } from "@/api/tenants";
 import type { TenantRecordDTO } from "@/api/tenants/tenants.schema";
@@ -26,6 +30,7 @@ import type {
   Payment,
 } from "@/data/mockLandlordData";
 import { useToast } from "@/components/Toast";
+import { downloadCsv, safeExportFilename, todayStamp } from "@/utils/exportCsv";
 
 function formatAddress(property: PropertyDTO | null): string {
   if (!property?.address) return "Address unavailable";
@@ -159,9 +164,13 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
 
   const exitEditMode = React.useCallback(() => {
     if (!propertyId) return;
-    void router.replace(`/dashboard/admin/properties/${propertyId}`, undefined, {
-      shallow: true,
-    });
+    void router.replace(
+      `/dashboard/admin/properties/${propertyId}`,
+      undefined,
+      {
+        shallow: true,
+      },
+    );
   }, [propertyId, router]);
 
   const handleSavePropertyEdit = React.useCallback(async () => {
@@ -175,15 +184,15 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
     const state = editAddrState.trim();
     const addrLine = editAddrLine.trim();
     if (!addrLine || !city || !state) {
-      showToast(
-        "Address line, city, and state are required to save.",
-        "error",
-      );
+      showToast("Address line, city, and state are required to save.", "error");
       return;
     }
     const numUnits = Number.parseInt(editNumberOfUnits, 10);
     if (!Number.isFinite(numUnits) || numUnits < 0) {
-      showToast("Number of units must be a valid non-negative number.", "error");
+      showToast(
+        "Number of units must be a valid non-negative number.",
+        "error",
+      );
       return;
     }
     let yearBuiltPayload: string | undefined;
@@ -331,12 +340,7 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
     for (const tr of tenantRecords) {
       const r = tr as Record<string, unknown>;
       if (
-        !tenantRecordBelongsToProperty(
-          r,
-          propertyId,
-          unitIds,
-          unitNamesLower,
-        )
+        !tenantRecordBelongsToProperty(r, propertyId, unitIds, unitNamesLower)
       ) {
         continue;
       }
@@ -436,7 +440,10 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
     }
     return `${Math.round((occupied / units.length) * 100)}%`;
   }, [units, tenantRecords, propertyId]);
-  const documents = property?.documents ?? [];
+  const documents = React.useMemo(
+    () => property?.documents ?? [],
+    [property?.documents],
+  );
   const propertyNameBase = React.useMemo(
     () =>
       (property?.name ?? "")
@@ -479,6 +486,146 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
       })
       .slice(0, 5);
   }, [propertyMaintenanceFromApi, propertyNameBase, property?.name]);
+
+  const handleExportProperty = React.useCallback(() => {
+    if (!property) return;
+    const rows: Array<Record<string, unknown>> = [
+      {
+        section: "Property",
+        name: title,
+        address,
+        units: unitsCount,
+        monthlyRent: overviewMonthlyRent,
+        occupancy: overviewOccupancy,
+        status: property.isApproved ? "Approved" : "Pending",
+        listedDate: property.createdAt ?? "",
+      },
+      ...units.map((unit) => {
+        const tenant = getUnitTenant(unit);
+        return {
+          section: "Unit",
+          name:
+            readString(unit.name) ??
+            readString(unit.unitNumber) ??
+            readString(unit.id),
+          type:
+            readString(unit.type) ??
+            `${readNumber(unit.numberOfBedrooms) ?? 0}BR`,
+          status: unitStatusLabel(unit),
+          tenant:
+            readString(tenant?.fullName) ??
+            readString(tenant?.name) ??
+            readString(tenant?.email) ??
+            "",
+          monthlyRent: readNumber(unit.rentAmount) ?? "",
+        };
+      }),
+      ...tenants.map((tenant) => ({
+        section: "Tenant",
+        name: tenant.name,
+        unit: tenant.unitName,
+        email: tenant.email,
+        phone: tenant.phone,
+        status: tenant.status,
+      })),
+      ...propertyPayments.map((payment) => ({
+        section: "Payment",
+        name: payment.tenantName,
+        unit: payment.unit,
+        amount: payment.amount,
+        dueDate: payment.dueDate,
+      })),
+      ...propertyMaintenance.map((request) => ({
+        section: "Maintenance",
+        name: request.type,
+        unit: request.unit,
+        status: request.status,
+        priority: request.priority,
+        description: request.description,
+      })),
+      ...documents.map((document) => ({
+        section: "Document",
+        name: readString((document as Record<string, unknown>).title),
+        type: readString((document as Record<string, unknown>).type),
+        uploadedDate:
+          readString((document as Record<string, unknown>).createdAt) ??
+          readString((document as Record<string, unknown>).uploadedDate),
+      })),
+    ];
+    downloadCsv(
+      `${safeExportFilename(title)}-${todayStamp()}.csv`,
+      [
+        { header: "Section", value: (row) => row.section },
+        { header: "Name", value: (row) => row.name },
+        { header: "Type", value: (row) => row.type },
+        { header: "Address", value: (row) => row.address },
+        { header: "Units", value: (row) => row.units },
+        { header: "Unit", value: (row) => row.unit },
+        { header: "Tenant", value: (row) => row.tenant },
+        { header: "Email", value: (row) => row.email },
+        { header: "Phone", value: (row) => row.phone },
+        { header: "Status", value: (row) => row.status },
+        { header: "Priority", value: (row) => row.priority },
+        { header: "Monthly Rent", value: (row) => row.monthlyRent },
+        { header: "Amount", value: (row) => row.amount },
+        { header: "Due Date", value: (row) => row.dueDate },
+        { header: "Occupancy", value: (row) => row.occupancy },
+        { header: "Listed Date", value: (row) => row.listedDate },
+        { header: "Uploaded Date", value: (row) => row.uploadedDate },
+        { header: "Description", value: (row) => row.description },
+      ],
+      rows,
+    );
+  }, [
+    address,
+    documents,
+    overviewMonthlyRent,
+    overviewOccupancy,
+    property,
+    propertyMaintenance,
+    propertyPayments,
+    tenants,
+    title,
+    units,
+    unitsCount,
+  ]);
+
+  const handleExportUnits = React.useCallback(() => {
+    downloadCsv(
+      `${safeExportFilename(title)}-units-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_unit, index) => index + 1 },
+        {
+          header: "Unit ID",
+          value: (unit) =>
+            readString(unit.name) ??
+            readString(unit.unitNumber) ??
+            readString(unit.id),
+        },
+        {
+          header: "Type",
+          value: (unit) =>
+            readString(unit.type) ??
+            `${readNumber(unit.numberOfBedrooms) ?? 0}BR`,
+        },
+        { header: "Status", value: (unit) => unitStatusLabel(unit) },
+        {
+          header: "Tenant",
+          value: (unit) => {
+            const tenant = getUnitTenant(unit);
+            return (
+              readString(tenant?.fullName) ??
+              readString(tenant?.name) ??
+              readString(tenant?.email) ??
+              ""
+            );
+          },
+        },
+        { header: "Rent", value: (unit) => readNumber(unit.rentAmount) ?? "" },
+      ],
+      units,
+    );
+  }, [title, units]);
 
   React.useEffect(() => {
     if (!router.isReady || !propertyId) return;
@@ -592,7 +739,11 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                     Edit property
                   </button>
                 ) : null}
-                <button className="inline-flex items-center gap-2 rounded-md border border-[#CBD5E1] px-3 py-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={handleExportProperty}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#CBD5E1] px-3 py-1.5 text-xs"
+                >
                   <Download className="h-3.5 w-3.5" />
                   Export
                 </button>
@@ -794,7 +945,9 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                       maxLength={4}
                       value={editYearBuilt}
                       onChange={(e) =>
-                        setEditYearBuilt(e.target.value.replace(/\D/g, "").slice(0, 4))
+                        setEditYearBuilt(
+                          e.target.value.replace(/\D/g, "").slice(0, 4),
+                        )
                       }
                       placeholder="2019"
                       className="mt-1 w-full rounded-md border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]"
@@ -923,7 +1076,13 @@ const AdminPropertyDetailPage: NextPageWithLayout = () => {
                       {units.length} Units
                     </span>
                   </p>
-                  <button className="text-xs text-[#0284C7]">Export CSV</button>
+                  <button
+                    type="button"
+                    onClick={handleExportUnits}
+                    className="text-xs text-[#0284C7]"
+                  >
+                    Export CSV
+                  </button>
                 </div>
                 <table className="w-full text-xs">
                   <thead className="text-[#64748B]">

@@ -77,6 +77,7 @@ import type { Unit } from "@/data/mockLandlordData";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
+import { downloadCsv, safeExportFilename, todayStamp } from "@/utils/exportCsv";
 
 import type { NextPageWithLayout } from "../../_app";
 import {
@@ -166,10 +167,7 @@ function findManagerNameForProperty(
   return null;
 }
 
-type PropertySettingsSection =
-  | "documents"
-  | "gracePeriods"
-  | "preferences";
+type PropertySettingsSection = "documents" | "gracePeriods" | "preferences";
 
 type PropertyRentRulesSummaryLines = {
   late: string;
@@ -651,6 +649,99 @@ const PropertyDetailPage: NextPageWithLayout = () => {
       }));
   }, [units, id]);
 
+  const handleExportProperty = React.useCallback(() => {
+    if (!property || !propertyDTO) return;
+    const rows: Array<Record<string, unknown>> = [
+      {
+        section: "Property",
+        name: property.name,
+        address: property.address,
+        status: property.status,
+        units: property.units,
+        monthlyRent: property.monthlyRent,
+        occupancy: property.occupancy,
+        verified: propertyDTO.isApproved === true ? "Yes" : "No",
+        listedDate: propertyDTO.createdAt ?? "",
+      },
+      ...units.map((unit) => ({
+        section: "Unit",
+        name: unit.unitId,
+        type: unit.type,
+        status: unit.status,
+        tenant: unit.tenantName ?? "",
+        monthlyRent: unit.monthlyRent,
+        rentStatus: unit.rentStatus,
+        nextDueDate: unit.nextDueDate,
+        amenities: unit.amenities.join(", "),
+      })),
+      ...propertyTenants.map((tenant) => ({
+        section: "Tenant",
+        name: tenant.name,
+        unit: tenant.unitId,
+        email: tenant.email,
+        phone: tenant.phone,
+        leaseStart: tenant.leaseStart,
+        leaseEnd: tenant.leaseEnd,
+        nextPayment: tenant.nextPayment,
+      })),
+      ...propertyPayments.map((payment) => ({
+        section: "Payment",
+        name: payment.tenantName,
+        unit: payment.unit,
+        amount: payment.amount,
+        dueDate: payment.dueDate,
+      })),
+      ...propertyMaintenanceDetails.map((request) => ({
+        section: "Maintenance",
+        name: request.type,
+        unit: request.unitId,
+        tenant: request.tenantName,
+        status: request.status,
+        priority: request.priority,
+        reportedDate: request.reportedDate,
+        description: request.additionalDetail ?? request.subType,
+      })),
+    ];
+
+    downloadCsv(
+      `${safeExportFilename(property.name || "property")}-${todayStamp()}.csv`,
+      [
+        { header: "Section", value: (row) => row.section },
+        { header: "Name", value: (row) => row.name },
+        { header: "Type", value: (row) => row.type },
+        { header: "Address", value: (row) => row.address },
+        { header: "Unit", value: (row) => row.unit },
+        { header: "Units", value: (row) => row.units },
+        { header: "Tenant", value: (row) => row.tenant },
+        { header: "Email", value: (row) => row.email },
+        { header: "Phone", value: (row) => row.phone },
+        { header: "Status", value: (row) => row.status },
+        { header: "Priority", value: (row) => row.priority },
+        { header: "Monthly Rent", value: (row) => row.monthlyRent },
+        { header: "Amount", value: (row) => row.amount },
+        { header: "Occupancy", value: (row) => row.occupancy },
+        { header: "Rent Status", value: (row) => row.rentStatus },
+        { header: "Next Due Date", value: (row) => row.nextDueDate },
+        { header: "Due Date", value: (row) => row.dueDate },
+        { header: "Lease Start", value: (row) => row.leaseStart },
+        { header: "Lease End", value: (row) => row.leaseEnd },
+        { header: "Reported Date", value: (row) => row.reportedDate },
+        { header: "Verified", value: (row) => row.verified },
+        { header: "Listed Date", value: (row) => row.listedDate },
+        { header: "Amenities", value: (row) => row.amenities },
+        { header: "Description", value: (row) => row.description },
+      ],
+      rows,
+    );
+  }, [
+    property,
+    propertyDTO,
+    propertyMaintenanceDetails,
+    propertyPayments,
+    propertyTenants,
+    units,
+  ]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -879,6 +970,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
+              onClick={handleExportProperty}
               className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg border border-gray-300 bg-white px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 transition hover:bg-gray-50 whitespace-nowrap"
             >
               <Download className="h-4 w-4" />
@@ -1751,7 +1843,10 @@ const PropertyDetailPage: NextPageWithLayout = () => {
         onClose={() => setIsSendAnnouncementOpen(false)}
         onSend={async (data) => {
           if (!id || typeof id !== "string") {
-            showToast("Property details are not ready yet. Please refresh and try again.", "error");
+            showToast(
+              "Property details are not ready yet. Please refresh and try again.",
+              "error",
+            );
             throw new Error("Missing property details");
           }
 

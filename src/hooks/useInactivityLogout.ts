@@ -3,9 +3,9 @@ import { logout } from "@/utils/auth";
 
 /**
  * Hook to automatically log out user after a period of inactivity
- * @param inactivityMinutes - Minutes of inactivity before logout (default: 60)
+ * @param inactivityMinutes - Minutes of inactivity before logout (default: 720)
  */
-export const useInactivityLogout = (inactivityMinutes = 60) => {
+export const useInactivityLogout = (inactivityMinutes = 720) => {
   const inactivityTimeout = React.useRef<NodeJS.Timeout | null>(null);
   const INACTIVITY_MS = inactivityMinutes * 60 * 1000;
 
@@ -64,4 +64,3 @@ export const useInactivityLogout = (inactivityMinutes = 60) => {
     };
   }, [resetTimer]);
 };
-

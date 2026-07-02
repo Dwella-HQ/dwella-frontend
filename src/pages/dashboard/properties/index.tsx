@@ -1,7 +1,17 @@
 import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Filter, Grid3x3, List, Plus, ArrowUpDown, Check, Users, AlertCircle } from "lucide-react";
+import {
+  Filter,
+  Grid3x3,
+  List,
+  Plus,
+  ArrowUpDown,
+  Check,
+  Users,
+  AlertCircle,
+  Download,
+} from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -22,11 +32,19 @@ import {
 } from "@/api/landlord";
 import { useUser } from "@/contexts/UserContext";
 import { useSelectedLandlord } from "@/contexts/SelectedLandlordContext";
+import { downloadCsv, todayStamp } from "@/utils/exportCsv";
 
 import type { NextPageWithLayout } from "../../_app";
 
 type ViewMode = "grid" | "list";
-type FilterStatus = "all" | "active" | "inactive" | "pending" | "occupied" | "commercial" | "residential";
+type FilterStatus =
+  | "all"
+  | "active"
+  | "inactive"
+  | "pending"
+  | "occupied"
+  | "commercial"
+  | "residential";
 
 const PropertiesPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -54,10 +72,13 @@ const PropertiesPage: NextPageWithLayout = () => {
     const fetchProperties = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       // For landlords, fetch by landlordId
       if (user?.role === "landlord") {
-        const landlordId = typeof window !== "undefined" ? localStorage.getItem("landlordId") : null;
+        const landlordId =
+          typeof window !== "undefined"
+            ? localStorage.getItem("landlordId")
+            : null;
         if (landlordId) {
           const result = await getPropertiesByLandlord(landlordId);
           if (result.success) {
@@ -71,10 +92,14 @@ const PropertiesPage: NextPageWithLayout = () => {
         } else {
           setError("No landlord account found. Please sign in again.");
         }
-      } 
+      }
       // For property managers, fetch properties for the selected landlord
       else if (user?.role === "property_manager") {
-        const landlordId = selectedLandlord?.id ?? (typeof window !== "undefined" ? localStorage.getItem("landlordId") : null);
+        const landlordId =
+          selectedLandlord?.id ??
+          (typeof window !== "undefined"
+            ? localStorage.getItem("landlordId")
+            : null);
         if (landlordId) {
           const result = await getPropertiesByLandlord(landlordId);
           if (result.success) {
@@ -86,7 +111,9 @@ const PropertiesPage: NextPageWithLayout = () => {
             setError(result.error);
           }
         } else {
-          setError("No landlord selected. Please select a landlord account first.");
+          setError(
+            "No landlord selected. Please select a landlord account first.",
+          );
         }
       }
       // For other roles, fetch all properties
@@ -101,12 +128,17 @@ const PropertiesPage: NextPageWithLayout = () => {
           setError(result.error);
         }
       }
-      
+
       setIsLoading(false);
     };
 
     if (user) {
-      if (user.role === "property_manager" && !selectedLandlord?.id && typeof window !== "undefined" && !localStorage.getItem("landlordId")) {
+      if (
+        user.role === "property_manager" &&
+        !selectedLandlord?.id &&
+        typeof window !== "undefined" &&
+        !localStorage.getItem("landlordId")
+      ) {
         router.replace("/dashboard/select-landlord");
         setIsLoading(false);
         return;
@@ -200,6 +232,28 @@ const PropertiesPage: NextPageWithLayout = () => {
     return count;
   }, [statusFilter, occupancyFilter, sortBy]);
 
+  const handleExportProperties = React.useCallback(() => {
+    downloadCsv(
+      `dwelliva-properties-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_property, index) => index + 1 },
+        { header: "Property ID", value: (property) => property.id },
+        { header: "Name", value: (property) => property.name },
+        { header: "Address", value: (property) => property.address },
+        { header: "Units", value: (property) => property.units },
+        { header: "Occupancy", value: (property) => `${property.occupancy}%` },
+        { header: "Monthly Rent", value: (property) => property.monthlyRent },
+        { header: "Next Due", value: (property) => property.nextDue },
+        { header: "Status", value: (property) => property.status },
+        {
+          header: "Amenities",
+          value: (property) => property.amenities.join(", "),
+        },
+      ],
+      filteredProperties,
+    );
+  }, [filteredProperties]);
+
   return (
     <>
       <Head>
@@ -210,7 +264,9 @@ const PropertiesPage: NextPageWithLayout = () => {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Properties</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              Properties
+            </h1>
             <p className="mt-1 text-sm text-gray-600">
               Manage your real estate portfolio
             </p>
@@ -233,149 +289,174 @@ const PropertiesPage: NextPageWithLayout = () => {
                 </button>
               </Popover.Trigger>
               <Popover.Portal>
-              <Popover.Content
-                sideOffset={8}
-                align="end"
-                className="w-80 rounded-lg border border-gray-200 bg-white p-6 shadow-xl focus:outline-none z-40"
-              >
-                <div className="space-y-6">
-                  {/* Header */}
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-gray-900">
-                      Filters & Sorting
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={handleClearFilters}
-                      className="text-xs font-medium text-brand-main hover:text-brand-main/80 transition"
-                    >
-                      Clear All
-                    </button>
-                  </div>
+                <Popover.Content
+                  sideOffset={8}
+                  align="end"
+                  className="w-80 rounded-lg border border-gray-200 bg-white p-6 shadow-xl focus:outline-none z-40"
+                >
+                  <div className="space-y-6">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-semibold text-gray-900">
+                        Filters & Sorting
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={handleClearFilters}
+                        className="text-xs font-medium text-brand-main hover:text-brand-main/80 transition"
+                      >
+                        Clear All
+                      </button>
+                    </div>
 
-                  {/* Sort By */}
-                  <div>
-                    <div className="mb-3 flex items-center gap-2">
-                      <ArrowUpDown className="h-4 w-4 text-gray-600" />
-                      <label className="text-xs font-semibold uppercase text-gray-700">
-                        Sort By
-                      </label>
+                    {/* Sort By */}
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <ArrowUpDown className="h-4 w-4 text-gray-600" />
+                        <label className="text-xs font-semibold uppercase text-gray-700">
+                          Sort By
+                        </label>
+                      </div>
+                      <div className="space-y-1">
+                        {[
+                          { value: "name-asc", label: "Name (A-Z)" },
+                          { value: "rent-high", label: "Rent (High to Low)" },
+                          { value: "rent-low", label: "Rent (Low to High)" },
+                          {
+                            value: "occupancy-high",
+                            label: "Occupancy (High to Low)",
+                          },
+                          {
+                            value: "occupancy-low",
+                            label: "Occupancy (Low to High)",
+                          },
+                          { value: "units", label: "Number of Units" },
+                        ].map((option) => {
+                          const isSelected = sortBy === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setSortBy(option.value)}
+                              className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
+                                isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                              }`}
+                            >
+                              <span className="text-sm text-gray-700">
+                                {option.label}
+                              </span>
+                              {isSelected && (
+                                <Check className="h-4 w-4 text-brand-main" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      {[
-                        { value: "name-asc", label: "Name (A-Z)" },
-                        { value: "rent-high", label: "Rent (High to Low)" },
-                        { value: "rent-low", label: "Rent (Low to High)" },
-                        { value: "occupancy-high", label: "Occupancy (High to Low)" },
-                        { value: "occupancy-low", label: "Occupancy (Low to High)" },
-                        { value: "units", label: "Number of Units" },
-                      ].map((option) => {
-                        const isSelected = sortBy === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setSortBy(option.value)}
-                            className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
-                              isSelected
-                                ? "bg-blue-50"
-                                : "hover:bg-gray-50"
-                            }`}
-                          >
-                            <span className="text-sm text-gray-700">{option.label}</span>
-                            {isSelected && (
-                              <Check className="h-4 w-4 text-brand-main" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  {/* Status */}
-                  <div>
-                    <div className="mb-3 flex items-center gap-2">
-                      <Check className="h-4 w-4 text-gray-600" />
-                      <span className="text-xs font-semibold uppercase text-gray-700">
-                        Status
-                      </span>
+                    {/* Status */}
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <Check className="h-4 w-4 text-gray-600" />
+                        <span className="text-xs font-semibold uppercase text-gray-700">
+                          Status
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {[
+                          { value: "all", label: "All Properties" },
+                          { value: "active", label: "Active" },
+                          { value: "pending", label: "Pending Verification" },
+                        ].map((option) => {
+                          const isSelected = statusFilter === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setStatusFilter(option.value)}
+                              className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
+                                isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                              }`}
+                            >
+                              <span className="text-sm text-gray-700">
+                                {option.label}
+                              </span>
+                              {isSelected && (
+                                <Check className="h-4 w-4 text-brand-main" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      {[
-                        { value: "all", label: "All Properties" },
-                        { value: "active", label: "Active" },
-                        { value: "pending", label: "Pending Verification" },
-                      ].map((option) => {
-                        const isSelected = statusFilter === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setStatusFilter(option.value)}
-                            className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
-                              isSelected
-                                ? "bg-blue-50"
-                                : "hover:bg-gray-50"
-                            }`}
-                          >
-                            <span className="text-sm text-gray-700">{option.label}</span>
-                            {isSelected && (
-                              <Check className="h-4 w-4 text-brand-main" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  {/* Occupancy Rate */}
-                  <div>
-                    <div className="mb-3 flex items-center gap-2">
-                      <Users className="h-4 w-4 text-gray-600" />
-                      <span className="text-xs font-semibold uppercase text-gray-700">
-                        Occupancy Rate
-                      </span>
+                    {/* Occupancy Rate */}
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <Users className="h-4 w-4 text-gray-600" />
+                        <span className="text-xs font-semibold uppercase text-gray-700">
+                          Occupancy Rate
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {[
+                          { value: "all", label: "All Levels" },
+                          { value: "high", label: "High (90%+)" },
+                          { value: "medium", label: "Medium (50-89%)" },
+                          { value: "low", label: "Low (<50%)" },
+                        ].map((option) => {
+                          const isSelected = occupancyFilter === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setOccupancyFilter(option.value)}
+                              className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
+                                isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                              }`}
+                            >
+                              <span className="text-sm text-gray-700">
+                                {option.label}
+                              </span>
+                              {isSelected && (
+                                <Check className="h-4 w-4 text-brand-main" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      {[
-                        { value: "all", label: "All Levels" },
-                        { value: "high", label: "High (90%+)" },
-                        { value: "medium", label: "Medium (50-89%)" },
-                        { value: "low", label: "Low (<50%)" },
-                      ].map((option) => {
-                        const isSelected = occupancyFilter === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setOccupancyFilter(option.value)}
-                            className={`flex w-full items-center justify-between cursor-pointer rounded-md px-3 py-2 text-left transition ${
-                              isSelected
-                                ? "bg-blue-50"
-                                : "hover:bg-gray-50"
-                            }`}
-                          >
-                            <span className="text-sm text-gray-700">{option.label}</span>
-                            {isSelected && (
-                              <Check className="h-4 w-4 text-brand-main" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  {/* Results Count */}
-                  <div className="pt-4 border-t border-gray-200">
-                    <p className="text-sm text-gray-600">
-                      Showing <span className="font-semibold">{filteredProperties.length}</span> of{" "}
-                      <span className="font-semibold">{properties.length}</span> properties
-                    </p>
+                    {/* Results Count */}
+                    <div className="pt-4 border-t border-gray-200">
+                      <p className="text-sm text-gray-600">
+                        Showing{" "}
+                        <span className="font-semibold">
+                          {filteredProperties.length}
+                        </span>{" "}
+                        of{" "}
+                        <span className="font-semibold">
+                          {properties.length}
+                        </span>{" "}
+                        properties
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </Popover.Content>
+                </Popover.Content>
               </Popover.Portal>
             </Popover.Root>
+
+            {/* View Toggle */}
+            <button
+              type="button"
+              onClick={handleExportProperties}
+              disabled={filteredProperties.length === 0}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-4 sm:text-sm"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">Export</span>
+            </button>
 
             {/* View Toggle */}
             <div className="flex items-center rounded-lg border border-gray-300 bg-white p-1">
@@ -486,7 +567,9 @@ const PropertiesPage: NextPageWithLayout = () => {
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-main border-r-transparent"></div>
-              <p className="mt-4 text-sm text-gray-600">Loading properties...</p>
+              <p className="mt-4 text-sm text-gray-600">
+                Loading properties...
+              </p>
             </div>
           </div>
         )}
@@ -497,7 +580,9 @@ const PropertiesPage: NextPageWithLayout = () => {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-semibold text-red-900">Error loading properties</h3>
+                <h3 className="text-sm font-semibold text-red-900">
+                  Error loading properties
+                </h3>
                 <p className="mt-1 text-sm text-red-700">{error}</p>
                 <button
                   type="button"
@@ -531,7 +616,8 @@ const PropertiesPage: NextPageWithLayout = () => {
         {/* Results Count */}
         {!isLoading && !error && activeFiltersCount > 0 && (
           <div className="text-sm text-gray-600">
-            Showing {filteredProperties.length} of {properties.length} properties with active filters
+            Showing {filteredProperties.length} of {properties.length}{" "}
+            properties with active filters
           </div>
         )}
 
@@ -545,7 +631,9 @@ const PropertiesPage: NextPageWithLayout = () => {
                     key={property.id}
                     property={property}
                     index={index}
-                    onClick={() => router.push(`/dashboard/properties/${property.id}`)}
+                    onClick={() =>
+                      router.push(`/dashboard/properties/${property.id}`)
+                    }
                   />
                 ))}
               </div>

@@ -17,6 +17,7 @@ import type {
   Payment,
 } from "@/data/mockLandlordData";
 import { formatDateTimeDisplay } from "@/utils/formatDate";
+import { downloadCsv, safeExportFilename, todayStamp } from "@/utils/exportCsv";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object"
@@ -158,6 +159,22 @@ const AdminUnitDetailPage: NextPageWithLayout = () => {
       .filter((m) => m.unit.trim().toLowerCase() === unitName)
       .slice(0, 10);
   }, [maintenance, unit]);
+
+  const handleExportUnitPayments = React.useCallback(() => {
+    if (!unit) return;
+    downloadCsv(
+      `${safeExportFilename(`${propertyName}-${unit.name}-payments`)}-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_payment, index) => index + 1 },
+        { header: "Tenant", value: (payment) => payment.tenantName },
+        { header: "Property", value: (payment) => payment.propertyName },
+        { header: "Unit", value: (payment) => payment.unit },
+        { header: "Amount", value: (payment) => payment.amount },
+        { header: "Due Date", value: (payment) => payment.dueDate },
+      ],
+      filteredPayments,
+    );
+  }, [filteredPayments, propertyName, unit]);
 
   if (loading) {
     return (
@@ -368,7 +385,11 @@ const AdminUnitDetailPage: NextPageWithLayout = () => {
           <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xl font-semibold">Unit Payment History</p>
-              <button className="inline-flex items-center gap-1 text-xs text-[#2563EB]">
+              <button
+                type="button"
+                onClick={handleExportUnitPayments}
+                className="inline-flex items-center gap-1 text-xs text-[#2563EB]"
+              >
                 <Download className="h-3 w-3" /> Export
               </button>
             </div>

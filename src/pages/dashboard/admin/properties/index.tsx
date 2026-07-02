@@ -3,10 +3,17 @@ import Link from "next/link";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/router";
-import { Loader2, MoreVertical, RefreshCw, Search } from "lucide-react";
+import {
+  Download,
+  Loader2,
+  MoreVertical,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { getProperties, type PropertyDTO } from "@/api/properties";
+import { downloadCsv, todayStamp } from "@/utils/exportCsv";
 
 function formatAddress(p: PropertyDTO): string {
   const a = p.address;
@@ -174,6 +181,36 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
     [router],
   );
 
+  const handleExportProperties = React.useCallback(() => {
+    downloadCsv(
+      `admin-properties-${tab}-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_property, index) => index + 1 },
+        { header: "Property ID", value: (property) => property.id },
+        { header: "Name", value: (property) => property.name },
+        { header: "Address", value: (property) => formatAddress(property) },
+        {
+          header: "Units",
+          value: (property) => property.numberOfUnits ?? "—",
+        },
+        { header: "Listed Date", value: (property) => listingDate(property) },
+        {
+          header: "Status",
+          value: (property) => propertyStatusLabel(property),
+        },
+        {
+          header: "Approved",
+          value: (property) => (property.isApproved ? "Yes" : "No"),
+        },
+        {
+          header: "Active",
+          value: (property) => (property.isActive === false ? "No" : "Yes"),
+        },
+      ],
+      visibleRows,
+    );
+  }, [tab, visibleRows]);
+
   React.useEffect(() => {
     const handleWindowClick = () => setActionMenu(null);
     window.addEventListener("click", handleWindowClick);
@@ -221,15 +258,28 @@ const AdminPropertiesPage: NextPageWithLayout = () => {
                 Pending Approval
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2 text-[13px] font-medium text-[#475569] transition hover:bg-[#F8FAFC] disabled:opacity-60"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportProperties}
+                disabled={visibleRows.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2 text-[13px] font-medium text-[#475569] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => void load()}
+                disabled={loading}
+                className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2 text-[13px] font-medium text-[#475569] transition hover:bg-[#F8FAFC] disabled:opacity-60"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+                />
+                Refresh
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">

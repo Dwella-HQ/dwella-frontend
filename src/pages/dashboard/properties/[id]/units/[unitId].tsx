@@ -30,6 +30,7 @@ import type { Unit } from "@/data/mockLandlordData";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import { formatDateTimeDisplay } from "@/utils/formatDate";
+import { downloadCsv, safeExportFilename, todayStamp } from "@/utils/exportCsv";
 
 type NestedProperty = { id?: string; name?: string; isApproved?: boolean };
 
@@ -139,6 +140,24 @@ const UnitDetailPage: NextPageWithLayout = () => {
       (m) => m.unitId === unit.unitId,
     );
   }, [unit]);
+
+  const handleExportUnitPayments = React.useCallback(() => {
+    if (!unit) return;
+    downloadCsv(
+      `${safeExportFilename(`${propertyName}-${unit.unitId}-payments`)}-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_payment, index) => index + 1 },
+        { header: "Transaction ID", value: (payment) => payment.transactionId },
+        { header: "Date", value: (payment) => payment.date },
+        { header: "Tenant", value: (payment) => payment.tenantName },
+        { header: "Unit ID", value: (payment) => payment.unitId },
+        { header: "Amount", value: (payment) => payment.amount },
+        { header: "Method", value: (payment) => payment.method },
+        { header: "Status", value: (payment) => payment.status },
+      ],
+      unitPayments,
+    );
+  }, [propertyName, unit, unitPayments]);
 
   if (isLoading) {
     return (
@@ -409,9 +428,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase">
-                      STATUS
-                    </p>
+                    <p className="text-xs text-gray-500 uppercase">STATUS</p>
                     <p className="mt-1">
                       <span className="inline-flex rounded-full bg-brand-green px-3 py-1 text-xs font-medium text-white">
                         Occupied
@@ -484,6 +501,7 @@ const UnitDetailPage: NextPageWithLayout = () => {
               </h2>
               <button
                 type="button"
+                onClick={handleExportUnitPayments}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
               >
                 <Download className="h-4 w-4" />

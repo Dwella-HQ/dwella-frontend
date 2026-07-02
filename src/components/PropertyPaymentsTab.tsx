@@ -1,8 +1,14 @@
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Download, ChevronLeft, ChevronRight, CalendarClock } from "lucide-react";
+import {
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  CalendarClock,
+} from "lucide-react";
 import type { PaymentHistory } from "@/data/mockLandlordData";
 import { getPropertySettings } from "@/api/properties";
+import { downloadCsv, todayStamp } from "@/utils/exportCsv";
 import {
   buildRentRulesCardLines,
   formatRentRulesPolicyTooltip,
@@ -73,6 +79,26 @@ export const PropertyPaymentsTab = ({
     return match ? match[1] : name;
   };
 
+  const handleExportCsv = React.useCallback(() => {
+    downloadCsv(
+      `property-payment-history-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_payment, index) => index + 1 },
+        { header: "Transaction ID", value: (payment) => payment.transactionId },
+        { header: "Date", value: (payment) => payment.date },
+        {
+          header: "Tenant",
+          value: (payment) => cleanTenantName(payment.tenantName),
+        },
+        { header: "Unit ID", value: (payment) => payment.unitId },
+        { header: "Amount", value: (payment) => payment.amount },
+        { header: "Method", value: (payment) => payment.method },
+        { header: "Status", value: (payment) => payment.status },
+      ],
+      payments,
+    );
+  }, [payments]);
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -80,6 +106,7 @@ export const PropertyPaymentsTab = ({
         <h2 className="text-xl font-bold text-gray-900">Payment History</h2>
         <motion.button
           type="button"
+          onClick={handleExportCsv}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
@@ -89,7 +116,10 @@ export const PropertyPaymentsTab = ({
         </motion.button>
       </div>
 
-      {propertyId && (rulesStatus === "loading" || rulesStatus === "ready" || rulesStatus === "error") ? (
+      {propertyId &&
+      (rulesStatus === "loading" ||
+        rulesStatus === "ready" ||
+        rulesStatus === "error") ? (
         <div className="rounded-lg border border-gray-200 bg-slate-50/80 p-4">
           <div className="flex items-start gap-3">
             <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-brand-main" />
@@ -123,30 +153,30 @@ export const PropertyPaymentsTab = ({
       {displayedPayments.length > 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
           <table className="w-full table-auto min-w-[640px]">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Transaction ID
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Tenant
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Unit ID
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {displayedPayments.map((payment, index) => (
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Transaction ID
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Tenant
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Unit ID
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {displayedPayments.map((payment, index) => (
                 <motion.tr
                   key={payment.id}
                   initial={{ opacity: 0, x: -20 }}
@@ -166,7 +196,9 @@ export const PropertyPaymentsTab = ({
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white flex-shrink-0">
                         {getInitials(payment.tenantName)}
                       </div>
-                      <span className="text-sm text-gray-700 whitespace-nowrap">{cleanTenantName(payment.tenantName)}</span>
+                      <span className="text-sm text-gray-700 whitespace-nowrap">
+                        {cleanTenantName(payment.tenantName)}
+                      </span>
                     </div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 text-sm text-gray-700 whitespace-nowrap">

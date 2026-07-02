@@ -1,6 +1,6 @@
 import Head from "next/head";
 import * as React from "react";
-import { Loader2, RefreshCw, X } from "lucide-react";
+import { Download, Loader2, RefreshCw, X } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -11,10 +11,7 @@ import {
 } from "@/api/transaction";
 import { getRentPaymentItems } from "@/api/rent-payment";
 import type { RentPaymentItemDTO } from "@/api/rent-payment/rentPayment.schema";
-import {
-  getWithdrawalItems,
-  type WithdrawalItemDTO,
-} from "@/api/withdrawal";
+import { getWithdrawalItems, type WithdrawalItemDTO } from "@/api/withdrawal";
 import {
   buildRentPaymentIndex,
   formatActionLabel,
@@ -27,6 +24,7 @@ import {
   resolveTenantLabel,
   transactionApiId,
 } from "@/lib/admin/transactionDisplay";
+import { downloadCsv, todayStamp } from "@/utils/exportCsv";
 
 function parseAmount(tx: TransactionDTO): number {
   const raw = rawTransactionAmount(tx);
@@ -646,6 +644,48 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
     [detailWithdrawal],
   );
 
+  const handleExportTransactions = React.useCallback(() => {
+    downloadCsv(
+      `admin-transactions-${todayStamp()}.csv`,
+      [
+        { header: "S/N", value: (_tx, index) => index + 1 },
+        { header: "Transaction ID", value: (tx) => fullTransactionId(tx) },
+        { header: "Reference", value: (tx) => formatTransactionRef(tx) },
+        { header: "From", value: (tx) => resolveTenantLabel(tx, rentById) },
+        { header: "To", value: (tx) => resolveLandlordLabel(tx) },
+        {
+          header: "Payer Email",
+          value: (tx) => resolveSenderEmail(tx),
+        },
+        {
+          header: "Payee Email",
+          value: (tx) => resolveReceiverEmail(tx),
+        },
+        {
+          header: "Property / Unit",
+          value: (tx) => resolvePropertyLabel(tx, rentById),
+        },
+        { header: "Amount", value: (tx) => parseAmount(tx) },
+        { header: "Currency", value: (tx) => parseCurrency(tx) },
+        { header: "Date", value: (tx) => formatTxDate(tx) },
+        { header: "Updated", value: (tx) => formatUpdatedAt(tx) },
+        { header: "Status", value: (tx) => normalizeStatus(tx.status) },
+        { header: "Action", value: (tx) => formatActionLabel(tx) },
+        {
+          header: "Provider",
+          value: (tx) => (tx as Record<string, unknown>).provider,
+        },
+        {
+          header: "Payment Method",
+          value: (tx) => (tx as Record<string, unknown>).paymentMethod,
+        },
+        { header: "Channel", value: (tx) => gatewayChannel(tx) },
+        { header: "Narration", value: (tx) => resolveNarration(tx) },
+      ],
+      filtered,
+    );
+  }, [filtered, rentById]);
+
   return (
     <>
       <Head>
@@ -653,7 +693,16 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
       </Head>
       <AdminLayout title="Transactions" showHeaderSearch={false}>
         <section className="w-full min-w-0 space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleExportTransactions}
+              disabled={loading || filtered.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-[12px] font-medium text-[#0F172A] hover:bg-[#F8FAFC] disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
             <button
               type="button"
               onClick={() => void load()}
@@ -860,9 +909,7 @@ const AdminTransactionsPage: NextPageWithLayout = () => {
                     </button>
                   ),
                 )}
-                <span className="px-1 text-[#64748B]">
-                  / {pageCount}
-                </span>
+                <span className="px-1 text-[#64748B]">/ {pageCount}</span>
                 <button
                   type="button"
                   onClick={() =>
