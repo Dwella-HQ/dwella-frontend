@@ -130,7 +130,7 @@ export const LandingHeader = () => {
                 Log In
               </Link>
               <Link
-                href="/onboarding/guest/details"
+                href="/auth/signup"
                 className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#0D4B73] shadow-[0_14px_28px_rgba(2,8,23,0.1)] transition hover:-translate-y-0.5 hover:bg-[#F8FBFF] active:translate-y-0"
               >
                 Sign Up
@@ -190,7 +190,7 @@ export const LandingHeader = () => {
                     Log In
                   </Link>
                   <Link
-                    href="/onboarding/guest/details"
+                    href="/auth/signup"
                     onClick={() => setOpen(false)}
                     className="rounded-md bg-white px-3 py-2 text-center text-sm font-semibold text-[#0D4B73]"
                   >

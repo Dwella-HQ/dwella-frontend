@@ -2,7 +2,7 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import { BriefcaseBusiness, Building2, Eye, EyeOff, Key } from "lucide-react";
+import { BriefcaseBusiness, Building2, Eye, EyeOff, Home, Key } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -99,14 +99,9 @@ const SignUpPage: NextPageWithLayout = () => {
       return;
     }
 
-    // Default public Sign Up is the guest (short-stay) onboarding flow.
-    if (!role) {
-      const hasPmInvite =
-        getPropertyManagerInviteIdFromQuery(router.query).length > 0;
-      if (!hasPmInvite) {
-        void router.replace("/onboarding/guest/details");
-        return;
-      }
+    if (role === "guest" || role === "user") {
+      void router.replace("/onboarding/guest/details");
+      return;
     }
 
     const isAllowedSelfSignupRole = role === "landlord" || role === "manager";
@@ -377,8 +372,14 @@ const SignUpPage: NextPageWithLayout = () => {
   });
 
   const handleSelectRole = React.useCallback(
-    async (role: "tenant" | "landlord" | "manager") => {
+    async (role: "tenant" | "landlord" | "manager" | "guest") => {
       setError(null);
+
+      if (role === "guest") {
+        await router.push("/onboarding/guest/details");
+        return;
+      }
+
       const nextQuery: Record<string, string> = { role };
       const tenantIdFromQuery = getTenantInviteIdFromQuery(router.query);
       if (tenantIdFromQuery && role === "tenant") {
@@ -451,6 +452,20 @@ const SignUpPage: NextPageWithLayout = () => {
                 </p>
                 <p className="mt-2 text-sm text-gray-600">
                   Manage properties and operations on behalf of landlords.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleSelectRole("guest")}
+                className="rounded-xl border border-gray-200 bg-white p-5 text-left transition hover:border-brand-main hover:bg-blue-50 md:col-span-2"
+              >
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-brand-main">
+                  <Home className="h-6 w-6" />
+                </div>
+                <p className="text-lg font-semibold text-gray-900">Guest</p>
+                <p className="mt-2 text-sm text-gray-600">
+                  Browse and apply for short stays and rental homes.
                 </p>
               </button>
             </div>

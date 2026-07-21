@@ -182,7 +182,7 @@ export default function PropertyDetailPage() {
                     Log in
                   </Link>
                   <Link
-                    href="/onboarding/guest/details"
+                    href="/auth/signup"
                     className="inline-flex items-center justify-center rounded-lg border border-blue-300 bg-white px-4 py-2.5 text-sm font-semibold text-blue-900 transition hover:bg-blue-100/60"
                   >
                     Create an account
@@ -225,7 +225,7 @@ export default function PropertyDetailPage() {
         : "N/A";
 
   const loginHref = `/auth/login?redirect=${encodeURIComponent(`/property/${property.id}`)}`;
-  const signupHref = `/onboarding/guest/details`;
+  const signupHref = `/auth/signup`;
   const homeHref = isLoggedInGuest ? "/guest" : "/";
 
   return (

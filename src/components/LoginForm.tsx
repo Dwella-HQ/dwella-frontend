@@ -230,7 +230,7 @@ export const LoginForm = ({
         <div className="text-center text-sm text-gray-600">
           Don&apos;t Have account?{" "}
           <Link
-            href="/onboarding/guest/details"
+            href="/auth/signup"
             className="font-medium text-brand-main hover:text-brand-main/80 hover:underline"
           >
             Sign Up
