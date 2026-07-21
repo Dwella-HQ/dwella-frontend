@@ -10,6 +10,7 @@ export type UserRole =
   | "landlord"
   | "property_manager"
   | "tenant"
+  | "guest"
   | "super_admin";
 
 export type User = {

@@ -13,21 +13,23 @@ import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
 import {
-  emptyLandlordKyc,
-  LANDLORD_ONBOARDING_KEYS,
-  landlordFlowSteps,
+  emptyPropertyManagerKyc,
+  PM_ONBOARDING_KEYS,
+  propertyManagerFlowSteps,
   readJsonSession,
   type GovernmentIdType,
-  type LandlordOnboardingKyc,
-} from "@/lib/landlordOnboardingFlow";
+  type PropertyManagerOnboardingKyc,
+} from "@/lib/propertyManagerOnboardingFlow";
 
-const ID_TYPE_OPTIONS: { value: Exclude<GovernmentIdType, "">; label: string }[] =
-  [
-    { value: "NATIONAL_ID", label: "National ID" },
-    { value: "DRIVER_LICENSE", label: "Driver's License" },
-    { value: "PASSPORT", label: "International Passport" },
-    { value: "OTHER", label: "Other" },
-  ];
+const ID_TYPE_OPTIONS: {
+  value: Exclude<GovernmentIdType, "">;
+  label: string;
+}[] = [
+  { value: "NATIONAL_ID", label: "National ID" },
+  { value: "DRIVER_LICENSE", label: "Driver's License" },
+  { value: "PASSPORT", label: "International Passport" },
+  { value: "OTHER", label: "Other" },
+];
 
 const inputClassName =
   "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent";
@@ -37,14 +39,16 @@ type UploadKey =
   | "tinDocumentId"
   | "proofOfAddressDocumentId";
 
-const LandlordOnboardingKycPage: NextPageWithLayout = () => {
+const PropertyManagerOnboardingKycPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { showToast } = useToast();
   const { user } = useUser();
-  const [kyc, setKyc] = React.useState<LandlordOnboardingKyc>(emptyLandlordKyc);
-  const [fileNames, setFileNames] = React.useState<Partial<Record<UploadKey, string>>>(
-    {},
+  const [kyc, setKyc] = React.useState<PropertyManagerOnboardingKyc>(
+    emptyPropertyManagerKyc,
   );
+  const [fileNames, setFileNames] = React.useState<
+    Partial<Record<UploadKey, string>>
+  >({});
   const [uploadProgress, setUploadProgress] = React.useState<
     Partial<Record<UploadKey, number>>
   >({});
@@ -52,19 +56,18 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
     Partial<Record<UploadKey, boolean>>
   >({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [formError, setFormError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const details = sessionStorage.getItem(LANDLORD_ONBOARDING_KEYS.details);
+    const details = sessionStorage.getItem(PM_ONBOARDING_KEYS.details);
     if (!details) {
-      void router.replace("/onboarding/landlord/details");
+      void router.replace("/onboarding/property-manager/details");
       return;
     }
-    const stored = readJsonSession<LandlordOnboardingKyc>(
-      LANDLORD_ONBOARDING_KEYS.kyc,
+    const stored = readJsonSession<PropertyManagerOnboardingKyc>(
+      PM_ONBOARDING_KEYS.kyc,
     );
-    if (stored) setKyc({ ...emptyLandlordKyc, ...stored });
+    if (stored) setKyc({ ...emptyPropertyManagerKyc, ...stored });
   }, [router]);
 
   const governmentSectionDone = Boolean(
@@ -74,9 +77,9 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
     kyc.tinDocumentId && kyc.proofOfAddressDocumentId,
   );
 
-  const persistKyc = React.useCallback((next: LandlordOnboardingKyc) => {
+  const persistKyc = React.useCallback((next: PropertyManagerOnboardingKyc) => {
     setKyc(next);
-    sessionStorage.setItem(LANDLORD_ONBOARDING_KEYS.kyc, JSON.stringify(next));
+    sessionStorage.setItem(PM_ONBOARDING_KEYS.kyc, JSON.stringify(next));
   }, []);
 
   const handleUpload = React.useCallback(
@@ -99,7 +102,7 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
 
       const result = await uploadFile({
         file,
-        folder: "landlord",
+        folder: "property-manager",
         label,
         token: user?.token,
         onProgress: (percent) =>
@@ -120,9 +123,9 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
 
   const handleContinue = React.useCallback(async () => {
     setIsSubmitting(true);
-    setFormError(null);
-    sessionStorage.setItem(LANDLORD_ONBOARDING_KEYS.kyc, JSON.stringify(kyc));
-    await router.push("/onboarding/landlord/finance");
+    sessionStorage.setItem(PM_ONBOARDING_KEYS.kyc, JSON.stringify(kyc));
+    // KYC docs are optional — no dedicated property-manager document endpoint yet.
+    await router.push("/onboarding/property-manager/complete");
     setIsSubmitting(false);
   }, [kyc, router]);
 
@@ -144,7 +147,7 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
             />
           </div>
           <div className="w-full sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
-            <SignUpProgress currentStep={2} steps={landlordFlowSteps} />
+            <SignUpProgress currentStep={2} steps={propertyManagerFlowSteps} />
           </div>
           <div className="hidden w-[200px] sm:block" />
         </nav>
@@ -154,14 +157,14 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
             Upload Documents
           </h1>
           <p className="mb-6 text-center text-sm text-gray-600">
-            Provide the necessary documents to verify Ownership.
+            Provide the necessary documents to verify Ownership
           </p>
 
           <div className="space-y-6">
             <section className="rounded-lg border border-gray-200 p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <h2 className="text-base font-semibold text-gray-900">
-                  Government I.D. Verification
+                  Government ID Verification
                 </h2>
                 {governmentSectionDone ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
@@ -174,7 +177,7 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
               <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
-                    I.D. Type
+                    ID Type
                   </label>
                   <select
                     value={kyc.idType}
@@ -196,7 +199,7 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">
-                    I.D. Number
+                    ID Number
                   </label>
                   <input
                     value={kyc.idNumber}
@@ -223,10 +226,10 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
                   {fileNames.governmentIdDocumentId ||
                     (kyc.governmentIdDocumentId
                       ? "Document uploaded"
-                      : "Click to upload I.D documents.")}
+                      : "Click to upload ID documents")}
                 </p>
                 <p className="mt-1 text-xs text-gray-500">
-                  PNG, JPG, PDF up to 5MB.
+                  (PNG, JPG, PDF up to 10MB)
                 </p>
                 {isUploading.governmentIdDocumentId ? (
                   <p className="mt-2 text-xs text-gray-500">
@@ -243,7 +246,7 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
             <section className="rounded-lg border border-gray-200 p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <h2 className="text-base font-semibold text-gray-900">
-                  Other I.D. Verification
+                  Other ID Verification
                 </h2>
                 {otherSectionDone ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
@@ -260,7 +263,7 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
                       Tax Identification Number (TIN)
                     </p>
                     <p className="text-xs text-gray-500">
-                      Tax certificate or TIN document.
+                      Tax certificate or TIN document
                     </p>
                     {fileNames.tinDocumentId ? (
                       <p className="mt-1 text-xs text-gray-600">
@@ -299,8 +302,8 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
                       Proof Of Address
                     </p>
                     <p className="text-xs text-gray-500">
-                      Utility bill, water bill or waste bill issued within last
-                      3 months.
+                      Utility bill, water bill or waste bill (issued within last
+                      3 months)
                     </p>
                     {fileNames.proofOfAddressDocumentId ? (
                       <p className="mt-1 text-xs text-gray-600">
@@ -348,16 +351,12 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
             </p>
           </div>
 
-          {formError ? (
-            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {formError}
-            </div>
-          ) : null}
-
           <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-6">
             <button
               type="button"
-              onClick={() => router.push("/onboarding/landlord/details")}
+              onClick={() =>
+                router.push("/onboarding/property-manager/details")
+              }
               className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               Back
@@ -384,8 +383,8 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
   );
 };
 
-LandlordOnboardingKycPage.getLayout = (page) => (
+PropertyManagerOnboardingKycPage.getLayout = (page) => (
   <AuthLayout showImage={false}>{page}</AuthLayout>
 );
 
-export default LandlordOnboardingKycPage;
+export default PropertyManagerOnboardingKycPage;

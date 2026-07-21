@@ -1,9 +1,10 @@
 import { apiPatch } from "@/lib/apiClient";
 
-/** `PATCH /user/{id}/password` (ENDPOINTS.md) */
+/** `PATCH /user/{id}/password` — ChangePasswordDto */
 export type UpdateUserPasswordBody = {
   currentPassword: string;
   newPassword: string;
+  confirmNewPassword: string;
 };
 
 type Result = { success: true } | { success: false; error: string };

@@ -15,8 +15,7 @@ export const LandingHeader = () => {
   const pathname = router.pathname;
   const nav = [
     { label: "Home", href: "/" },
-    // Public properties nav hidden for now.
-    // { label: "Properties", href: "/properties" },
+    { label: "Properties", href: "/properties" },
     { label: "About Us", href: "/about" },
     { label: "Features", href: "/features" },
     { label: "Pricing", href: "/pricing" },
@@ -39,6 +38,11 @@ export const LandingHeader = () => {
   const handleDashboardClick = React.useCallback(async () => {
     if (!user) return;
     setOpen(false);
+
+    if (user.role === "guest") {
+      await router.push("/guest");
+      return;
+    }
 
     if (user.role !== "landlord") {
       await router.push("/dashboard");
@@ -126,7 +130,7 @@ export const LandingHeader = () => {
                 Log In
               </Link>
               <Link
-                href="/auth/signup"
+                href="/onboarding/guest/details"
                 className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#0D4B73] shadow-[0_14px_28px_rgba(2,8,23,0.1)] transition hover:-translate-y-0.5 hover:bg-[#F8FBFF] active:translate-y-0"
               >
                 Sign Up
@@ -186,7 +190,7 @@ export const LandingHeader = () => {
                     Log In
                   </Link>
                   <Link
-                    href="/auth/signup"
+                    href="/onboarding/guest/details"
                     onClick={() => setOpen(false)}
                     className="rounded-md bg-white px-3 py-2 text-center text-sm font-semibold text-[#0D4B73]"
                   >

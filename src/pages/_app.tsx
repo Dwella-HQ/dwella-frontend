@@ -8,6 +8,7 @@ import type { AppProps } from "next/app";
 import * as React from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
+import { ScrollToTopButton } from "@/components/ScrollToTopButton";
 import { ToastProvider } from "@/components/Toast";
 import { UserProvider } from "@/contexts/UserContext";
 import { SelectedLandlordProvider } from "@/contexts/SelectedLandlordContext";
@@ -34,6 +35,7 @@ const DwellivaApp = ({ Component, pageProps }: AppPropsWithLayout) => {
             <SelectedLandlordProvider>
               <ChatProvider>
                 {getLayout(<Component {...pageProps} />)}
+                <ScrollToTopButton />
                 <PWAInstallPrompt />
               </ChatProvider>
             </SelectedLandlordProvider>

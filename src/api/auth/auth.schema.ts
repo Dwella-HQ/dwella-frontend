@@ -192,6 +192,12 @@ export const registerRequestSchema = z.object({
     "admin",
     "manager",
     "property_manager",
+    "user", // public guest / short-stay role in OpenAPI
+    "guest", // tolerate if backend aliases guest → user
+    "super_admin",
+    "sub_admin",
+    "agent",
+    "maintenance_staff",
   ]),
   fullName: z.string().min(1, "Full name is required"),
   phoneNumber: z.string().min(1, "Phone number is required"),
@@ -240,7 +246,12 @@ export const socialLoginRequestSchema = z.object({
     "admin",
     "manager",
     "property_manager",
+    "user",
+    "guest",
     "super_admin",
+    "sub_admin",
+    "agent",
+    "maintenance_staff",
   ]),
 });
 

@@ -1,5 +1,5 @@
 ﻿import * as React from "react";
-import { User, FileText, Home } from "lucide-react";
+import { User, FileText, Home, Check } from "lucide-react";
 
 export type SignUpStep = number;
 export type SignUpProgressStep = {
@@ -41,7 +41,11 @@ export const SignUpProgress = ({ currentStep, steps }: SignUpProgressProps) => {
                       : "bg-gray-300"
                 }`}
               >
-                <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                {isCompleted ? (
+                  <Check className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                ) : (
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                )}
               </div>
               <span
                 className={`whitespace-nowrap text-center text-[10px] font-medium leading-none sm:text-xs ${

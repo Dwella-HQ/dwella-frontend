@@ -1,10 +1,52 @@
 import * as React from "react";
+import Link from "next/link";
+import {
+  MapPin,
+  Home,
+  Wallet,
+  Sparkles,
+  Search,
+} from "lucide-react";
 import { getAmenities } from "@/api/amenities";
 
-export const HeroSearch = () => {
+export type HeroSearchValues = {
+  destination: string;
+  type: string;
+  budget: string;
+  amenity: string;
+};
+
+type HeroSearchProps = {
+  values?: HeroSearchValues;
+  onChange?: (values: HeroSearchValues) => void;
+  onSearch?: (values: HeroSearchValues) => void;
+  showBreadcrumb?: boolean;
+  title?: React.ReactNode;
+  subtitle?: string;
+  id?: string;
+};
+
+const defaultValues: HeroSearchValues = {
+  destination: "",
+  type: "",
+  budget: "",
+  amenity: "",
+};
+
+export const HeroSearch = ({
+  values,
+  onChange,
+  onSearch,
+  showBreadcrumb = true,
+  title,
+  subtitle = "Discover verified properties across Nigeria.",
+  id,
+}: HeroSearchProps) => {
+  const [internal, setInternal] = React.useState<HeroSearchValues>(defaultValues);
   const [amenities, setAmenities] = React.useState<
     { id: string; name: string }[]
   >([]);
+  const current = values ?? internal;
 
   React.useEffect(() => {
     getAmenities({ skipAuth: true }).then((result) => {
@@ -12,72 +54,110 @@ export const HeroSearch = () => {
     });
   }, []);
 
+  const update = React.useCallback(
+    (patch: Partial<HeroSearchValues>) => {
+      const next = { ...current, ...patch };
+      if (onChange) onChange(next);
+      else setInternal(next);
+    },
+    [current, onChange],
+  );
+
   return (
-    <section className="relative bg-[var(--brand-main)] pb-16 pt-8 md:pb-20 md:pt-12">
+    <section
+      id={id}
+      className="relative overflow-hidden bg-[var(--brand-main)] pb-14 pt-6 md:pb-16 md:pt-8"
+    >
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-30"
+        className="pointer-events-none absolute inset-0 opacity-25"
         style={{
           backgroundImage:
-            "url(https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1600&q=80)",
+            "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.35) 0, transparent 45%), radial-gradient(circle at 80% 0%, rgba(255,255,255,0.2) 0, transparent 35%), linear-gradient(135deg, rgba(4,27,58,0.25), transparent 55%)",
         }}
       />
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {showBreadcrumb ? (
+          <nav className="mb-6 text-sm text-white/80">
+            <Link href="/" className="hover:text-white">
+              Home
+            </Link>
+            <span className="mx-2">›</span>
+            <span className="text-white">Properties</span>
+          </nav>
+        ) : null}
+
         <div className="text-center text-white">
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl">
-            Manage Real Estate Operations
+            {title ?? "Find Your Perfect Home"}
           </h1>
-          <p className="mt-2 text-lg opacity-90">
-            Organize properties, records, payments, and service activity across
-            Nigeria.
-          </p>
+          <p className="mt-2 text-base opacity-90 md:text-lg">{subtitle}</p>
         </div>
-        <div className="mx-auto mt-8 max-w-4xl">
-          <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-lg sm:flex-row sm:items-center sm:gap-2">
-            <div className="flex flex-1 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-              <span className="text-gray-400">📍</span>
+
+        <div className="mx-auto mt-8 max-w-5xl">
+          <div className="flex flex-col gap-3 rounded-2xl border border-white/20 bg-white p-3 shadow-xl sm:flex-row sm:items-center sm:gap-2 sm:p-2">
+            <div className="flex flex-1 items-center gap-2 rounded-xl px-3 py-2.5">
+              <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search city or portfolio area"
-                className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-500 focus:outline-none"
+                value={current.destination}
+                onChange={(e) => update({ destination: e.target.value })}
+                placeholder="Search destinations (Lagos, Abuja, Uyo...)"
+                className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
               />
             </div>
-            <select className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-[var(--brand-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-main)]">
-              <option value="">Portfolio type</option>
-              <option value="residential">Residential</option>
-              <option value="commercial">Commercial</option>
-              <option value="mixed-use">Mixed Use</option>
-            </select>
-            <select className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-[var(--brand-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-main)]">
-              <option value="">Portfolio size</option>
-              <option value="1-5">1 - 5 units</option>
-              <option value="6-20">6 - 20 units</option>
-              <option value="21+">21+ units</option>
-            </select>
-            <select className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-[var(--brand-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-main)]">
-              <option value="">Amenity</option>
-              {amenities.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
+            <div className="hidden h-8 w-px bg-gray-200 sm:block" />
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 sm:min-w-[130px]">
+              <Home className="h-4 w-4 shrink-0 text-gray-400" />
+              <select
+                value={current.type}
+                onChange={(e) => update({ type: e.target.value })}
+                className="w-full bg-transparent text-sm text-gray-700 focus:outline-none"
+              >
+                <option value="">Type</option>
+                <option value="Self Contain">Self Contain</option>
+                <option value="2 Bedroom Flat">2 Bedroom Flat</option>
+                <option value="3 Bedroom Flat">3 Bedroom Flat</option>
+                <option value="Duplex">Duplex</option>
+                <option value="Serviced Apartment">Serviced Apartment</option>
+              </select>
+            </div>
+            <div className="hidden h-8 w-px bg-gray-200 sm:block" />
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 sm:min-w-[130px]">
+              <Wallet className="h-4 w-4 shrink-0 text-gray-400" />
+              <select
+                value={current.budget}
+                onChange={(e) => update({ budget: e.target.value })}
+                className="w-full bg-transparent text-sm text-gray-700 focus:outline-none"
+              >
+                <option value="">Budget</option>
+                <option value="0-200000">Under ₦200k</option>
+                <option value="200000-500000">₦200k – ₦500k</option>
+                <option value="500000-1000000">₦500k – ₦1M</option>
+                <option value="1000000+">₦1M+</option>
+              </select>
+            </div>
+            <div className="hidden h-8 w-px bg-gray-200 sm:block" />
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 sm:min-w-[140px]">
+              <Sparkles className="h-4 w-4 shrink-0 text-gray-400" />
+              <select
+                value={current.amenity}
+                onChange={(e) => update({ amenity: e.target.value })}
+                className="w-full bg-transparent text-sm text-gray-700 focus:outline-none"
+              >
+                <option value="">Amenity</option>
+                {amenities.map((a) => (
+                  <option key={a.id} value={a.name}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               type="button"
-              className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+              onClick={() => onSearch?.(current)}
+              className="flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
             >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+              <Search className="h-4 w-4" />
               Search
             </button>
           </div>

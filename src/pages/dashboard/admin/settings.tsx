@@ -218,6 +218,7 @@ const AdminSettingsPage: NextPageWithLayout = () => {
     const result = await updateUserPassword(String(user.id), {
       currentPassword: currentPw,
       newPassword: newPw,
+      confirmNewPassword: confirmPw,
     });
     setSaving(false);
     if (result.success) {

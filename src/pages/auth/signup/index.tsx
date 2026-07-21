@@ -23,6 +23,12 @@ import {
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
 import { loginAfterInviteRegistration } from "@/utils/invitePostRegisterAuth";
 import { getPropertyManagerInviteIdFromQuery } from "@/lib/propertyManagerInviteFromQuery";
+import { getPropertyManagerPostAuthPath } from "@/lib/propertyManagerOnboardingFlow";
+import {
+  buildTenantInviteQueryString,
+  getTenantInviteIdFromQuery,
+  hasTenantInviteContext,
+} from "@/lib/tenantOnboardingFlow";
 import {
   isValidInternationalPhoneNumber,
   normalizePhoneNumberForApi,
@@ -78,58 +84,34 @@ const SignUpPage: NextPageWithLayout = () => {
     [],
   );
 
-  const getTenantInviteIdFromQuery = React.useCallback((): string => {
-    const candidateKeys = [
-      "tenant-id",
-      "tenantId",
-      "tenant_id",
-      "inviteTenantId",
-    ];
-    for (const key of candidateKeys) {
-      const raw = router.query[key];
-      const s = Array.isArray(raw) ? raw[0] : raw;
-      if (typeof s === "string" && s.trim().length > 0) {
-        return s.trim();
-      }
-    }
-    return "";
-  }, [router.query]);
-
-  /** True when the URL carries invite-style prefill (not plain `role=tenant` self-signup). */
-  const getTenantInviteProfileFromQuery = React.useCallback((): boolean => {
-    const q = router.query;
-    const s = (key: string) =>
-      typeof q[key] === "string" ? (q[key] as string).trim() : "";
-    return (
-      Boolean(s("email")) ||
-      Boolean(s("tenantEmail")) ||
-      Boolean(s("inviteEmail")) ||
-      Boolean(s("fullName")) ||
-      Boolean(s("name")) ||
-      Boolean(s("tenantName"))
-    );
-  }, [router.query]);
-
-  // Read role from query params; when absent we show the role chooser
+  // Read role from query params; tenant invites go to dedicated onboarding.
   React.useEffect(() => {
     if (!router.isReady) return;
+
     const role = router.query.role as string;
-    const tenantInviteId = getTenantInviteIdFromQuery();
-    const hasTenantInvite = tenantInviteId.length > 0;
-    const hasTenantInviteProfile =
-      typeof router.query.email === "string" ||
-      typeof router.query.tenantEmail === "string" ||
-      typeof router.query.inviteEmail === "string" ||
-      typeof router.query.fullName === "string" ||
-      typeof router.query.tenantName === "string";
-    const isTenantInviteRole =
-      role === "tenant" && (hasTenantInvite || hasTenantInviteProfile);
+    const tenantInviteId = getTenantInviteIdFromQuery(router.query);
+    const hasTenantInvite = hasTenantInviteContext(router.query);
+
+    if (hasTenantInvite || (role === "tenant" && tenantInviteId)) {
+      void router.replace(
+        `/onboarding/tenant/details${buildTenantInviteQueryString(router.query)}`,
+      );
+      return;
+    }
+
+    // Default public Sign Up is the guest (short-stay) onboarding flow.
+    if (!role) {
+      const hasPmInvite =
+        getPropertyManagerInviteIdFromQuery(router.query).length > 0;
+      if (!hasPmInvite) {
+        void router.replace("/onboarding/guest/details");
+        return;
+      }
+    }
+
     const isAllowedSelfSignupRole = role === "landlord" || role === "manager";
-    if (role && (isTenantInviteRole || isAllowedSelfSignupRole)) {
+    if (role && isAllowedSelfSignupRole) {
       setSelectedRole(role as "tenant" | "landlord" | "manager");
-    } else if (!role && hasTenantInvite) {
-      // Invite links may omit role but still carry tenant identifier.
-      setSelectedRole("tenant");
     } else if (
       !role &&
       getPropertyManagerInviteIdFromQuery(router.query).length > 0
@@ -138,7 +120,7 @@ const SignUpPage: NextPageWithLayout = () => {
     } else {
       setSelectedRole(null);
     }
-  }, [getTenantInviteIdFromQuery, router.isReady, router.query]);
+  }, [router]);
 
   const {
     register: registerField,
@@ -204,7 +186,7 @@ const SignUpPage: NextPageWithLayout = () => {
 
       if (role === "property_manager") {
         await router.push(
-          consumePostLoginRedirect() ?? "/dashboard/select-landlord",
+          consumePostLoginRedirect() ?? getPropertyManagerPostAuthPath(),
         );
         return;
       }
@@ -259,7 +241,7 @@ const SignUpPage: NextPageWithLayout = () => {
         manager: "property_manager",
       };
 
-      const tenantIdFromQuery = getTenantInviteIdFromQuery();
+      const tenantIdFromQuery = getTenantInviteIdFromQuery(router.query);
       const propertyManagerIdFromQuery = getPropertyManagerInviteIdFromQuery(
         router.query,
       );
@@ -283,7 +265,7 @@ const SignUpPage: NextPageWithLayout = () => {
       const isInviteRegistration =
         (selectedRole === "tenant" &&
           (tenantIdFromQuery.length > 0 ||
-            getTenantInviteProfileFromQuery() ||
+            hasTenantInviteContext(router.query) ||
             Boolean(payload.tenantId))) ||
         (selectedRole === "manager" &&
           (propertyManagerIdFromQuery.length > 0 ||
@@ -398,7 +380,7 @@ const SignUpPage: NextPageWithLayout = () => {
     async (role: "tenant" | "landlord" | "manager") => {
       setError(null);
       const nextQuery: Record<string, string> = { role };
-      const tenantIdFromQuery = getTenantInviteIdFromQuery();
+      const tenantIdFromQuery = getTenantInviteIdFromQuery(router.query);
       if (tenantIdFromQuery && role === "tenant") {
         nextQuery["tenant-id"] = tenantIdFromQuery;
       }
@@ -413,7 +395,7 @@ const SignUpPage: NextPageWithLayout = () => {
         query: nextQuery,
       });
     },
-    [getTenantInviteIdFromQuery, router],
+    [router],
   );
 
   if (!selectedRole) {

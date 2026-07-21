@@ -21,7 +21,9 @@ export const AuthLayout = ({ children, showImage = true }: AuthLayoutProps) => {
   }, [logout, router]);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div
+      className={`flex min-h-screen ${showImage ? "bg-white" : "bg-brand-light-bg"}`}
+    >
       {showImage && (
         <div className="hidden lg:flex lg:w-1/2 relative">
           <Image
@@ -34,7 +36,7 @@ export const AuthLayout = ({ children, showImage = true }: AuthLayoutProps) => {
         </div>
       )}
       <div
-        className={`flex-1 flex flex-col ${showImage ? "lg:w-1/2" : "w-full"}`}
+        className={`flex-1 flex flex-col ${showImage ? "lg:w-1/2 bg-white" : "w-full"}`}
       >
         <div className="px-4 pt-4 sm:px-6 lg:px-8">
           {user ? (

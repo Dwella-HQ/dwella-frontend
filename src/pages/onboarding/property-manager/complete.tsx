@@ -9,21 +9,19 @@ import { SignUpProgress } from "@/components/SignUpProgress";
 import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
-import { landlordFlowSteps } from "@/lib/landlordOnboardingFlow";
+import {
+  markPropertyManagerOnboardingComplete,
+  propertyManagerFlowSteps,
+} from "@/lib/propertyManagerOnboardingFlow";
 
-const LandlordOnboardingCompletePage: NextPageWithLayout = () => {
+const PropertyManagerOnboardingCompletePage: NextPageWithLayout = () => {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const handleDoLater = React.useCallback(async () => {
+  const handleDone = React.useCallback(async () => {
     setIsSubmitting(true);
-    await router.push("/dashboard");
-    setIsSubmitting(false);
-  }, [router]);
-
-  const handleAddProperty = React.useCallback(async () => {
-    setIsSubmitting(true);
-    await router.push("/dashboard/properties/new");
+    markPropertyManagerOnboardingComplete();
+    await router.push("/dashboard/select-landlord");
     setIsSubmitting(false);
   }, [router]);
 
@@ -46,7 +44,7 @@ const LandlordOnboardingCompletePage: NextPageWithLayout = () => {
           </div>
 
           <div className="w-full sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
-            <SignUpProgress currentStep={4} steps={landlordFlowSteps} />
+            <SignUpProgress currentStep={3} steps={propertyManagerFlowSteps} />
           </div>
 
           <div className="hidden w-[200px] sm:block" />
@@ -68,29 +66,19 @@ const LandlordOnboardingCompletePage: NextPageWithLayout = () => {
             your rental business.
           </p>
 
-          <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="flex items-center justify-between border-t border-gray-200 pt-6">
             <button
               type="button"
-              onClick={handleDoLater}
-              disabled={isSubmitting}
-              className="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+              onClick={() =>
+                router.push("/onboarding/property-manager/documents")
+              }
+              className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
             >
-              I&apos;ll do this later
+              Back
             </button>
             <button
               type="button"
-              onClick={handleAddProperty}
-              disabled={isSubmitting}
-              className="rounded-lg bg-brand-main px-6 py-2.5 text-sm font-medium text-white transition hover:bg-brand-main/90 focus:outline-none focus:ring-2 focus:ring-brand-main focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              Add My First Property
-            </button>
-          </div>
-
-          <div className="flex items-center justify-end border-t border-gray-200 pt-6">
-            <button
-              type="button"
-              onClick={handleDoLater}
+              onClick={handleDone}
               disabled={isSubmitting}
               className="flex items-center gap-2 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
             >
@@ -104,8 +92,8 @@ const LandlordOnboardingCompletePage: NextPageWithLayout = () => {
   );
 };
 
-LandlordOnboardingCompletePage.getLayout = (page) => (
+PropertyManagerOnboardingCompletePage.getLayout = (page) => (
   <AuthLayout showImage={false}>{page}</AuthLayout>
 );
 
-export default LandlordOnboardingCompletePage;
+export default PropertyManagerOnboardingCompletePage;

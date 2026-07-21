@@ -11,6 +11,13 @@ export type Property = {
   status: "active" | "inactive" | "pending";
   image: string;
   amenities: string[];
+  /** Extra public-detail fields (optional for dashboard list cards). */
+  images?: string[];
+  yearBuilt?: string;
+  parkingSpace?: boolean;
+  propertyType?: string | null;
+  landlordName?: string;
+  landlordAvatarUrl?: string | null;
 };
 
 export type Payment = {

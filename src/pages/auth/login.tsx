@@ -11,6 +11,7 @@ import { getTenantByUser } from "@/api/tenants";
 import { resolveTenantActiveLeaseId } from "@/api/rent";
 import { ensureLandlordWallet } from "@/api/wallet";
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
+import { getPropertyManagerPostAuthPath } from "@/lib/propertyManagerOnboardingFlow";
 import { persistFreshAuth, resetClientSession } from "@/lib/clientSession";
 
 import type { NextPageWithLayout } from "../_app";
@@ -43,6 +44,9 @@ const LoginPage: NextPageWithLayout = () => {
       }
       if (roleName === "tenant") {
         return "tenant";
+      }
+      if (roleName === "guest" || roleName === "user") {
+        return "guest";
       }
       return "landlord";
     },
@@ -97,7 +101,7 @@ const LoginPage: NextPageWithLayout = () => {
       }
 
       if (role === "property_manager") {
-        await router.push("/dashboard/select-landlord");
+        await router.push(getPropertyManagerPostAuthPath());
         return;
       }
 
@@ -158,13 +162,18 @@ const LoginPage: NextPageWithLayout = () => {
         }
       }
 
+      if (role === "guest") {
+        await router.push(consumePostLoginRedirect() ?? "/guest");
+        return;
+      }
+
       await router.push(consumePostLoginRedirect() ?? "/dashboard");
     },
     [mapRoleNameToUserRole, persistLandlordId, router, setUser],
   );
 
   const handleLogin = React.useCallback(
-    async (values: { email: string; password: string }) => {
+    async (values: { email: string; password: string; keepLoggedIn?: boolean }) => {
       setError(null);
       setIsLoading(true);
 
@@ -180,7 +189,14 @@ const LoginPage: NextPageWithLayout = () => {
           return;
         }
 
-        // Map API response to User type
+        if (typeof window !== "undefined") {
+          if (values.keepLoggedIn) {
+            localStorage.setItem("keepLoggedIn", "true");
+          } else {
+            localStorage.removeItem("keepLoggedIn");
+          }
+        }
+
         const apiUser = result.data.data.user;
         await completeLogin(
           apiUser,
@@ -200,6 +216,10 @@ const LoginPage: NextPageWithLayout = () => {
     [completeLogin],
   );
 
+  const handleGoogleSignIn = React.useCallback(() => {
+    setError("Google sign-in is coming soon for guests.");
+  }, []);
+
   return (
     <>
       <Head>
@@ -215,7 +235,12 @@ const LoginPage: NextPageWithLayout = () => {
           </div>
         </div>
       ) : null}
-      <LoginForm onSubmit={handleLogin} error={error} isLoading={isLoading} />
+      <LoginForm
+        onSubmit={handleLogin}
+        onGoogleSignIn={handleGoogleSignIn}
+        error={error}
+        isLoading={isLoading}
+      />
     </>
   );
 };

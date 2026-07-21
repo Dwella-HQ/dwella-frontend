@@ -24,7 +24,18 @@ export function resetClientSession(): void {
     "landlordOnboardingDocumentIds",
     "landlordOnboardingProfilePictureId",
     "landlordOnboardingFinance",
+    "landlordOnboardingKyc",
+    "landlordOnboardingKyb",
     "landlordOnboardingStarted",
+    "propertyManagerOnboardingDetails",
+    "propertyManagerOnboardingKyc",
+    "propertyManagerOnboardingProfilePictureId",
+    "propertyManagerOnboardingStarted",
+    "tenantOnboardingDetails",
+    "tenantOnboardingKyc",
+    "tenantOnboardingProfilePictureId",
+    "tenantOnboardingInviteTenantId",
+    "tenantOnboardingStarted",
   ];
   sessionKeysToClear.forEach((k) => sessionStorage.removeItem(k));
 

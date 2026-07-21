@@ -1,49 +1,206 @@
+import * as React from "react";
 import Head from "next/head";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
-import { LandingFooter, LandingHeader } from "@/components/landing";
+import { useRouter } from "next/router";
+import { Plus } from "lucide-react";
+import {
+  LandingFooter,
+  LandingHeader,
+  StatsBar,
+  HeroSearch,
+  CategoryTabs,
+  LandingPropertyCard,
+  type HeroSearchValues,
+} from "@/components/landing";
+import { useUser } from "@/contexts/UserContext";
+import {
+  getPropertiesQuery,
+  mapPropertyDTOToPublicListingProperty,
+} from "@/api/properties";
+import type { Property } from "@/data/mockLandlordData";
+
+const LISTINGS_PER_PAGE = 8;
+
+const matchesBudget = (rent: number, budget: string) => {
+  if (!budget) return true;
+  if (budget === "0-200000") return rent > 0 && rent < 200000;
+  if (budget === "200000-500000") return rent >= 200000 && rent <= 500000;
+  if (budget === "500000-1000000") return rent >= 500000 && rent <= 1000000;
+  if (budget === "1000000+") return rent >= 1000000;
+  return true;
+};
 
 export default function PropertiesPage() {
+  const router = useRouter();
+  const { user, isLoading: userLoading } = useUser();
+  const [allProperties, setAllProperties] = React.useState<Property[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [category, setCategory] = React.useState("All");
+  const [visibleCount, setVisibleCount] = React.useState(LISTINGS_PER_PAGE);
+  const [searchValues, setSearchValues] = React.useState<HeroSearchValues>({
+    destination: "",
+    type: "",
+    budget: "",
+    amenity: "",
+  });
+  const [appliedSearch, setAppliedSearch] =
+    React.useState<HeroSearchValues>(searchValues);
+
+  React.useEffect(() => {
+    if (userLoading) return;
+    if (user?.role === "guest") {
+      void router.replace("/guest");
+    }
+  }, [router, user, userLoading]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void getPropertiesQuery().then((result) => {
+      if (cancelled) return;
+      if (!result.success) {
+        setError(result.error || "Failed to load properties");
+        setAllProperties([]);
+        setLoading(false);
+        return;
+      }
+      setAllProperties(
+        result.data
+          .map(mapPropertyDTOToPublicListingProperty)
+          .filter((p) => p.status === "active"),
+      );
+      setError(null);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filtered = React.useMemo(() => {
+    const destination = appliedSearch.destination.trim().toLowerCase();
+    const typeFilter = appliedSearch.type || (category !== "All" ? category : "");
+    const amenity = appliedSearch.amenity.trim().toLowerCase();
+
+    return allProperties.filter((property) => {
+      if (destination) {
+        const haystack = `${property.name} ${property.address}`.toLowerCase();
+        if (!haystack.includes(destination)) return false;
+      }
+      if (typeFilter) {
+        const typeHaystack =
+          `${property.propertyType ?? ""} ${property.name}`.toLowerCase();
+        if (!typeHaystack.includes(typeFilter.toLowerCase())) return false;
+      }
+      if (amenity) {
+        const hasAmenity = property.amenities.some((a) =>
+          a.toLowerCase().includes(amenity),
+        );
+        if (!hasAmenity) return false;
+      }
+      if (!matchesBudget(property.monthlyRent, appliedSearch.budget)) {
+        return false;
+      }
+      return true;
+    });
+  }, [allProperties, appliedSearch, category]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const canLoadMore = visibleCount < filtered.length;
+
+  const handleCategoryChange = React.useCallback((next: string) => {
+    setCategory(next);
+    setVisibleCount(LISTINGS_PER_PAGE);
+    if (next !== "All") {
+      setSearchValues((prev) => ({ ...prev, type: next }));
+      setAppliedSearch((prev) => ({ ...prev, type: next }));
+    } else {
+      setSearchValues((prev) => ({ ...prev, type: "" }));
+      setAppliedSearch((prev) => ({ ...prev, type: "" }));
+    }
+  }, []);
+
   return (
     <>
       <Head>
         <title>Properties | Dwelliva</title>
+        <meta
+          name="description"
+          content="Discover verified properties across Nigeria."
+        />
       </Head>
-      <div className="min-h-screen bg-[#F3F5F8]">
+      <div className="min-h-screen bg-[#F9FAFB]">
         <LandingHeader />
-        <main className="mx-auto flex min-h-[calc(100vh-69px)] max-w-4xl items-center px-4 py-16 text-center sm:px-6 lg:px-8">
-          <motion.section
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45 }}
-            className="w-full rounded-3xl border border-[#E2E8F0] bg-white px-6 py-14 shadow-sm sm:px-10"
+        <main>
+          <HeroSearch
+            values={searchValues}
+            onChange={setSearchValues}
+            onSearch={(values) => {
+              setAppliedSearch(values);
+              setVisibleCount(LISTINGS_PER_PAGE);
+              if (values.type) setCategory(values.type);
+              else setCategory("All");
+            }}
+          />
+
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <CategoryTabs value={category} onChange={handleCategoryChange} />
+
+            {loading ? (
+              <div className="flex min-h-[40vh] items-center justify-center py-16">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--brand-main)] border-t-transparent" />
+              </div>
+            ) : error ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-10 text-center text-sm text-red-700">
+                {error}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  No properties found
+                </h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  Try adjusting your search or category filters.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="relative grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {visible.map((property) => (
+                    <LandingPropertyCard
+                      key={property.id}
+                      property={property}
+                    />
+                  ))}
+                </div>
+
+                <div className="mt-10 flex justify-center pb-6">
+                  {canLoadMore ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisibleCount((count) => count + LISTINGS_PER_PAGE)
+                      }
+                      className="rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-800 shadow-sm transition hover:bg-gray-50"
+                    >
+                      Load More Properties
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </div>
+
+          <Link
+            href="/auth/signup?role=landlord"
+            className="fixed bottom-6 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-[var(--brand-main)] px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[var(--brand-main)]/90 sm:right-8"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#1F93D0]">
-              Coming Soon
-            </p>
-            <h1 className="mt-4 text-3xl font-bold text-[#111827] md:text-5xl">
-              Public browsing is paused for now.
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-base leading-8 text-[#64748B] md:text-lg">
-              We are focusing this experience on property management tools while
-              public browsing features are temporarily hidden.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 rounded-xl bg-[#0A4C95] px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#083E7C] active:translate-y-0"
-              >
-                Back Home <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/auth/signup?role=landlord"
-                className="inline-flex items-center gap-2 rounded-xl border border-[#0A4C95] px-6 py-3 text-sm font-semibold text-[#0A4C95] transition hover:-translate-y-0.5 hover:bg-[#0A4C95]/5 active:translate-y-0"
-              >
-                Start Managing
-              </Link>
-            </div>
-          </motion.section>
+            <Plus className="h-4 w-4" />
+            List Your Property
+          </Link>
+
+          <StatsBar />
         </main>
         <LandingFooter />
       </div>

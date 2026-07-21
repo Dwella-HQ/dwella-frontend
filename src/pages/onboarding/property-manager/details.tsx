@@ -11,29 +11,30 @@ import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
 import { updateUser } from "@/api/user";
+import { createAddress } from "@/api/address";
 import { useUser } from "@/contexts/UserContext";
 import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
 import {
-  BVN_LENGTH,
-  emptyLandlordDetails,
-  LANDLORD_ONBOARDING_KEYS,
-  landlordFlowSteps,
+  emptyPropertyManagerDetails,
+  PM_ONBOARDING_KEYS,
+  propertyManagerFlowSteps,
   readJsonSession,
-  type LandlordOnboardingDetails,
-} from "@/lib/landlordOnboardingFlow";
+  type PropertyManagerOnboardingDetails,
+} from "@/lib/propertyManagerOnboardingFlow";
 
 const inputClassName =
   "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent";
 
-const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
+const PropertyManagerOnboardingDetailsPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { showToast } = useToast();
   const { user } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [details, setDetails] =
-    React.useState<LandlordOnboardingDetails>(emptyLandlordDetails);
+  const [details, setDetails] = React.useState<PropertyManagerOnboardingDetails>(
+    emptyPropertyManagerDetails,
+  );
   const [profileUploadProgress, setProfileUploadProgress] = React.useState(0);
   const [isProfileUploading, setIsProfileUploading] = React.useState(false);
   const [profilePictureId, setProfilePictureId] = React.useState<string | null>(
@@ -82,22 +83,19 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const hasStarted = sessionStorage.getItem(LANDLORD_ONBOARDING_KEYS.started);
+    const hasStarted = sessionStorage.getItem(PM_ONBOARDING_KEYS.started);
     if (!hasStarted) {
-      sessionStorage.removeItem(LANDLORD_ONBOARDING_KEYS.details);
-      sessionStorage.removeItem(LANDLORD_ONBOARDING_KEYS.kyc);
-      sessionStorage.removeItem(LANDLORD_ONBOARDING_KEYS.kyb);
-      sessionStorage.removeItem(LANDLORD_ONBOARDING_KEYS.profilePictureId);
-      sessionStorage.removeItem(LANDLORD_ONBOARDING_KEYS.documentIds);
-      sessionStorage.removeItem(LANDLORD_ONBOARDING_KEYS.finance);
-      sessionStorage.setItem(LANDLORD_ONBOARDING_KEYS.started, "true");
+      sessionStorage.removeItem(PM_ONBOARDING_KEYS.details);
+      sessionStorage.removeItem(PM_ONBOARDING_KEYS.kyc);
+      sessionStorage.removeItem(PM_ONBOARDING_KEYS.profilePictureId);
+      sessionStorage.setItem(PM_ONBOARDING_KEYS.started, "true");
     }
 
-    const stored = readJsonSession<Partial<LandlordOnboardingDetails>>(
-      LANDLORD_ONBOARDING_KEYS.details,
+    const stored = readJsonSession<Partial<PropertyManagerOnboardingDetails>>(
+      PM_ONBOARDING_KEYS.details,
     );
     if (stored) {
-      setDetails({ ...emptyLandlordDetails, ...stored });
+      setDetails({ ...emptyPropertyManagerDetails, ...stored });
     } else if (user?.name) {
       const parts = user.name.trim().split(/\s+/);
       setDetails((prev) => ({
@@ -108,7 +106,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
     }
 
     const storedProfileId = sessionStorage.getItem(
-      LANDLORD_ONBOARDING_KEYS.profilePictureId,
+      PM_ONBOARDING_KEYS.profilePictureId,
     );
     if (storedProfileId) setProfilePictureId(storedProfileId);
   }, [user?.name]);
@@ -116,13 +114,6 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   const handleChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = event.target;
-      if (name === "bvn") {
-        setDetails((prev) => ({
-          ...prev,
-          bvn: value.replace(/\D/g, "").slice(0, BVN_LENGTH),
-        }));
-        return;
-      }
       setDetails((prev) => ({ ...prev, [name]: value }));
     },
     [],
@@ -163,12 +154,10 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   );
 
   const handleContinue = React.useCallback(async () => {
-    const bvn = details.bvn.trim();
     const hasRequiredFields =
       details.firstName.trim().length > 0 &&
       details.lastName.trim().length > 0 &&
       details.dateOfBirth.trim().length > 0 &&
-      bvn.length === BVN_LENGTH &&
       details.phoneNumber.trim().length > 0 &&
       details.address.trim().length > 0 &&
       details.country.trim().length > 0 &&
@@ -176,11 +165,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
       details.city.trim().length > 0;
 
     if (!hasRequiredFields) {
-      setFormError(
-        bvn.length > 0 && bvn.length !== BVN_LENGTH
-          ? `BVN must be exactly ${BVN_LENGTH} digits.`
-          : "Please complete all required fields.",
-      );
+      setFormError("Please complete all required fields.");
       return;
     }
 
@@ -188,18 +173,19 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
     setIsSubmitting(true);
 
     sessionStorage.setItem(
-      LANDLORD_ONBOARDING_KEYS.details,
-      JSON.stringify({ ...details, bvn }),
+      PM_ONBOARDING_KEYS.details,
+      JSON.stringify(details),
     );
 
     if (user?.id) {
-      const fullName = `${details.firstName.trim()} ${details.lastName.trim()}`.trim();
-      const updateResult = await updateUser(String(user.id), {
+      const userId = String(user.id);
+      const fullName =
+        `${details.firstName.trim()} ${details.lastName.trim()}`.trim();
+      const updateResult = await updateUser(userId, {
         fullName,
         phoneNumber: details.phoneNumber.trim(),
-        // Backend does not yet accept DOB / BVN on UpdateUserDto — stored locally until then.
         dateOfBirth: details.dateOfBirth,
-        bvn,
+        profilePictureId: profilePictureId || undefined,
       });
       if (!updateResult.success) {
         showToast(
@@ -208,11 +194,27 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
           "warning",
         );
       }
+
+      const addressResult = await createAddress({
+        userId,
+        street: details.address.trim(),
+        city: details.city.trim(),
+        state: details.state.trim(),
+        country: details.country.trim(),
+        postalCode: "",
+      });
+      if (!addressResult.success) {
+        showToast(
+          addressResult.error ||
+            "Could not save address yet. Continuing with local details.",
+          "warning",
+        );
+      }
     }
 
-    await router.push("/onboarding/landlord/documents");
+    await router.push("/onboarding/property-manager/documents");
     setIsSubmitting(false);
-  }, [details, router, showToast, user?.id]);
+  }, [details, profilePictureId, router, showToast, user?.id]);
 
   const handleProfileUpload = React.useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,7 +232,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
 
       const result = await uploadFile({
         file,
-        folder: "landlord",
+        folder: "property-manager",
         label: "profile_picture",
         token: user?.token,
         onProgress: setProfileUploadProgress,
@@ -239,7 +241,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
       if (result.success) {
         setProfilePictureId(result.data.id);
         sessionStorage.setItem(
-          LANDLORD_ONBOARDING_KEYS.profilePictureId,
+          PM_ONBOARDING_KEYS.profilePictureId,
           result.data.id,
         );
       } else {
@@ -269,7 +271,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
             />
           </div>
           <div className="w-full sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
-            <SignUpProgress currentStep={1} steps={landlordFlowSteps} />
+            <SignUpProgress currentStep={1} steps={propertyManagerFlowSteps} />
           </div>
           <div className="hidden w-[200px] sm:block" />
         </nav>
@@ -279,7 +281,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
             User Details
           </h1>
           <p className="mb-6 text-center text-sm text-gray-600">
-            Provide personal informations to help us know you better.
+            Provide personal informations to help us know you better
           </p>
 
           <div className="mb-6 flex items-center gap-4">
@@ -306,7 +308,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 />
                 Change Photo
               </label>
-              <p className="text-xs text-gray-500">JPG, PNG up to 2MB</p>
+              <p className="text-xs text-gray-500">(JPG, PNG up to 2MB)</p>
               {isProfileUploading && (
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <span>Uploading...</span>
@@ -371,23 +373,6 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
-                BVN
-              </label>
-              <input
-                name="bvn"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={BVN_LENGTH}
-                value={details.bvn}
-                onChange={handleChange}
-                placeholder="Placeholder"
-                className={inputClassName}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Phone Number
               </label>
               <PhoneInputWithCountry
@@ -398,6 +383,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 className="w-full focus-within:border-transparent focus-within:ring-2 focus-within:ring-brand-main"
               />
             </div>
+
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 Address
@@ -410,7 +396,6 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 className={inputClassName}
               />
             </div>
-
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 Country
@@ -429,6 +414,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 ))}
               </select>
             </div>
+
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 State
@@ -450,7 +436,6 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 ))}
               </select>
             </div>
-
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 City
@@ -510,8 +495,8 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
   );
 };
 
-LandlordOnboardingDetailsPage.getLayout = (page) => (
+PropertyManagerOnboardingDetailsPage.getLayout = (page) => (
   <AuthLayout showImage={false}>{page}</AuthLayout>
 );
 
-export default LandlordOnboardingDetailsPage;
+export default PropertyManagerOnboardingDetailsPage;

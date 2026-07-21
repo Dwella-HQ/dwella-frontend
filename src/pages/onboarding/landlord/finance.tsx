@@ -2,91 +2,58 @@ import * as React from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
-import { ArrowRight, Landmark, Home, User, FileText, X } from "lucide-react";
+import { ArrowRight, Check, Upload } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
 import { createLandlord, getLandlordByUser } from "@/api/landlord";
+import { uploadFile } from "@/api/files";
 import { ensureLandlordWallet } from "@/api/wallet";
-import {
-  getWithdrawalBanksByCurrency,
-  resolveWithdrawalAccount,
-} from "@/api/withdrawal";
-import type { WithdrawalBankDTO } from "@/api/withdrawal";
 import { useUser } from "@/contexts/UserContext";
 import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
+import {
+  clearLandlordOnboardingSession,
+  emptyLandlordDetails,
+  emptyLandlordKyc,
+  emptyLandlordKyb,
+  LANDLORD_ONBOARDING_KEYS,
+  landlordFlowSteps,
+  readJsonSession,
+  type LandlordOnboardingDetails,
+  type LandlordOnboardingKyc,
+  type LandlordOnboardingKyb,
+} from "@/lib/landlordOnboardingFlow";
 
-const landlordFlowSteps = [
-  { number: 1, label: "Your Details", icon: User },
-  { number: 2, label: "Documents", icon: FileText },
-  { number: 3, label: "Finance", icon: Landmark },
-  { number: 4, label: "First Property", icon: Home },
-];
+const inputClassName =
+  "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent";
 
-const BVN_LENGTH = 11;
-const ACCOUNT_NUMBER_LENGTH = 10;
+type UploadKey =
+  | "cacCertificateId"
+  | "taxRegulatoryDocumentId"
+  | "proofOfBusinessAddressId";
 
-type LandlordFinanceDetails = {
-  bvn: string;
-  bankCode: string;
-  bankName: string;
-  accountCode: string;
-  accountName: string;
-};
-
-const emptyFinanceDetails: LandlordFinanceDetails = {
-  bvn: "",
-  bankCode: "",
-  bankName: "",
-  accountCode: "",
-  accountName: "",
-};
-
-const FieldCounter = ({ current, max }: { current: number; max: number }) => (
-  <p
-    className={`mt-1 text-right text-xs ${
-      current === max ? "text-green-600" : "text-gray-500"
-    }`}
-    aria-live="polite"
-  >
-    {current}/{max}
-  </p>
-);
-
-const bankOptionCode = (bank: WithdrawalBankDTO) =>
-  (bank.bankCode || bank.code || "").trim();
-
-const bankOptionName = (bank: WithdrawalBankDTO, index: number) => {
-  const code = bankOptionCode(bank);
-  return bank.bankName || bank.name || code || `Bank ${index + 1}`;
-};
-
-const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
+const LandlordOnboardingKybPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { showToast } = useToast();
   const { user } = useUser();
   const userId = user?.id ? String(user.id) : null;
   const userEmail = user?.email ?? "";
+
+  const [kyb, setKyb] = React.useState<LandlordOnboardingKyb>(emptyLandlordKyb);
+  const [fileNames, setFileNames] = React.useState<
+    Partial<Record<UploadKey, string>>
+  >({});
+  const [uploadProgress, setUploadProgress] = React.useState<
+    Partial<Record<UploadKey, number>>
+  >({});
+  const [isUploading, setIsUploading] = React.useState<
+    Partial<Record<UploadKey, boolean>>
+  >({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
-  const [acceptedTerms, setAcceptedTerms] = React.useState(false);
-  const [isTermsModalOpen, setIsTermsModalOpen] = React.useState(false);
-  const [financeDetails, setFinanceDetails] =
-    React.useState<LandlordFinanceDetails>(emptyFinanceDetails);
-  const [banks, setBanks] = React.useState<WithdrawalBankDTO[]>([]);
-  const [banksLoading, setBanksLoading] = React.useState(false);
-  const [resolveLoading, setResolveLoading] = React.useState(false);
-  const [isAccountResolved, setIsAccountResolved] = React.useState(false);
-
-  const autoResolveTimerRef = React.useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
-  const lastResolvedSignatureRef = React.useRef("");
-  const autoResolveFailedSignatureRef = React.useRef("");
-  const resolveRequestIdRef = React.useRef(0);
 
   const persistLandlordId = React.useCallback((landlordId: string) => {
     if (typeof window === "undefined" || !landlordId) return;
@@ -97,326 +64,109 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   }, []);
 
   React.useEffect(() => {
-    let cancelled = false;
-    const loadBanks = async () => {
-      setBanksLoading(true);
-      const result = await getWithdrawalBanksByCurrency("NGN");
-      if (cancelled) return;
-      if (result.success) {
-        setBanks(result.data);
-      } else {
-        setBanks([]);
-        showToast(result.error || "Failed to load banks", "error");
-      }
-      setBanksLoading(false);
-    };
-    void loadBanks();
-    return () => {
-      cancelled = true;
-    };
-  }, [showToast]);
-
-  React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = sessionStorage.getItem("landlordOnboardingFinance");
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored) as Partial<
-        LandlordFinanceDetails & { accountNumber?: string }
-      >;
-      const bvn = (parsed.bvn ?? "").replace(/\D/g, "").slice(0, BVN_LENGTH);
-      const accountCode = (parsed.accountCode ?? parsed.accountNumber ?? "")
-        .replace(/\D/g, "")
-        .slice(0, ACCOUNT_NUMBER_LENGTH);
-      const accountName = (parsed.accountName ?? "").trim();
-      setFinanceDetails({
-        bvn,
-        bankCode: parsed.bankCode ?? "",
-        bankName: parsed.bankName ?? "",
-        accountCode,
-        accountName,
-      });
-      if (parsed.bankCode && accountCode.length === ACCOUNT_NUMBER_LENGTH) {
-        lastResolvedSignatureRef.current = `${parsed.bankCode}:${accountCode}`;
-        setIsAccountResolved(Boolean(accountName));
-      }
-    } catch {
-      setFinanceDetails(emptyFinanceDetails);
+    const details = sessionStorage.getItem(LANDLORD_ONBOARDING_KEYS.details);
+    if (!details) {
+      void router.replace("/onboarding/landlord/details");
+      return;
     }
+    const stored = readJsonSession<LandlordOnboardingKyb>(
+      LANDLORD_ONBOARDING_KEYS.kyb,
+    );
+    if (stored) setKyb({ ...emptyLandlordKyb, ...stored });
+  }, [router]);
+
+  const persistKyb = React.useCallback((next: LandlordOnboardingKyb) => {
+    setKyb(next);
+    sessionStorage.setItem(LANDLORD_ONBOARDING_KEYS.kyb, JSON.stringify(next));
   }, []);
 
-  React.useEffect(() => {
-    if (!financeDetails.bankCode || banks.length === 0) return;
-    const match = banks.find(
-      (bank) => bankOptionCode(bank) === financeDetails.bankCode,
-    );
-    if (!match) return;
-    const name = bankOptionName(match, banks.indexOf(match));
-    if (name && name !== financeDetails.bankName) {
-      setFinanceDetails((prev) => ({ ...prev, bankName: name }));
-    }
-  }, [banks, financeDetails.bankCode, financeDetails.bankName]);
-
-  const applyResolvedAccountName = React.useCallback(
-    (rawName: string | undefined) => {
-      const trimmed = (rawName ?? "").trim();
-      if (!trimmed) return false;
-      setFinanceDetails((prev) => ({ ...prev, accountName: trimmed }));
-      setIsAccountResolved(true);
-      return true;
-    },
-    [],
+  const businessSectionDone = Boolean(
+    kyb.isBusiness &&
+      kyb.businessName.trim() &&
+      kyb.businessAddress.trim() &&
+      kyb.cacCertificateId &&
+      kyb.taxRegulatoryDocumentId &&
+      kyb.proofOfBusinessAddressId,
   );
 
-  const resolveAccount = React.useCallback(
-    async (options?: { silent?: boolean }) => {
-      const silent = options?.silent ?? false;
-      const bankCode = financeDetails.bankCode.trim();
-      const digits = financeDetails.accountCode.replace(/\D/g, "");
+  const handleUpload = React.useCallback(
+    async (
+      event: React.ChangeEvent<HTMLInputElement>,
+      key: UploadKey,
+      label: string,
+    ) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
 
-      if (!bankCode || digits.length !== ACCOUNT_NUMBER_LENGTH) {
-        if (!silent) {
-          showToast(
-            !bankCode
-              ? "Select a bank"
-              : "Enter a valid 10-digit account number",
-            "error",
-          );
-        }
-        return false;
-      }
-
-      const signature = `${bankCode}:${digits}`;
-      const reqId = ++resolveRequestIdRef.current;
-      setResolveLoading(true);
-      const result = await resolveWithdrawalAccount({
-        bankCode,
-        accountNumber: digits,
-      });
-
-      if (reqId !== resolveRequestIdRef.current) {
-        setResolveLoading(false);
-        return false;
-      }
-      setResolveLoading(false);
-
-      if (result.success) {
-        lastResolvedSignatureRef.current = signature;
-        autoResolveFailedSignatureRef.current = "";
-        const filled = applyResolvedAccountName(result.data.accountName);
-        if (!silent) {
-          if (filled) {
-            showToast("Account verified", "success");
-          } else {
-            showToast(
-              "Resolved, but the bank did not return an account holder name.",
-              "warning",
-            );
-          }
-        }
-        return filled;
-      }
-
-      lastResolvedSignatureRef.current = "";
-      setIsAccountResolved(false);
-      if (silent) {
-        autoResolveFailedSignatureRef.current = signature;
-      }
-      if (!silent) {
-        showToast(result.error || "Failed to resolve account", "error");
-      }
-      return false;
-    },
-    [
-      applyResolvedAccountName,
-      financeDetails.accountCode,
-      financeDetails.bankCode,
-      showToast,
-    ],
-  );
-
-  const handleResolveAccount = React.useCallback(async () => {
-    autoResolveFailedSignatureRef.current = "";
-    await resolveAccount({ silent: false });
-  }, [resolveAccount]);
-
-  React.useEffect(() => {
-    const digits = financeDetails.accountCode.replace(/\D/g, "");
-    const bankCode = financeDetails.bankCode.trim();
-
-    if (digits.length !== ACCOUNT_NUMBER_LENGTH || !bankCode) {
-      lastResolvedSignatureRef.current = "";
-      autoResolveFailedSignatureRef.current = "";
-      setIsAccountResolved(false);
-      return;
-    }
-
-    const signature = `${bankCode}:${digits}`;
-    if (signature === lastResolvedSignatureRef.current) {
-      return;
-    }
-    if (signature === autoResolveFailedSignatureRef.current) {
-      return;
-    }
-
-    if (autoResolveTimerRef.current) {
-      clearTimeout(autoResolveTimerRef.current);
-    }
-
-    autoResolveTimerRef.current = setTimeout(() => {
-      autoResolveTimerRef.current = null;
-      void resolveAccount({ silent: true });
-    }, 450);
-
-    return () => {
-      if (autoResolveTimerRef.current) {
-        clearTimeout(autoResolveTimerRef.current);
-        autoResolveTimerRef.current = null;
-      }
-    };
-  }, [financeDetails.accountCode, financeDetails.bankCode, resolveAccount]);
-
-  const handleChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      const { name, value } = event.target;
-      let next = value;
-
-      if (name === "bvn") {
-        next = value.replace(/\D/g, "").slice(0, BVN_LENGTH);
-      } else if (name === "accountCode") {
-        next = value.replace(/\D/g, "").slice(0, ACCOUNT_NUMBER_LENGTH);
-        setIsAccountResolved(false);
-        lastResolvedSignatureRef.current = "";
-        setFinanceDetails((prev) => ({
-          ...prev,
-          accountCode: next,
-          accountName: "",
-        }));
-        if (submitError) setSubmitError(null);
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("File must be 10MB or less", "error");
         return;
       }
 
-      setFinanceDetails((prev) => ({ ...prev, [name]: next }));
-      if (submitError) setSubmitError(null);
-    },
-    [submitError],
-  );
+      setFileNames((prev) => ({ ...prev, [key]: file.name }));
+      setIsUploading((prev) => ({ ...prev, [key]: true }));
+      setUploadProgress((prev) => ({ ...prev, [key]: 0 }));
 
-  const handleBankChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      const code = event.target.value;
-      const bank = banks.find((item) => bankOptionCode(item) === code);
-      const bankName = bank ? bankOptionName(bank, banks.indexOf(bank)) : "";
-      setFinanceDetails((prev) => ({
-        ...prev,
-        bankCode: code,
-        bankName,
-        accountName: "",
-      }));
-      setIsAccountResolved(false);
-      lastResolvedSignatureRef.current = "";
-      autoResolveFailedSignatureRef.current = "";
-      if (submitError) setSubmitError(null);
+      const result = await uploadFile({
+        file,
+        folder: "landlord",
+        label,
+        token: user?.token,
+        onProgress: (percent) =>
+          setUploadProgress((prev) => ({ ...prev, [key]: percent })),
+      });
+
+      if (result.success) {
+        persistKyb({ ...kyb, [key]: result.data.id });
+      } else {
+        showToast(result.error || "Failed to upload document", "error");
+      }
+
+      setIsUploading((prev) => ({ ...prev, [key]: false }));
+      event.target.value = "";
     },
-    [banks, submitError],
+    [kyb, persistKyb, showToast, user?.token],
   );
 
   const handleContinue = React.useCallback(async () => {
     setSubmitError(null);
+
+    if (kyb.isBusiness === null) {
+      setSubmitError("Please select whether you are a business.");
+      return;
+    }
+
+    if (kyb.isBusiness) {
+      if (!kyb.businessName.trim() || !kyb.businessAddress.trim()) {
+        setSubmitError("Please provide your business name and address.");
+        return;
+      }
+    }
+
     if (!userId) {
       setSubmitError("User not found. Please sign in again.");
       return;
     }
-    if (typeof window === "undefined") {
-      setSubmitError("Unable to complete onboarding. Please try again.");
-      return;
-    }
 
-    const bvn = financeDetails.bvn.trim();
-    const accountName = financeDetails.accountName.trim();
-    const accountCode = financeDetails.accountCode.replace(/\D/g, "");
-    const bankCode = financeDetails.bankCode.trim();
-    const bankName = financeDetails.bankName.trim();
-
-    if (bvn.length !== BVN_LENGTH) {
-      setSubmitError(`BVN must be exactly ${BVN_LENGTH} digits.`);
-      return;
-    }
-
-    if (!bankCode || !bankName) {
-      setSubmitError("Please select your bank.");
-      return;
-    }
-
-    if (accountCode.length !== ACCOUNT_NUMBER_LENGTH) {
-      setSubmitError(
-        `Account number must be exactly ${ACCOUNT_NUMBER_LENGTH} digits.`,
-      );
-      return;
-    }
-
-    const resolveSignature = `${bankCode}:${accountCode}`;
-    if (
-      !isAccountResolved ||
-      !accountName ||
-      lastResolvedSignatureRef.current !== resolveSignature
-    ) {
-      setSubmitError(
-        "Please resolve your account number to verify the account holder name.",
-      );
-      return;
-    }
-
-    if (!acceptedTerms) {
-      setSubmitError(
-        "Please confirm that you have read and accepted the terms and conditions.",
-      );
-      return;
-    }
-
-    sessionStorage.setItem(
-      "landlordOnboardingFinance",
-      JSON.stringify({
-        ...financeDetails,
-        bvn,
-        accountCode,
-        accountName,
-        bankCode,
-        bankName,
-      }),
-    );
-
-    const detailsRaw = sessionStorage.getItem("landlordOnboardingDetails");
-    const documentIdsRaw = sessionStorage.getItem(
-      "landlordOnboardingDocumentIds",
-    );
+    const details =
+      readJsonSession<LandlordOnboardingDetails>(
+        LANDLORD_ONBOARDING_KEYS.details,
+      ) ?? emptyLandlordDetails;
+    const kyc =
+      readJsonSession<LandlordOnboardingKyc>(LANDLORD_ONBOARDING_KEYS.kyc) ??
+      emptyLandlordKyc;
     const profilePictureId = sessionStorage.getItem(
-      "landlordOnboardingProfilePictureId",
+      LANDLORD_ONBOARDING_KEYS.profilePictureId,
     );
 
-    if (!detailsRaw) {
-      setSubmitError("Please complete your account details first.");
-      await router.push("/onboarding/landlord/details");
-      return;
-    }
-
-    const details = JSON.parse(detailsRaw) as {
-      businessName: string;
-      address: string;
-      phoneNumber: string;
-      country: string;
-      state: string;
-      city: string;
-      postalCode: string;
-    };
-
     if (
-      !details.businessName ||
-      !details.address ||
+      !details.firstName ||
+      !details.lastName ||
       !details.phoneNumber ||
+      !details.address ||
       !details.city ||
       !details.state ||
-      !details.postalCode ||
       !details.country
     ) {
       setSubmitError("Please complete all required account details.");
@@ -424,59 +174,62 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
       return;
     }
 
+    sessionStorage.setItem(LANDLORD_ONBOARDING_KEYS.kyb, JSON.stringify(kyb));
     setIsSubmitting(true);
-    const docIds = documentIdsRaw
-      ? (JSON.parse(documentIdsRaw) as Partial<Record<string, string>>)
-      : {};
-    const requiredDocumentFields = [
-      docIds.governmentId,
-      docIds.landSurvey,
-      docIds.proofOfOwnership,
-      docIds.tin,
-    ];
-    if (requiredDocumentFields.some((id) => !id)) {
-      setSubmitError("Please upload all required verification documents.");
-      await router.push("/onboarding/landlord/documents");
-      setIsSubmitting(false);
-      return;
-    }
 
-    const requiredDocIds = {
-      governmentId: docIds.governmentId as string,
-      landSurvey: docIds.landSurvey as string,
-      proofOfOwnership: docIds.proofOfOwnership as string,
-      tin: docIds.tin as string,
-    };
+    const fullName =
+      `${details.firstName.trim()} ${details.lastName.trim()}`.trim();
+    const businessName = kyb.isBusiness
+      ? kyb.businessName.trim()
+      : fullName;
+    const addressLine = kyb.isBusiness
+      ? kyb.businessAddress.trim() || details.address
+      : details.address;
+
+    // Map new KYC/KYB uploads onto the existing CreateLandlordDto document slots.
+    // Backend still requires these four IDs + bankAccount — see endpoint gap list.
+    const govermentIdDocumentId = kyc.governmentIdDocumentId ?? undefined;
+    const taxIdentificationNumberDocumentId =
+      kyc.tinDocumentId ?? kyb.taxRegulatoryDocumentId ?? undefined;
+    const landSurveyDocumentId = kyb.cacCertificateId ?? undefined;
+    const proofOfOwnershipDocumentId =
+      kyb.proofOfBusinessAddressId ??
+      kyc.proofOfAddressDocumentId ??
+      undefined;
 
     const payload = {
       userId,
-      businessName: details.businessName,
-      businessEmail: userEmail,
+      businessName,
+      businessEmail: userEmail || undefined,
       businessPhoneNumber: details.phoneNumber.trim(),
+      bvn: details.bvn || undefined,
       profilePictureId: profilePictureId || undefined,
-      govermentIdDocumentId: requiredDocIds.governmentId,
-      landSurveyDocumentId: requiredDocIds.landSurvey,
-      proofOfOwnershipDocumentId: requiredDocIds.proofOfOwnership,
-      taxIdentificationNumberDocumentId: requiredDocIds.tin,
+      govermentIdDocumentId,
+      landSurveyDocumentId,
+      proofOfOwnershipDocumentId,
+      taxIdentificationNumberDocumentId,
+      // Not yet supported by CreateLandlordDto — kept for when backend adds KYC/KYB fields:
+      isBusiness: kyb.isBusiness,
+      governmentIdType: kyc.idType || undefined,
+      governmentIdNumber: kyc.idNumber || undefined,
+      dateOfBirth: details.dateOfBirth || undefined,
+      cacCertificateId: kyb.cacCertificateId || undefined,
+      proofOfBusinessAddressId: kyb.proofOfBusinessAddressId || undefined,
       address: {
-        address: details.address,
+        address: addressLine,
         city: details.city,
         state: details.state,
-        postalCode: details.postalCode,
+        postalCode: "",
         country: details.country,
-      },
-      bankAccount: {
-        accountName,
-        accountNumber: accountCode,
-        bankName,
-        bankCode,
-        bvn,
       },
     };
 
     const result = await createLandlord(payload);
     if (!result.success) {
-      setSubmitError(result.error || "Failed to complete onboarding.");
+      setSubmitError(
+        result.error ||
+          "Could not create your landlord profile. The API may still require bank details or documents that were removed from this UI — see the endpoint gap list.",
+      );
       showToast(result.error || "Failed to complete onboarding", "error");
       setIsSubmitting(false);
       return;
@@ -499,17 +252,11 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
       }
     }
 
-    sessionStorage.removeItem("landlordOnboardingDetails");
-    sessionStorage.removeItem("landlordOnboardingDocumentIds");
-    sessionStorage.removeItem("landlordOnboardingProfilePictureId");
-    sessionStorage.removeItem("landlordOnboardingFinance");
-
+    clearLandlordOnboardingSession();
     await router.push("/onboarding/landlord/complete");
     setIsSubmitting(false);
   }, [
-    acceptedTerms,
-    financeDetails,
-    isAccountResolved,
+    kyb,
     persistLandlordId,
     router,
     showToast,
@@ -520,12 +267,12 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Dwelliva · Financial Information</title>
+        <title>Dwelliva · KYB · Business Verification</title>
       </Head>
 
-      <div className="w-full max-w-4xl mx-auto">
-        <nav className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0 relative">
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
+      <div className="mx-auto w-full max-w-4xl">
+        <nav className="relative mb-6 flex flex-col items-center justify-between gap-4 sm:mb-8 sm:flex-row sm:gap-0">
+          <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:justify-start">
             <Image
               src={logo}
               alt="Dwelliva logo"
@@ -534,157 +281,193 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
               className="h-8 w-auto object-contain"
             />
           </div>
-
-          <div className="w-full sm:w-auto sm:absolute sm:left-1/2 sm:-translate-x-1/2">
+          <div className="w-full sm:absolute sm:left-1/2 sm:w-auto sm:-translate-x-1/2">
             <SignUpProgress currentStep={3} steps={landlordFlowSteps} />
           </div>
-
-          <div className="hidden sm:block w-[200px]"></div>
+          <div className="hidden w-[200px] sm:block" />
         </nav>
 
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">
-            Financial Information
+          <h1 className="mb-2 text-center text-2xl font-bold text-gray-900">
+            Are You a Business?
           </h1>
-          <p className="mb-6 text-sm text-gray-600">
-            Provide bank details for receiving payments.
+          <p className="mb-6 text-center text-sm text-gray-600">
+            Verify as a business for a better, more Optimised Experience.
           </p>
 
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                BVN
-              </label>
-              <input
-                name="bvn"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={BVN_LENGTH}
-                value={financeDetails.bvn}
-                onChange={handleChange}
-                placeholder="Enter 11-digit BVN"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-              />
-              <FieldCounter
-                current={financeDetails.bvn.length}
-                max={BVN_LENGTH}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Bank
-                </label>
-                <select
-                  value={financeDetails.bankCode}
-                  disabled={banksLoading}
-                  onChange={handleBankChange}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:bg-gray-100"
-                >
-                  <option value="">Select bank</option>
-                  {banks.map((bank, index) => {
-                    const code = bankOptionCode(bank);
-                    const name = bankOptionName(bank, index);
-                    return (
-                      <option key={`${code}-${index}`} value={code}>
-                        {name}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Account Number
-                </label>
-                <input
-                  name="accountCode"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  maxLength={ACCOUNT_NUMBER_LENGTH}
-                  value={financeDetails.accountCode}
-                  onChange={handleChange}
-                  placeholder="Enter account number"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
-                />
-                <FieldCounter
-                  current={financeDetails.accountCode.replace(/\D/g, "").length}
-                  max={ACCOUNT_NUMBER_LENGTH}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end">
-              <button
-                type="button"
-                onClick={handleResolveAccount}
-                disabled={resolveLoading || banksLoading}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => persistKyb({ ...kyb, isBusiness: true })}
+              className={`flex w-full items-center gap-3 rounded-lg border px-4 py-4 text-left transition ${
+                kyb.isBusiness === true
+                  ? "border-brand-main bg-blue-50/60"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}
+            >
+              <span
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                  kyb.isBusiness === true
+                    ? "border-brand-main"
+                    : "border-gray-300"
+                }`}
               >
-                {resolveLoading ? "Resolving..." : "Resolve Account"}
-              </button>
-            </div>
+                {kyb.isBusiness === true ? (
+                  <span className="h-2.5 w-2.5 rounded-full bg-brand-main" />
+                ) : null}
+              </span>
+              <span className="text-sm font-medium text-gray-900">
+                Yes I am a business
+              </span>
+            </button>
 
-            {isAccountResolved && financeDetails.accountName ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
-                  Account holder
-                </p>
-                <p className="mt-1 text-lg font-semibold text-emerald-950">
-                  {financeDetails.accountName}
-                </p>
-                <p className="mt-2 text-xs text-emerald-800">
-                  Account{" "}
-                  <span className="font-mono">
-                    {financeDetails.accountCode}
+            <button
+              type="button"
+              onClick={() =>
+                persistKyb({
+                  ...kyb,
+                  isBusiness: false,
+                  businessName: "",
+                  businessAddress: "",
+                })
+              }
+              className={`flex w-full items-center gap-3 rounded-lg border px-4 py-4 text-left transition ${
+                kyb.isBusiness === false
+                  ? "border-brand-main bg-blue-50/60"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}
+            >
+              <span
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                  kyb.isBusiness === false
+                    ? "border-brand-main"
+                    : "border-gray-300"
+                }`}
+              >
+                {kyb.isBusiness === false ? (
+                  <span className="h-2.5 w-2.5 rounded-full bg-brand-main" />
+                ) : null}
+              </span>
+              <span className="text-sm font-medium text-gray-900">
+                No i am not a business
+              </span>
+            </button>
+          </div>
+
+          {kyb.isBusiness === true ? (
+            <section className="mt-6 rounded-lg border border-gray-200 p-5">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <h2 className="text-base font-semibold text-gray-900">
+                  Business Verification
+                </h2>
+                {businessSectionDone ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                    <Check className="h-3.5 w-3.5" aria-hidden />
+                    Done
                   </span>
-                  {financeDetails.bankName ? (
-                    <> · {financeDetails.bankName}</>
-                  ) : null}
-                </p>
+                ) : null}
               </div>
-            ) : resolveLoading ? (
-              <p className="text-sm text-gray-500">Verifying account…</p>
-            ) : (
-              <p className="text-sm text-gray-500">
-                Account holder name will appear here after you resolve your
-                account number.
-              </p>
-            )}
-          </div>
 
-          <div className="mt-6 rounded-lg bg-blue-50 border border-blue-200 p-4">
-            <p className="text-xs text-gray-700">
-              <strong>Note:</strong> Double check details to ensure they are
-              correct.
-            </p>
-          </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Full Business Name
+                  </label>
+                  <input
+                    value={kyb.businessName}
+                    onChange={(e) =>
+                      persistKyb({ ...kyb, businessName: e.target.value })
+                    }
+                    placeholder="Placeholder"
+                    className={inputClassName}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Business Address
+                  </label>
+                  <input
+                    value={kyb.businessAddress}
+                    onChange={(e) =>
+                      persistKyb({ ...kyb, businessAddress: e.target.value })
+                    }
+                    placeholder="Placeholder"
+                    className={inputClassName}
+                  />
+                </div>
 
-          <label className="mt-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={acceptedTerms}
-              onChange={(e) => {
-                setAcceptedTerms(e.target.checked);
-                if (e.target.checked) setSubmitError(null);
-              }}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
-            />
-            <span>
-              I confirm that I have read and accepted the{" "}
-              <button
-                type="button"
-                onClick={() => setIsTermsModalOpen(true)}
-                className="font-semibold text-brand-main underline-offset-4 hover:underline"
-              >
-                terms and conditions
-              </button>
-              .
-            </span>
-          </label>
+                {(
+                  [
+                    {
+                      key: "cacCertificateId" as const,
+                      title: "Business CAC Certificate",
+                      label: "cacCertificate",
+                      description: null,
+                    },
+                    {
+                      key: "taxRegulatoryDocumentId" as const,
+                      title: "Tax & Regulatory Documents",
+                      label: "taxRegulatory",
+                      description: "Tax certificate or TIN document.",
+                    },
+                    {
+                      key: "proofOfBusinessAddressId" as const,
+                      title: "Proof Of Business Address",
+                      label: "proofOfBusinessAddress",
+                      description: "Utility Bill, or Lease Agreement",
+                    },
+                  ] as const
+                ).map((field) => (
+                  <div
+                    key={field.key}
+                    className="flex flex-col gap-3 rounded-lg border border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {field.title}
+                      </p>
+                      {field.description ? (
+                        <p className="text-xs text-gray-500">
+                          {field.description}
+                        </p>
+                      ) : null}
+                      {fileNames[field.key] ? (
+                        <p className="mt-1 text-xs text-gray-600">
+                          {fileNames[field.key]}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {kyb[field.key] ? (
+                        <Check
+                          className="h-5 w-5 text-emerald-600"
+                          aria-hidden
+                        />
+                      ) : (
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-brand-main/20 bg-blue-50 px-3 py-2 text-sm font-medium text-brand-main hover:bg-blue-100">
+                          <Upload className="h-4 w-4" aria-hidden />
+                          Choose File
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            className="hidden"
+                            onChange={(e) =>
+                              handleUpload(e, field.key, field.label)
+                            }
+                          />
+                        </label>
+                      )}
+                      {isUploading[field.key] ? (
+                        <span className="text-xs text-gray-500">
+                          {uploadProgress[field.key] || 0}%
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {submitError ? (
             <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -696,21 +479,21 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
             <button
               type="button"
               onClick={() => router.push("/onboarding/landlord/documents")}
-              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition"
+              className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               Back
             </button>
             <button
               type="button"
               onClick={handleContinue}
-              disabled={isSubmitting || !acceptedTerms}
-              className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 flex items-center gap-2"
+              disabled={isSubmitting}
+              className="flex items-center gap-2 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isSubmitting ? (
                 "Processing..."
               ) : (
                 <>
-                  Submit
+                  Continue
                   <ArrowRight className="h-4 w-4" aria-hidden />
                 </>
               )}
@@ -718,81 +501,12 @@ const LandlordOnboardingFinancePage: NextPageWithLayout = () => {
           </div>
         </div>
       </div>
-
-      {isTermsModalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="landlord-onboarding-terms-title"
-        >
-          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-              <h2
-                id="landlord-onboarding-terms-title"
-                className="text-lg font-semibold text-gray-900"
-              >
-                Terms and conditions
-              </h2>
-              <button
-                type="button"
-                onClick={() => setIsTermsModalOpen(false)}
-                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
-                aria-label="Close terms and conditions"
-              >
-                <X className="h-5 w-5" aria-hidden />
-              </button>
-            </div>
-            <div className="overflow-y-auto px-5 py-4 text-sm leading-6 text-gray-700">
-              <p>
-                By continuing, you confirm that the information and documents
-                provided for your landlord account are accurate and belong to
-                you or the business you are authorized to represent.
-              </p>
-              <p className="mt-4">
-                Dwelliva may verify your identity, ownership documents, payout
-                details, and property information before enabling full landlord
-                access. Accounts that submit inaccurate, incomplete, or
-                misleading information may be restricted while the issue is
-                reviewed.
-              </p>
-              <p className="mt-4">
-                You are responsible for keeping your contact, banking, property,
-                and tenant information current. Payments, withdrawals, lease
-                activity, maintenance records, and messages may be processed
-                through Dwelliva features according to the rules shown in the
-                app.
-              </p>
-              <p className="mt-4">
-                You agree to use the platform lawfully, respect tenant privacy,
-                respond to platform and verification requests when required, and
-                avoid uploading documents or listings that you do not have the
-                right to use.
-              </p>
-              <p className="mt-4">
-                Dwelliva may update these terms from time to time. Continued use
-                of the platform after an update means you accept the revised
-                terms.
-              </p>
-            </div>
-            <div className="flex justify-end border-t border-gray-200 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => setIsTermsModalOpen(false)}
-                className="rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </>
   );
 };
 
-LandlordOnboardingFinancePage.getLayout = (page) => (
+LandlordOnboardingKybPage.getLayout = (page) => (
   <AuthLayout showImage={false}>{page}</AuthLayout>
 );
 
-export default LandlordOnboardingFinancePage;
+export default LandlordOnboardingKybPage;

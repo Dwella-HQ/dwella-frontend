@@ -16,6 +16,7 @@ import { useUser, type UserRole } from "@/contexts/UserContext";
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
 import { loginAfterInviteRegistration } from "@/utils/invitePostRegisterAuth";
 import { getPropertyManagerInviteIdFromQuery } from "@/lib/propertyManagerInviteFromQuery";
+import { getPropertyManagerPostAuthPath } from "@/lib/propertyManagerOnboardingFlow";
 import {
   isValidInternationalPhoneNumber,
   normalizePhoneNumberForApi,
@@ -146,7 +147,7 @@ const PropertyManagerSignUpPage: NextPageWithLayout = () => {
           });
           persistFreshAuth(String(apiUser.id), accessToken);
           await router.push(
-            consumePostLoginRedirect() ?? "/dashboard/select-landlord",
+            consumePostLoginRedirect() ?? getPropertyManagerPostAuthPath(),
           );
         };
 
