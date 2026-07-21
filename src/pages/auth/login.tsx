@@ -216,10 +216,6 @@ const LoginPage: NextPageWithLayout = () => {
     [completeLogin],
   );
 
-  const handleGoogleSignIn = React.useCallback(() => {
-    setError("Google sign-in is coming soon for guests.");
-  }, []);
-
   return (
     <>
       <Head>
@@ -237,7 +233,6 @@ const LoginPage: NextPageWithLayout = () => {
       ) : null}
       <LoginForm
         onSubmit={handleLogin}
-        onGoogleSignIn={handleGoogleSignIn}
         error={error}
         isLoading={isLoading}
       />
