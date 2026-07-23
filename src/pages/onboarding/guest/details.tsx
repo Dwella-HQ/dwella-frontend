@@ -412,7 +412,7 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="firstName"
                 value={details.firstName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Ada"
                 className={inputClassName}
               />
             </div>
@@ -424,7 +424,7 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="lastName"
                 value={details.lastName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Okafor"
                 className={inputClassName}
               />
             </div>
@@ -456,7 +456,7 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                 type="email"
                 value={details.email}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="ada.okafor@email.com"
                 className={inputClassName}
               />
             </div>
@@ -469,7 +469,6 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                 id="phoneNumber"
                 value={details.phoneNumber}
                 onChange={handlePhoneChange}
-                placeholder="Placeholder"
                 className="w-full focus-within:border-transparent focus-within:ring-2 focus-within:ring-brand-main"
               />
             </div>
@@ -481,7 +480,7 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="occupation"
                 value={details.occupation}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Software Engineer"
                 className={inputClassName}
               />
             </div>
@@ -494,7 +493,7 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="emergencyContactName"
                 value={details.emergencyContactName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Chidi Okafor"
                 className={inputClassName}
               />
             </div>
@@ -506,7 +505,6 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                 id="emergencyContactPhone"
                 value={details.emergencyContactPhone}
                 onChange={handleEmergencyPhoneChange}
-                placeholder="Placeholder"
                 className="w-full focus-within:border-transparent focus-within:ring-2 focus-within:ring-brand-main"
               />
             </div>
@@ -547,7 +545,7 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                   type={showPassword ? "text" : "password"}
                   value={details.password}
                   onChange={handleChange}
-                  placeholder="Placeholder"
+                  placeholder="At least 8 characters"
                   aria-invalid={passwordTooShort || passwordsMismatch}
                   className={`${inputClassName} pr-10 ${
                     passwordTooShort
@@ -586,7 +584,7 @@ const GuestOnboardingDetailsPage: NextPageWithLayout = () => {
                   type={showConfirmPassword ? "text" : "password"}
                   value={details.confirmPassword}
                   onChange={handleChange}
-                  placeholder="Placeholder"
+                  placeholder="Re-enter password"
                   aria-invalid={passwordsMismatch}
                   className={`${inputClassName} pr-10 ${
                     passwordsMismatch

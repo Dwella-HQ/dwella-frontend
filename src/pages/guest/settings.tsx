@@ -304,16 +304,16 @@ const GuestSettingsPage: NextPageWithLayout = () => {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {(
                     [
-                      ["fullName", "Full Name"],
-                      ["email", "Email Address"],
-                      ["phoneNumber", "Phone Number"],
-                      ["businessName", "Business Name"],
-                      ["address", "Address"],
-                      ["city", "City"],
-                      ["state", "State"],
-                      ["country", "Country"],
+                      ["fullName", "Full Name", "Ada Okafor"],
+                      ["email", "Email Address", "ada.okafor@email.com"],
+                      ["phoneNumber", "Phone Number", ""],
+                      ["businessName", "Business Name", "Ada Stays"],
+                      ["address", "Address", "12 Admiralty Way, Lekki"],
+                      ["city", "City", "Lagos"],
+                      ["state", "State", "Lagos"],
+                      ["country", "Country", "Nigeria"],
                     ] as const
-                  ).map(([key, label]) => (
+                  ).map(([key, label, example]) => (
                     <div key={key}>
                       <label className="mb-1 block text-sm font-medium text-gray-700">
                         {label}
@@ -328,7 +328,6 @@ const GuestSettingsPage: NextPageWithLayout = () => {
                               phoneNumber: value ?? "",
                             }))
                           }
-                          placeholder="Placeholder"
                           className="w-full focus-within:border-transparent focus-within:ring-2 focus-within:ring-[var(--brand-main)]"
                         />
                       ) : (
@@ -340,7 +339,7 @@ const GuestSettingsPage: NextPageWithLayout = () => {
                               [key]: e.target.value,
                             }))
                           }
-                          placeholder="Placeholder"
+                          placeholder={example}
                           className={inputClassName}
                         />
                       )}

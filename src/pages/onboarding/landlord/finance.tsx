@@ -378,7 +378,7 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
                     onChange={(e) =>
                       persistKyb({ ...kyb, businessName: e.target.value })
                     }
-                    placeholder="Placeholder"
+                    placeholder="Okafor Properties Ltd"
                     className={inputClassName}
                   />
                 </div>
@@ -391,7 +391,7 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
                     onChange={(e) =>
                       persistKyb({ ...kyb, businessAddress: e.target.value })
                     }
-                    placeholder="Placeholder"
+                    placeholder="15 Adeola Odeku St, Victoria Island"
                     className={inputClassName}
                   />
                 </div>

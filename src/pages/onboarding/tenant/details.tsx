@@ -461,7 +461,7 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="firstName"
                 value={details.firstName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Ada"
                 className={inputClassName}
               />
             </div>
@@ -473,7 +473,7 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="lastName"
                 value={details.lastName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Okafor"
                 className={inputClassName}
               />
             </div>
@@ -505,7 +505,7 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                 type="email"
                 value={details.email}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="ada.okafor@email.com"
                 className={inputClassName}
               />
             </div>
@@ -518,7 +518,6 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                 id="phoneNumber"
                 value={details.phoneNumber}
                 onChange={handlePhoneChange}
-                placeholder="Placeholder"
                 className="w-full focus-within:border-transparent focus-within:ring-2 focus-within:ring-brand-main"
               />
             </div>
@@ -530,7 +529,7 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="occupation"
                 value={details.occupation}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Software Engineer"
                 className={inputClassName}
               />
             </div>
@@ -543,7 +542,7 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="emergencyContactName"
                 value={details.emergencyContactName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Chidi Okafor"
                 className={inputClassName}
               />
             </div>
@@ -555,7 +554,6 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                 id="emergencyContactPhone"
                 value={details.emergencyContactPhone}
                 onChange={handleEmergencyPhoneChange}
-                placeholder="Placeholder"
                 className="w-full focus-within:border-transparent focus-within:ring-2 focus-within:ring-brand-main"
               />
             </div>
@@ -596,7 +594,7 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                   type={showPassword ? "text" : "password"}
                   value={details.password}
                   onChange={handleChange}
-                  placeholder="Placeholder"
+                  placeholder="At least 8 characters"
                   className={`${inputClassName} pr-10`}
                 />
                 <button
@@ -623,7 +621,7 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
                   type={showConfirmPassword ? "text" : "password"}
                   value={details.confirmPassword}
                   onChange={handleChange}
-                  placeholder="Placeholder"
+                  placeholder="Re-enter password"
                   className={`${inputClassName} pr-10`}
                 />
                 <button

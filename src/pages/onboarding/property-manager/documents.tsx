@@ -206,7 +206,7 @@ const PropertyManagerOnboardingKycPage: NextPageWithLayout = () => {
                     onChange={(e) =>
                       persistKyc({ ...kyc, idNumber: e.target.value })
                     }
-                    placeholder="Placeholder"
+                    placeholder="e.g. A12345678"
                     className={inputClassName}
                   />
                 </div>

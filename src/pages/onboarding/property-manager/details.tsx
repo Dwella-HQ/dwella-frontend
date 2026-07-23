@@ -336,7 +336,7 @@ const PropertyManagerOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="firstName"
                 value={details.firstName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Ada"
                 className={inputClassName}
               />
             </div>
@@ -348,7 +348,7 @@ const PropertyManagerOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="lastName"
                 value={details.lastName}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="Okafor"
                 className={inputClassName}
               />
             </div>
@@ -379,7 +379,6 @@ const PropertyManagerOnboardingDetailsPage: NextPageWithLayout = () => {
                 id="phoneNumber"
                 value={details.phoneNumber}
                 onChange={handlePhoneChange}
-                placeholder="Placeholder"
                 className="w-full focus-within:border-transparent focus-within:ring-2 focus-within:ring-brand-main"
               />
             </div>
@@ -392,7 +391,7 @@ const PropertyManagerOnboardingDetailsPage: NextPageWithLayout = () => {
                 name="address"
                 value={details.address}
                 onChange={handleChange}
-                placeholder="Placeholder"
+                placeholder="12 Admiralty Way, Lekki"
                 className={inputClassName}
               />
             </div>
