@@ -6,3 +6,4 @@ export type { HeroSearchValues } from "./HeroSearch";
 export { CategoryTabs, PROPERTY_CATEGORIES } from "./CategoryTabs";
 export type { PropertyCategory } from "./CategoryTabs";
 export { LandingPropertyCard } from "./LandingPropertyCard";
+export { ShortStayPropertyCard } from "./ShortStayPropertyCard";

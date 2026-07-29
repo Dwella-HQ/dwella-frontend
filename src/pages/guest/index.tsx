@@ -4,7 +4,7 @@ import { GuestLayout } from "@/components/guest/GuestLayout";
 import {
   HeroSearch,
   CategoryTabs,
-  LandingPropertyCard,
+  ShortStayPropertyCard,
   type HeroSearchValues,
 } from "@/components/landing";
 import { useUser } from "@/contexts/UserContext";
@@ -12,7 +12,11 @@ import {
   getPropertiesQuery,
   mapPropertyDTOToPublicListingProperty,
 } from "@/api/properties";
-import type { Property } from "@/data/mockLandlordData";
+import {
+  mockShortStayListings,
+  toStayListing,
+  type StayListing,
+} from "@/data/mockShortStay";
 import type { NextPageWithLayout } from "../_app";
 
 const LISTINGS_PER_PAGE = 8;
@@ -30,7 +34,9 @@ const GuestDashboardPage: NextPageWithLayout = () => {
   const { user } = useUser();
   const firstName = user?.name?.trim().split(/\s+/)[0] || "there";
 
-  const [allProperties, setAllProperties] = React.useState<Property[]>([]);
+  const [allProperties, setAllProperties] = React.useState<StayListing[]>(
+    mockShortStayListings,
+  );
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [category, setCategory] = React.useState("All");
@@ -50,17 +56,20 @@ const GuestDashboardPage: NextPageWithLayout = () => {
     void getPropertiesQuery().then((result) => {
       if (cancelled) return;
       if (!result.success) {
-        // Mock fallback listings so guest UI still works without backend.
-        setAllProperties([]);
+        setAllProperties(mockShortStayListings);
         setError(null);
         setLoading(false);
         return;
       }
-      setAllProperties(
-        result.data
-          .map(mapPropertyDTOToPublicListingProperty)
-          .filter((p) => p.status === "active"),
-      );
+      const fromApi = result.data
+        .map(mapPropertyDTOToPublicListingProperty)
+        .filter((p) => p.status === "active")
+        .map((p) => toStayListing(p));
+      const mockIds = new Set(mockShortStayListings.map((p) => p.id));
+      setAllProperties([
+        ...mockShortStayListings,
+        ...fromApi.filter((p) => !mockIds.has(p.id)),
+      ]);
       setError(null);
       setLoading(false);
     });
@@ -122,12 +131,8 @@ const GuestDashboardPage: NextPageWithLayout = () => {
       <HeroSearch
         id="guest-search"
         showBreadcrumb={false}
-        title={
-          <>
-            Hi {firstName}! 👋, Find Your Perfect Home
-          </>
-        }
-        subtitle="Discover verified properties across Nigeria"
+        title={<>Hi {firstName}! Find Your Perfect Stay</>}
+        subtitle="Browse short-lets and long-term homes across Nigeria"
         values={searchValues}
         onChange={setSearchValues}
         onSearch={(values) => {
@@ -160,9 +165,9 @@ const GuestDashboardPage: NextPageWithLayout = () => {
           </div>
         ) : (
           <>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {visible.map((property) => (
-                <LandingPropertyCard key={property.id} property={property} />
+                <ShortStayPropertyCard key={property.id} property={property} />
               ))}
             </div>
 

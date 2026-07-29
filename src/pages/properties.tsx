@@ -9,7 +9,7 @@ import {
   StatsBar,
   HeroSearch,
   CategoryTabs,
-  LandingPropertyCard,
+  ShortStayPropertyCard,
   type HeroSearchValues,
 } from "@/components/landing";
 import { useUser } from "@/contexts/UserContext";
@@ -17,7 +17,11 @@ import {
   getPropertiesQuery,
   mapPropertyDTOToPublicListingProperty,
 } from "@/api/properties";
-import type { Property } from "@/data/mockLandlordData";
+import {
+  mockShortStayListings,
+  toStayListing,
+  type StayListing,
+} from "@/data/mockShortStay";
 
 const LISTINGS_PER_PAGE = 8;
 
@@ -33,7 +37,9 @@ const matchesBudget = (rent: number, budget: string) => {
 export default function PropertiesPage() {
   const router = useRouter();
   const { user, isLoading: userLoading } = useUser();
-  const [allProperties, setAllProperties] = React.useState<Property[]>([]);
+  const [allProperties, setAllProperties] = React.useState<StayListing[]>(
+    mockShortStayListings,
+  );
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [category, setCategory] = React.useState("All");
@@ -60,16 +66,20 @@ export default function PropertiesPage() {
     void getPropertiesQuery().then((result) => {
       if (cancelled) return;
       if (!result.success) {
-        setError(result.error || "Failed to load properties");
-        setAllProperties([]);
+        setAllProperties(mockShortStayListings);
+        setError(null);
         setLoading(false);
         return;
       }
-      setAllProperties(
-        result.data
-          .map(mapPropertyDTOToPublicListingProperty)
-          .filter((p) => p.status === "active"),
-      );
+      const fromApi = result.data
+        .map(mapPropertyDTOToPublicListingProperty)
+        .filter((p) => p.status === "active")
+        .map((p) => toStayListing(p));
+      const mockIds = new Set(mockShortStayListings.map((p) => p.id));
+      setAllProperties([
+        ...mockShortStayListings,
+        ...fromApi.filter((p) => !mockIds.has(p.id)),
+      ]);
       setError(null);
       setLoading(false);
     });
@@ -166,9 +176,9 @@ export default function PropertiesPage() {
               </div>
             ) : (
               <>
-                <div className="relative grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="relative grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {visible.map((property) => (
-                    <LandingPropertyCard
+                    <ShortStayPropertyCard
                       key={property.id}
                       property={property}
                     />
