@@ -33,6 +33,7 @@ import {
   isValidInternationalPhoneNumber,
   normalizePhoneNumberForApi,
 } from "@/utils/phoneNumber";
+import { isGuestSignupEnabled } from "@/lib/featureFlags";
 import logo from "@/assets/logo_blue_vertical.png";
 
 import type { NextPageWithLayout } from "../../_app";
@@ -455,19 +456,21 @@ const SignUpPage: NextPageWithLayout = () => {
                 </p>
               </button>
 
-              <button
-                type="button"
-                onClick={() => void handleSelectRole("guest")}
-                className="rounded-xl border border-gray-200 bg-white p-5 text-left transition hover:border-brand-main hover:bg-blue-50 md:col-span-2"
-              >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-brand-main">
-                  <Home className="h-6 w-6" />
-                </div>
-                <p className="text-lg font-semibold text-gray-900">Guest</p>
-                <p className="mt-2 text-sm text-gray-600">
-                  Browse and apply for short stays and rental homes.
-                </p>
-              </button>
+              {isGuestSignupEnabled() ? (
+                <button
+                  type="button"
+                  onClick={() => void handleSelectRole("guest")}
+                  className="rounded-xl border border-gray-200 bg-white p-5 text-left transition hover:border-brand-main hover:bg-blue-50 md:col-span-2"
+                >
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-brand-main">
+                    <Home className="h-6 w-6" />
+                  </div>
+                  <p className="text-lg font-semibold text-gray-900">Guest</p>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Browse and apply for short stays and rental homes.
+                  </p>
+                </button>
+              ) : null}
             </div>
 
             <div className="mt-8 text-center text-sm text-gray-600">
