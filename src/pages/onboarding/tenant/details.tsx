@@ -3,7 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Calendar, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
@@ -482,17 +482,13 @@ const TenantOnboardingDetailsPage: NextPageWithLayout = () => {
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 Date Of Birth
               </label>
-              <div className="relative">
+              <div className="relative min-w-0 w-full overflow-hidden">
                 <input
                   name="dateOfBirth"
                   type="date"
                   value={details.dateOfBirth}
                   onChange={handleChange}
-                  className={`${inputClassName} pr-10`}
-                />
-                <Calendar
-                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-                  aria-hidden
+                  className={`${inputClassName} min-w-0 max-w-full`}
                 />
               </div>
             </div>
