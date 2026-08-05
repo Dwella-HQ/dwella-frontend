@@ -7,7 +7,14 @@ import { ArrowRight, Check, Upload } from "lucide-react";
 import { AuthLayout } from "@/components/AuthLayout";
 import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
-import { createLandlord, getLandlordByUser } from "@/api/landlord";
+import {
+  createLandlord,
+  createLandlordKyb,
+  getLandlordByUser,
+  updateLandlordProfileSettings,
+} from "@/api/landlord";
+import { createUserKyc, updateUserKyc } from "@/api/user";
+import type { ClientIdType } from "@/api/user";
 import { uploadFile } from "@/api/files";
 import { ensureLandlordWallet } from "@/api/wallet";
 import { useUser } from "@/contexts/UserContext";
@@ -137,13 +144,6 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
       return;
     }
 
-    if (kyb.isBusiness) {
-      if (!kyb.businessName.trim() || !kyb.businessAddress.trim()) {
-        setSubmitError("Please provide your business name and address.");
-        return;
-      }
-    }
-
     if (!userId) {
       setSubmitError("User not found. Please sign in again.");
       return;
@@ -174,82 +174,162 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
       return;
     }
 
+    if (!kyc.idType || !kyc.tinNumber.trim()) {
+      setSubmitError("Please complete KYC (I.D. type and TIN number).");
+      await router.push("/onboarding/landlord/documents");
+      return;
+    }
+
+    if (!userEmail) {
+      setSubmitError("Account email is missing. Please sign in again.");
+      return;
+    }
+
+    if (kyb.isBusiness) {
+      if (!kyb.businessName.trim() || !kyb.businessAddress.trim()) {
+        setSubmitError("Please provide your business name and address.");
+        return;
+      }
+      if (!kyb.cacCertificateId) {
+        setSubmitError("Please upload your CAC certificate.");
+        return;
+      }
+      if (!profilePictureId) {
+        setSubmitError(
+          "Please upload a profile photo on the details step — it is used as your business logo.",
+        );
+        return;
+      }
+    }
+
     sessionStorage.setItem(LANDLORD_ONBOARDING_KEYS.kyb, JSON.stringify(kyb));
     setIsSubmitting(true);
 
     const fullName =
       `${details.firstName.trim()} ${details.lastName.trim()}`.trim();
-    const businessName = kyb.isBusiness
-      ? kyb.businessName.trim()
-      : fullName;
-    const addressLine = kyb.isBusiness
-      ? kyb.businessAddress.trim() || details.address
-      : details.address;
-
-    // Map new KYC/KYB uploads onto the existing CreateLandlordDto document slots.
-    // Backend still requires these four IDs + bankAccount — see endpoint gap list.
-    const govermentIdDocumentId = kyc.governmentIdDocumentId ?? undefined;
-    const taxIdentificationNumberDocumentId =
-      kyc.tinDocumentId ?? kyb.taxRegulatoryDocumentId ?? undefined;
-    const landSurveyDocumentId = kyb.cacCertificateId ?? undefined;
-    const proofOfOwnershipDocumentId =
-      kyb.proofOfBusinessAddressId ??
-      kyc.proofOfAddressDocumentId ??
-      undefined;
-
-    const payload = {
-      userId,
-      businessName,
-      businessEmail: userEmail || undefined,
-      businessPhoneNumber: details.phoneNumber.trim(),
-      bvn: details.bvn || undefined,
-      profilePictureId: profilePictureId || undefined,
-      govermentIdDocumentId,
-      landSurveyDocumentId,
-      proofOfOwnershipDocumentId,
-      taxIdentificationNumberDocumentId,
-      // Not yet supported by CreateLandlordDto — kept for when backend adds KYC/KYB fields:
-      isBusiness: kyb.isBusiness,
-      governmentIdType: kyc.idType || undefined,
-      governmentIdNumber: kyc.idNumber || undefined,
-      dateOfBirth: details.dateOfBirth || undefined,
-      cacCertificateId: kyb.cacCertificateId || undefined,
-      proofOfBusinessAddressId: kyb.proofOfBusinessAddressId || undefined,
-      address: {
-        address: addressLine,
-        city: details.city,
-        state: details.state,
-        postalCode: "",
-        country: details.country,
-      },
+    const displayName = kyb.isBusiness ? kyb.businessName.trim() : fullName;
+    const addressPayload = {
+      address: kyb.isBusiness
+        ? kyb.businessAddress.trim() || details.address.trim()
+        : details.address.trim(),
+      city: details.city.trim(),
+      state: details.state.trim(),
+      postalCode: "",
+      country: details.country.trim(),
     };
 
-    const result = await createLandlord(payload);
-    if (!result.success) {
-      setSubmitError(
-        result.error ||
-          "Could not create your landlord profile. The API may still require bank details or documents that were removed from this UI — see the endpoint gap list.",
-      );
-      showToast(result.error || "Failed to complete onboarding", "error");
+    // 1) Create landlord shell (OpenAPI: userId only)
+    let landlordId = "";
+    const createResult = await createLandlord({ userId });
+    if (createResult.success && createResult.data?.id) {
+      landlordId = String(createResult.data.id);
+    } else {
+      // Already exists, or create returned an empty body — resolve by user.
+      const landlordResult = await getLandlordByUser(userId);
+      if (landlordResult.success && landlordResult.data?.id) {
+        landlordId = String(landlordResult.data.id);
+      } else if (!createResult.success) {
+        setSubmitError(
+          createResult.error || "Could not create your landlord profile.",
+        );
+        showToast(createResult.error || "Failed to complete onboarding", "error");
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    if (!landlordId) {
+      setSubmitError("Landlord profile was created but no ID was returned.");
+      showToast("Failed to complete onboarding", "error");
       setIsSubmitting(false);
       return;
     }
 
-    let landlordId = result.data?.id ? String(result.data.id) : "";
-    if (!landlordId && userId) {
-      const landlordResult = await getLandlordByUser(userId);
-      if (landlordResult.success && landlordResult.data?.id) {
-        landlordId = String(landlordResult.data.id);
+    persistLandlordId(landlordId);
+
+    // 2) Profile (name / phone / address)
+    const profileResult = await updateLandlordProfileSettings(landlordId, {
+      businessName: displayName,
+      businessEmail: userEmail,
+      businessPhoneNumber: details.phoneNumber.trim(),
+      address: addressPayload,
+    });
+    if (!profileResult.success) {
+      console.warn("Landlord profile update failed:", profileResult.error);
+      showToast(
+        profileResult.error ||
+          "Landlord created, but profile details could not be saved.",
+        "warning",
+      );
+    }
+
+    // 3) User KYC
+    const kycBody = {
+      userId,
+      idType: kyc.idType as ClientIdType,
+      tinNumber: kyc.tinNumber.trim(),
+      idNumber: kyc.idNumber.trim() || undefined,
+      idDocumentId: kyc.governmentIdDocumentId || undefined,
+      proofOfAddressDocumentId: kyc.proofOfAddressDocumentId || undefined,
+      tinDocumentId: kyc.tinDocumentId || undefined,
+    };
+    const kycCreate = await createUserKyc(userId, kycBody);
+    if (!kycCreate.success) {
+      const status = kycCreate.statusCode;
+      if (status === 409 || status === 400) {
+        const kycUpdate = await updateUserKyc(userId, {
+          idType: kycBody.idType,
+          tinNumber: kycBody.tinNumber,
+          idNumber: kycBody.idNumber,
+          idDocumentId: kycBody.idDocumentId,
+          proofOfAddressDocumentId: kycBody.proofOfAddressDocumentId,
+          tinDocumentId: kycBody.tinDocumentId,
+        });
+        if (!kycUpdate.success) {
+          setSubmitError(kycUpdate.error || "Could not save KYC details.");
+          showToast(kycUpdate.error || "Failed to save KYC", "error");
+          setIsSubmitting(false);
+          return;
+        }
+      } else {
+        setSubmitError(kycCreate.error || "Could not save KYC details.");
+        showToast(kycCreate.error || "Failed to save KYC", "error");
+        setIsSubmitting(false);
+        return;
       }
     }
 
-    if (landlordId) {
-      persistLandlordId(landlordId);
-      try {
-        await ensureLandlordWallet(landlordId, "NGN");
-      } catch (err) {
-        console.warn("Ensure landlord wallet failed:", err);
+    // 4) Business KYB (only when landlord is a business)
+    if (kyb.isBusiness && profilePictureId && kyb.cacCertificateId) {
+      const kybResult = await createLandlordKyb(landlordId, {
+        businessName: kyb.businessName.trim(),
+        businessEmail: userEmail,
+        businessPhoneNumber: details.phoneNumber.trim(),
+        businessLogoId: profilePictureId,
+        businessCacCertificateId: kyb.cacCertificateId,
+        businessAddress: {
+          address: kyb.businessAddress.trim(),
+          city: details.city.trim(),
+          state: details.state.trim(),
+          postalCode: "",
+          country: details.country.trim(),
+        },
+        businessTinCertificateId: kyb.taxRegulatoryDocumentId || undefined,
+        businessTinNumber: kyc.tinNumber.trim() || undefined,
+        businessProofOfAddressId: kyb.proofOfBusinessAddressId || undefined,
+      });
+      if (!kybResult.success) {
+        setSubmitError(kybResult.error || "Could not save business KYB.");
+        showToast(kybResult.error || "Failed to save KYB", "error");
+        setIsSubmitting(false);
+        return;
       }
+    }
+
+    try {
+      await ensureLandlordWallet(landlordId, "NGN");
+    } catch (err) {
+      console.warn("Ensure landlord wallet failed:", err);
     }
 
     clearLandlordOnboardingSession();

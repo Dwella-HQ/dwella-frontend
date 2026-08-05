@@ -197,9 +197,14 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
       const updateResult = await updateUser(String(user.id), {
         fullName,
         phoneNumber: details.phoneNumber.trim(),
-        // Backend does not yet accept DOB / BVN on UpdateUserDto — stored locally until then.
-        dateOfBirth: details.dateOfBirth,
-        bvn,
+        address: {
+          address: details.address.trim(),
+          city: details.city.trim(),
+          state: details.state.trim(),
+          postalCode: "",
+          country: details.country.trim(),
+        },
+        // DOB / BVN are not on UpdateUserDto — kept in session until bank settings.
       });
       if (!updateResult.success) {
         showToast(

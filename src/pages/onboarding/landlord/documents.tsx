@@ -71,7 +71,7 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
     kyc.idType && kyc.idNumber.trim() && kyc.governmentIdDocumentId,
   );
   const otherSectionDone = Boolean(
-    kyc.tinDocumentId && kyc.proofOfAddressDocumentId,
+    kyc.tinNumber.trim() && kyc.tinDocumentId && kyc.proofOfAddressDocumentId,
   );
 
   const persistKyc = React.useCallback((next: LandlordOnboardingKyc) => {
@@ -119,8 +119,17 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
   );
 
   const handleContinue = React.useCallback(async () => {
-    setIsSubmitting(true);
     setFormError(null);
+    // CreateClientKycDto requires idType + tinNumber (documents remain optional).
+    if (!kyc.idType) {
+      setFormError("Please select an I.D. type.");
+      return;
+    }
+    if (!kyc.tinNumber.trim()) {
+      setFormError("Please enter your Tax Identification Number (TIN).");
+      return;
+    }
+    setIsSubmitting(true);
     sessionStorage.setItem(LANDLORD_ONBOARDING_KEYS.kyc, JSON.stringify(kyc));
     await router.push("/onboarding/landlord/finance");
     setIsSubmitting(false);
@@ -254,10 +263,24 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
               </div>
 
               <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Tax Identification Number (TIN)
+                  </label>
+                  <input
+                    value={kyc.tinNumber}
+                    onChange={(e) =>
+                      persistKyc({ ...kyc, tinNumber: e.target.value })
+                    }
+                    placeholder="e.g. 12345678-0001"
+                    className={inputClassName}
+                  />
+                </div>
+
                 <div className="flex flex-col gap-3 rounded-lg border border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-900">
-                      Tax Identification Number (TIN)
+                      TIN Document
                     </p>
                     <p className="text-xs text-gray-500">
                       Tax certificate or TIN document.
@@ -342,9 +365,10 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
 
           <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
             <p className="text-xs text-gray-700">
-              <strong>Note:</strong> All documents are optional. If uploaded,
-              documents should be clear, legible, and in PDF, JPG, or PNG
-              format. Maximum file size: 10MB per document.
+              <strong>Note:</strong> I.D. type and TIN number are required.
+              Document uploads are optional. If uploaded, files should be clear,
+              legible, and in PDF, JPG, or PNG format. Maximum file size: 10MB
+              per document.
             </p>
           </div>
 

@@ -14,3 +14,9 @@ export { updateUser } from "./updateUser";
 export type { UpdateUserBody } from "./updateUser";
 export { updateUserPassword } from "./updateUserPassword";
 export type { UpdateUserPasswordBody } from "./updateUserPassword";
+export { createUserKyc, updateUserKyc, getUserKyc } from "./kyc";
+export type {
+  ClientIdType,
+  CreateClientKycDTO,
+  UpdateClientKycDTO,
+} from "./kyc";

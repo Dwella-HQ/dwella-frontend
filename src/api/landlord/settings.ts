@@ -238,3 +238,20 @@ export const updateLandlordLateFeeSettings = async (
       (result.data as unknown as Record<string, unknown>),
   };
 };
+
+/** PATCH /landlord/{id}/settings/bank-account */
+export const updateLandlordBankAccountSettings = async (
+  landlordId: string,
+  body: LandlordBankAccountDTO,
+): Promise<LandlordSettingsResult<Record<string, unknown>>> => {
+  const result = await apiPatch<
+    LandlordSettingsResponse<Record<string, unknown>>
+  >(`/landlord/${landlordId}/settings/bank-account`, body);
+  if (!result.success) return result;
+  return {
+    success: true,
+    data:
+      (result.data as LandlordSettingsResponse<Record<string, unknown>>).data ??
+      (result.data as unknown as Record<string, unknown>),
+  };
+};

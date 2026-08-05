@@ -16,12 +16,23 @@ export type {
 } from "./updateLandlord";
 export { queryLandlords } from "./queryLandlords";
 export {
+  createLandlordKyb,
+  updateLandlordKyb,
+  getLandlordKyb,
+} from "./kyb";
+export type {
+  CreateLandlordKybDTO,
+  UpdateLandlordKybDTO,
+  CreateAddressDTO,
+} from "./kyb";
+export {
   getLandlordSettings,
   updateLandlordProfileSettings,
   updateLandlordPlatformPreferencesSettings,
   updateLandlordNotificationPreferencesSettings,
   updateLandlordGracePeriodsSettings,
   updateLandlordLateFeeSettings,
+  updateLandlordBankAccountSettings,
 } from "./settings";
 export type {
   LandlordDTO,

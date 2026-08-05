@@ -56,6 +56,7 @@ export type GovernmentIdType =
 export type LandlordOnboardingKyc = {
   idType: GovernmentIdType;
   idNumber: string;
+  tinNumber: string;
   governmentIdDocumentId: string | null;
   tinDocumentId: string | null;
   proofOfAddressDocumentId: string | null;
@@ -64,6 +65,7 @@ export type LandlordOnboardingKyc = {
 export const emptyLandlordKyc: LandlordOnboardingKyc = {
   idType: "",
   idNumber: "",
+  tinNumber: "",
   governmentIdDocumentId: null,
   tinDocumentId: null,
   proofOfAddressDocumentId: null,

@@ -1,46 +1,9 @@
 import { z } from "zod";
 
-// Create Landlord Request
+// Create Landlord Request — OpenAPI now only requires userId.
+// KYC/KYB/profile/bank are separate endpoints.
 export const createLandlordRequestSchema = z.object({
   userId: z.string().uuid(),
-  businessName: z.string().min(1, "Business name is required"),
-  businessEmail: z.string().email().optional(),
-  businessPhoneNumber: z.string().optional(),
-  bvn: z.string().optional(),
-  verificationStatus: z
-    .union([z.enum(["PENDING", "VERIFIED", "REJECTED"]), z.string()])
-    .optional(),
-  isApproved: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-  profilePictureId: z.string().uuid().optional(),
-  // Document IDs are optional in the redesigned KYC/KYB UI; backend may still require them.
-  govermentIdDocumentId: z.string().uuid().optional(),
-  landSurveyDocumentId: z.string().uuid().optional(),
-  proofOfOwnershipDocumentId: z.string().uuid().optional(),
-  taxIdentificationNumberDocumentId: z.string().uuid().optional(),
-  // New onboarding fields — ignored until backend accepts them.
-  isBusiness: z.boolean().optional(),
-  governmentIdType: z.string().optional(),
-  governmentIdNumber: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  cacCertificateId: z.string().uuid().optional(),
-  proofOfBusinessAddressId: z.string().uuid().optional(),
-  address: z.object({
-    address: z.string().min(1, "Address is required"),
-    city: z.string().min(1, "City is required"),
-    state: z.string().min(1, "State is required"),
-    postalCode: z.string().optional().default(""),
-    country: z.string().min(1, "Country is required"),
-  }),
-  bankAccount: z
-    .object({
-      accountName: z.string().min(1, "Account name is required"),
-      accountNumber: z.string().min(10).max(10),
-      bankName: z.string().min(1, "Bank name is required"),
-      bankCode: z.string().min(1, "Bank code is required"),
-      bvn: z.string().min(11, "BVN must be 11 digits").max(11),
-    })
-    .optional(),
 });
 
 export type CreateLandlordRequestDTO = z.infer<
