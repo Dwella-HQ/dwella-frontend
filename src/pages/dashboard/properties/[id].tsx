@@ -58,6 +58,7 @@ import { getRentPayments } from "@/api/rent-payment";
 import {
   getProperty,
   getPropertySettings,
+  updateProperty,
   updatePropertyGracePeriodSettings,
   updatePropertyLateFeeSettings,
 } from "@/api/properties";
@@ -281,7 +282,11 @@ const PropertyDetailPage: NextPageWithLayout = () => {
   });
   const [isSavingGracePeriod, setIsSavingGracePeriod] = React.useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = React.useState(false);
+  const [isSavingServiceApartment, setIsSavingServiceApartment] =
+    React.useState(false);
   const [isSavingVerification, setIsSavingVerification] = React.useState(false);
+  const [isOpenForServiceApartment, setIsOpenForServiceApartment] =
+    React.useState(false);
   const [propertySettingsSection, setPropertySettingsSection] =
     React.useState<PropertySettingsSection>("documents");
   const [propertyVerificationDocs, setPropertyVerificationDocs] =
@@ -333,6 +338,13 @@ const PropertyDetailPage: NextPageWithLayout = () => {
       router.replace(`/dashboard/admin/properties/${id}`);
     }
   }, [id, router, user?.role]);
+
+  React.useEffect(() => {
+    if (!propertyDTO) return;
+    setIsOpenForServiceApartment(
+      propertyDTO.isOpenForServiceApartment === true,
+    );
+  }, [propertyDTO]);
 
   // Fetch property from API
   React.useEffect(() => {
@@ -592,6 +604,29 @@ const PropertyDetailPage: NextPageWithLayout = () => {
       showToast(result.error || "Failed to save late fee", "error");
     }
   }, [applySettingsFromServer, id, propertyLateFee, showToast]);
+
+  const handleSaveServiceApartmentFlag = React.useCallback(async () => {
+    if (!id || typeof id !== "string") return;
+    setIsSavingServiceApartment(true);
+    const result = await updateProperty(id, {
+      isOpenForServiceApartment,
+    });
+    setIsSavingServiceApartment(false);
+    if (result.success) {
+      setPropertyDTO(result.data);
+      showToast(
+        isOpenForServiceApartment
+          ? "Property is open for service apartments."
+          : "Service apartment listing disabled for this property.",
+        "success",
+      );
+    } else {
+      showToast(
+        result.error || "Failed to update service apartment setting",
+        "error",
+      );
+    }
+  }, [id, isOpenForServiceApartment, showToast]);
 
   const handleSaveGracePeriods = React.useCallback(async () => {
     if (!id || typeof id !== "string") return;
@@ -1684,6 +1719,40 @@ const PropertyDetailPage: NextPageWithLayout = () => {
 
                     {propertySettingsSection === "preferences" && (
                       <div className="space-y-8">
+                        <div>
+                          <h2 className="text-lg font-semibold text-gray-900">
+                            Service apartments
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-600 max-w-lg">
+                            When enabled, this property can appear in guest
+                            short-stay browse. Configure nightly pricing on each
+                            unit&apos;s detail page.
+                          </p>
+                          <label className="mt-4 flex max-w-lg cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={isOpenForServiceApartment}
+                              onChange={(e) =>
+                                setIsOpenForServiceApartment(e.target.checked)
+                              }
+                              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+                            />
+                            <span className="text-sm font-medium text-gray-900">
+                              Open for service apartments
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveServiceApartmentFlag()}
+                            disabled={isSavingServiceApartment}
+                            className="mt-4 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60"
+                          >
+                            {isSavingServiceApartment
+                              ? "Saving…"
+                              : "Save service apartment setting"}
+                          </button>
+                        </div>
+
                         <div>
                           <h2 className="text-lg font-semibold text-gray-900">
                             Preferences

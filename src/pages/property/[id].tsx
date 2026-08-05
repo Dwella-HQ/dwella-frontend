@@ -30,15 +30,11 @@ import { GuestHeader } from "@/components/guest/GuestHeader";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
 import {
-  getProperty,
-  getPropertiesQuery,
-  mapPropertyDTOToProperty,
-  mapPropertyDTOToPublicListingProperty,
-} from "@/api/properties";
+  loadGuestStayListings,
+  loadStayListingById,
+} from "@/lib/loadGuestStayListings";
 import {
-  getMockStayById,
   mockShortStayListings,
-  toStayListing,
   type StayListing,
 } from "@/data/mockShortStay";
 
@@ -94,84 +90,50 @@ export default function PropertyDetailPage() {
     setCheckOut("");
     setGuests(1);
 
-    void (async () => {
-      const mock = getMockStayById(id);
-      if (mock) {
-        if (cancelled) return;
-        setProperty(mock);
-        setLoading(false);
-        return;
-      }
+    const unitParam = Array.isArray(router.query.unit)
+      ? router.query.unit[0]
+      : router.query.unit;
 
-      const authed = await getProperty(id);
+    void loadStayListingById(id, unitParam).then((result) => {
       if (cancelled) return;
-
-      if (authed.success) {
-        setProperty(toStayListing(mapPropertyDTOToProperty(authed.data)));
-        setLoading(false);
-        return;
-      }
-
-      const statusCode = "statusCode" in authed ? authed.statusCode : undefined;
-      const isUnauthorized =
-        authed.error === "Unauthorized" || statusCode === 401;
-
-      if (isUnauthorized) {
-        const pub = await getPropertiesQuery();
-        if (cancelled) return;
-        if (pub.success) {
-          const dto = pub.data.find((p) => p.id === id);
-          if (dto) {
-            setProperty(
-              toStayListing(mapPropertyDTOToPublicListingProperty(dto)),
-            );
-            setGuestPreview(true);
-            setLoading(false);
-            return;
-          }
-        }
-        setProperty(null);
-        setGuestPreview(true);
-        setError(null);
-        setLoading(false);
-        return;
-      }
-
-      setError(authed.error);
+      setProperty(result.listing);
+      setGuestPreview(result.guestPreview);
+      setError(result.error);
       setLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  React.useEffect(() => {
-    if (!propertyId) return;
-    let cancelled = false;
-
-    const fromMocks = mockShortStayListings
-      .filter((p) => p.id !== propertyId && p.status === "active")
-      .slice(0, 3);
-
-    void getPropertiesQuery().then((result) => {
-      if (cancelled) return;
-      if (!result.success) {
-        setSimilar(fromMocks);
-        return;
-      }
-      const fromApi = result.data
-        .map(mapPropertyDTOToPublicListingProperty)
-        .filter((p) => p.id !== propertyId && p.status === "active")
-        .map((p) => toStayListing(p))
-        .slice(0, 3);
-      setSimilar(fromMocks.length >= 3 ? fromMocks : [...fromMocks, ...fromApi].slice(0, 3));
     });
 
     return () => {
       cancelled = true;
     };
-  }, [propertyId]);
+  }, [id, router.query.unit]);
+
+  React.useEffect(() => {
+    if (!propertyId) return;
+    let cancelled = false;
+    const propertyRootId = property?.propertyId || propertyId.split("__")[0];
+
+    void loadGuestStayListings().then((listings) => {
+      if (cancelled) return;
+      const fromApi = listings
+        .filter((p) => {
+          const root = p.propertyId || p.id.split("__")[0];
+          return root !== propertyRootId && p.status === "active";
+        })
+        .slice(0, 3);
+      const fromMocks = mockShortStayListings
+        .filter((p) => p.id !== propertyRootId && p.status === "active")
+        .slice(0, 3);
+      setSimilar(
+        fromApi.length > 0
+          ? fromApi
+          : fromMocks,
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, property?.propertyId]);
 
   const nights = nightsBetween(checkIn, checkOut);
   const isShortLet = property?.listingType === "short_let";
@@ -213,9 +175,14 @@ export default function PropertyDetailPage() {
         return;
       }
 
-      // Mock gateway redirect until booking APIs are ready.
+      // Mock confirmation until reservation APIs exist.
+      showToast(
+        "Booking is demo-only for now — no payment was taken.",
+        "info",
+      );
+      const rootPropertyId = property.propertyId || property.id.split("__")[0];
       const params = new URLSearchParams({
-        propertyId: property.id,
+        propertyId: rootPropertyId,
         propertyName: property.name,
         nights: String(nights),
         amount: String(total),

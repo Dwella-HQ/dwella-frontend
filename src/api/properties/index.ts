@@ -1,5 +1,6 @@
 export { getProperties } from "./getProperties";
 export { getPropertiesQuery } from "./getPropertiesQuery";
+export type { PropertiesQueryParams } from "./getPropertiesQuery";
 export { getBulkUploadTemplate } from "./getBulkUploadTemplate";
 export type { GetBulkUploadTemplateResult } from "./getBulkUploadTemplate";
 export { bulkUploadProperties } from "./bulkUploadProperties";
@@ -16,9 +17,28 @@ export type { PropertySettingsDTO } from "./getPropertySettings";
 export { deleteProperty } from "./deleteProperty";
 export { approveProperty } from "./approveProperty";
 export {
+  createServiceApartmentOffering,
+  getServiceApartmentOffering,
+  updateServiceApartmentOffering,
+  deleteServiceApartmentOffering,
+  nightlyPriceFromOffering,
+} from "./serviceApartmentOffering";
+export type {
+  CreateServiceApartmentOfferingDTO,
+  UpdateServiceApartmentOfferingDTO,
+  ServiceApartmentOfferingDTO,
+  UnitPricingDTO,
+} from "./serviceApartmentOffering";
+export {
   mapPropertyDTOToProperty,
   mapPropertyDTOToPublicListingProperty,
 } from "./mapProperty";
+export {
+  mapPropertyDTOToStayListings,
+  mapUnitOfferingToStayListing,
+  resolvePropertyIdFromStayId,
+  resolveUnitIdFromStayId,
+} from "./mapStayListing";
 export { mapPropertiesWithLiveUnitCounts } from "./mapPropertiesWithLiveUnitCounts";
 export type {
   PropertyDTO,

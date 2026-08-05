@@ -105,6 +105,8 @@ const AddPropertyPage: NextPageWithLayout = () => {
   const [selectedAmenities, setSelectedAmenities] = React.useState<string[]>(
     [],
   );
+  const [isOpenForServiceApartment, setIsOpenForServiceApartment] =
+    React.useState(false);
   const [apiAmenities, setApiAmenities] = React.useState<
     { id: string; name: string }[]
   >([]);
@@ -744,6 +746,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
         name: formData.propertyName,
         yearBuilt: formData.yearBuilt || undefined,
         numberOfUnits: Math.max(1, units.length), // At least 1 unit (will be updated when units are added)
+        isOpenForServiceApartment,
         description: formData.description || undefined,
         parkingSpace: formData.parkingSpace === "yes",
         photoIds: photoIds.length > 0 ? photoIds : undefined,
@@ -1030,6 +1033,28 @@ const AddPropertyPage: NextPageWithLayout = () => {
                           {...register("description")}
                           className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
                         />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={isOpenForServiceApartment}
+                            onChange={(e) =>
+                              setIsOpenForServiceApartment(e.target.checked)
+                            }
+                            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-gray-900">
+                              Open for service apartments
+                            </span>
+                            <span className="mt-0.5 block text-xs text-gray-600">
+                              Allow short-stay listings on units. After creating
+                              the property, open a unit to set nightly price and
+                              house rules.
+                            </span>
+                          </span>
+                        </label>
                       </div>
                     </div>
                   </div>

@@ -26,6 +26,10 @@ export type StayListing = Property & {
   hostAvatarUrl?: string | null;
   beds?: string;
   reviews: StayReview[];
+  /** Underlying property id when `id` is a composite stay listing id. */
+  propertyId?: string;
+  /** Unit that owns the service-apartment offering, when applicable. */
+  unitId?: string;
 };
 
 const VILLA_IMAGES = [

@@ -8,21 +8,21 @@ import {
   type HeroSearchValues,
 } from "@/components/landing";
 import { useUser } from "@/contexts/UserContext";
-import {
-  getPropertiesQuery,
-  mapPropertyDTOToPublicListingProperty,
-} from "@/api/properties";
+import { loadGuestStayListings } from "@/lib/loadGuestStayListings";
 import {
   mockShortStayListings,
-  toStayListing,
   type StayListing,
 } from "@/data/mockShortStay";
 import type { NextPageWithLayout } from "../_app";
 
 const LISTINGS_PER_PAGE = 8;
 
-const matchesBudget = (rent: number, budget: string) => {
+const matchesBudget = (property: StayListing, budget: string) => {
   if (!budget) return true;
+  const rent =
+    property.listingType === "short_let" && property.pricePerNight > 0
+      ? property.pricePerNight * 30
+      : property.monthlyRent;
   if (budget === "0-200000") return rent > 0 && rent < 200000;
   if (budget === "200000-500000") return rent >= 200000 && rent <= 500000;
   if (budget === "500000-1000000") return rent >= 500000 && rent <= 1000000;
@@ -53,26 +53,19 @@ const GuestDashboardPage: NextPageWithLayout = () => {
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void getPropertiesQuery().then((result) => {
-      if (cancelled) return;
-      if (!result.success) {
+    void loadGuestStayListings()
+      .then((listings) => {
+        if (cancelled) return;
+        setAllProperties(listings);
+        setError(null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
         setAllProperties(mockShortStayListings);
         setError(null);
         setLoading(false);
-        return;
-      }
-      const fromApi = result.data
-        .map(mapPropertyDTOToPublicListingProperty)
-        .filter((p) => p.status === "active")
-        .map((p) => toStayListing(p));
-      const mockIds = new Set(mockShortStayListings.map((p) => p.id));
-      setAllProperties([
-        ...mockShortStayListings,
-        ...fromApi.filter((p) => !mockIds.has(p.id)),
-      ]);
-      setError(null);
-      setLoading(false);
-    });
+      });
     return () => {
       cancelled = true;
     };
@@ -100,7 +93,7 @@ const GuestDashboardPage: NextPageWithLayout = () => {
         );
         if (!hasAmenity) return false;
       }
-      if (!matchesBudget(property.monthlyRent, appliedSearch.budget)) {
+      if (!matchesBudget(property, appliedSearch.budget)) {
         return false;
       }
       return true;

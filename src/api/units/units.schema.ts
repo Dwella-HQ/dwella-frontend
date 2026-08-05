@@ -47,13 +47,30 @@ const unitImageSchema = z
   })
   .passthrough();
 
+const unitPricingSchema = z.object({
+  mode: z.string(),
+  price: z.string(),
+});
+
+export const serviceApartmentOfferingSchema = z
+  .object({
+    id: z.string().optional(),
+    minimumStay: z.number().nullable().optional(),
+    maximumStay: z.number().nullable().optional(),
+    clockoutTime: z.string().optional(),
+    pricing: z.array(unitPricingSchema).nullable().optional(),
+    rules: z.string().optional(),
+    description: z.string().optional(),
+  })
+  .passthrough();
+
 // Unit Response (may need to be adjusted based on actual API response)
 export const unitSchema = z
   .object({
     id: z.string().uuid(),
     propertyId: z.string().uuid().optional(), // May be nested in property object
     name: z.string(),
-    rentAmount: z.number(),
+    rentAmount: z.number().optional().default(0),
     numberOfBedrooms: z.number().int(),
     numberOfBathrooms: z.number().int(),
     isAvailable: z.boolean(),
@@ -64,6 +81,10 @@ export const unitSchema = z
     property: z.unknown().optional(), // Nested property object (can be complex, so using unknown)
     tenant: unitTenantSchema.nullable().optional(),
     images: z.array(unitImageSchema).optional(),
+    serviceApartmentOffering: serviceApartmentOfferingSchema
+      .nullable()
+      .optional(),
+    serviceApartmentOfferingId: z.string().nullable().optional(),
   })
   .passthrough();
 

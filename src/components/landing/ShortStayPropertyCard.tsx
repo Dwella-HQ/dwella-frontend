@@ -22,7 +22,12 @@ export const ShortStayPropertyCard = ({ property, href }: Props) => {
   const showAmenities = property.amenities.slice(0, 3);
   const extra = property.amenities.length - 3;
   const isShortLet = property.listingType === "short_let";
-  const detailHref = href ?? `/property/${property.id}`;
+  const propertyId = property.propertyId || property.id.split("__")[0];
+  const detailHref =
+    href ??
+    (property.unitId
+      ? `/property/${propertyId}?unit=${encodeURIComponent(property.unitId)}`
+      : `/property/${propertyId}`);
 
   const goTo = React.useCallback(
     (index: number, e: React.MouseEvent) => {
@@ -122,10 +127,14 @@ export const ShortStayPropertyCard = ({ property, href }: Props) => {
 
           <div className="mt-4 border-t border-gray-100 pt-3">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-gray-400">
-              Monthly Rent
+              {isShortLet ? "Per night" : "Monthly Rent"}
             </p>
             <p className="mt-0.5 text-lg font-bold text-gray-900">
-              {formatNaira(property.monthlyRent)}
+              {formatNaira(
+                isShortLet && property.pricePerNight > 0
+                  ? property.pricePerNight
+                  : property.monthlyRent,
+              )}
             </p>
           </div>
         </div>

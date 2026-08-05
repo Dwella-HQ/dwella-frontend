@@ -115,8 +115,17 @@ export default function BookingConfirmationPage() {
             </h1>
 
             <div className="mt-6 rounded-xl bg-gray-50 px-5 py-6 text-sm leading-6 text-gray-700">
-              Your payment is successful, you would receive a confirmatory mail
-              from the host soon.
+              {reference?.startsWith("MOCK-") ? (
+                <>
+                  This is a demo confirmation — short-stay booking APIs are not
+                  live yet, so no payment was taken.
+                </>
+              ) : (
+                <>
+                  Your payment is successful, you would receive a confirmatory
+                  mail from the host soon.
+                </>
+              )}
               {propertyName ? (
                 <p className="mt-3 text-gray-600">
                   Booking for <span className="font-semibold">{propertyName}</span>

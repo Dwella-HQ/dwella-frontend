@@ -21,6 +21,7 @@ export const createPropertyRequestSchema = z.object({
     .length(4, "Year must be exactly 4 characters")
     .optional(),
   numberOfUnits: z.number().int().positive(),
+  isOpenForServiceApartment: z.boolean().optional(),
   description: z.string().optional(),
   parkingSpace: z.boolean().default(false),
   photoIds: z.array(z.string().uuid()).optional(),
@@ -114,6 +115,7 @@ export const propertySchema = z
       return isNaN(num) ? 0 : Math.max(0, Math.floor(num));
     }, z.number().int().nonnegative()), // Allow 0 for properties without units yet, handle null/undefined/string
     description: z.string().optional().nullable(),
+    isOpenForServiceApartment: z.boolean().optional(),
     parkingSpace: z.boolean().optional(),
     photoIds: z.array(z.string().uuid()).optional(),
     documentIds: z.array(z.string().uuid()).optional(),

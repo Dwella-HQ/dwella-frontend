@@ -20,6 +20,7 @@ import { useUser } from "@/contexts/UserContext";
 import { AddTenantModal } from "@/components/AddTenantModal";
 import { EditUnitModal } from "@/components/EditUnitModal";
 import { NewMaintenanceRequestModal } from "@/components/NewMaintenanceRequestModal";
+import { ServiceApartmentOfferingPanel } from "@/components/ServiceApartmentOfferingPanel";
 import { getUnit } from "@/api/units";
 import { getProperty } from "@/api/properties";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
@@ -367,6 +368,11 @@ const UnitDetailPage: NextPageWithLayout = () => {
             </div>
           </div>
         </div>
+
+        <ServiceApartmentOfferingPanel
+          unitId={unit.id}
+          onChanged={() => void loadUnit(true)}
+        />
 
         {/* Current Unit Tenant - Full Width */}
         <div className="rounded-lg border border-gray-200 bg-white p-6">
