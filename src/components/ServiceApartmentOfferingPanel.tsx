@@ -4,8 +4,11 @@ import {
   createServiceApartmentOffering,
   deleteServiceApartmentOffering,
   getServiceApartmentOffering,
+  pricingTierFromOffering,
+  SERVICE_APARTMENT_PRICING_MODES,
   updateServiceApartmentOffering,
   type ServiceApartmentOfferingDTO,
+  type ServiceApartmentPricingMode,
 } from "@/api/properties";
 import { useToast } from "@/components/Toast";
 
@@ -13,7 +16,7 @@ const inputClassName =
   "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main";
 
 type FormState = {
-  nightlyPrice: string;
+  pricing: Record<ServiceApartmentPricingMode, string>;
   minimumStay: string;
   maximumStay: string;
   clockoutTime: string;
@@ -22,7 +25,7 @@ type FormState = {
 };
 
 const emptyForm: FormState = {
-  nightlyPrice: "",
+  pricing: { weekly: "", biweekly: "", monthly: "" },
   minimumStay: "1",
   maximumStay: "30",
   clockoutTime: "11:00",
@@ -31,11 +34,12 @@ const emptyForm: FormState = {
 };
 
 function formFromOffering(offering: ServiceApartmentOfferingDTO): FormState {
-  const nightly =
-    offering.pricing?.find((p) => /night|daily|day/i.test(p.mode || "")) ??
-    offering.pricing?.[0];
   return {
-    nightlyPrice: nightly?.price ?? "",
+    pricing: {
+      weekly: String(pricingTierFromOffering(offering, "weekly") || ""),
+      biweekly: String(pricingTierFromOffering(offering, "biweekly") || ""),
+      monthly: String(pricingTierFromOffering(offering, "monthly") || ""),
+    },
     minimumStay:
       offering.minimumStay != null ? String(offering.minimumStay) : "1",
     maximumStay:
@@ -89,9 +93,14 @@ export const ServiceApartmentOfferingPanel = ({ unitId, onChanged }: Props) => {
 
   const handleSave = React.useCallback(async () => {
     setError(null);
-    const price = form.nightlyPrice.trim();
-    if (!price) {
-      setError("Nightly price is required.");
+    const pricing = SERVICE_APARTMENT_PRICING_MODES.map(({ value }) => ({
+      mode: value,
+      price: form.pricing[value].trim(),
+    })).filter((p) => p.price.length > 0);
+    if (pricing.length === 0) {
+      setError(
+        "Set at least one rate (weekly, biweekly, or monthly).",
+      );
       return;
     }
     if (!form.clockoutTime.trim()) {
@@ -115,7 +124,7 @@ export const ServiceApartmentOfferingPanel = ({ unitId, onChanged }: Props) => {
       minimumStay: Number.isFinite(minStay) && minStay > 0 ? minStay : undefined,
       maximumStay: Number.isFinite(maxStay) && maxStay > 0 ? maxStay : undefined,
       clockoutTime: form.clockoutTime.trim(),
-      pricing: [{ mode: "nightly", price }],
+      pricing,
       rules: form.rules.trim(),
       description: form.description.trim(),
     };
@@ -182,9 +191,9 @@ export const ServiceApartmentOfferingPanel = ({ unitId, onChanged }: Props) => {
             Service apartment
           </h2>
           <p className="mt-1 text-sm text-gray-600">
-            List this unit for short stays (nightly pricing, stay limits, and
-            house rules). Guests can browse it when the property is open for
-            service apartments.
+            List this unit for short stays (weekly/biweekly/monthly pricing,
+            stay limits, and house rules). Guests can browse it when the
+            property is open for service apartments.
           </p>
         </div>
         <label className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-gray-800">
@@ -206,21 +215,45 @@ export const ServiceApartmentOfferingPanel = ({ unitId, onChanged }: Props) => {
 
       {enabled ? (
         <div className="space-y-4 border-t border-gray-100 pt-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Nightly price (₦)
-              </label>
-              <input
-                value={form.nightlyPrice}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, nightlyPrice: e.target.value }))
-                }
-                inputMode="decimal"
-                placeholder="150000"
-                className={inputClassName}
-              />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Pricing
+            </label>
+            <p className="mb-2 text-xs text-gray-500">
+              Set a rate for one or more stay durations — guests pay this
+              total for that period, not a nightly rate. At least one is
+              required.
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {SERVICE_APARTMENT_PRICING_MODES.map(({ value, label }) => (
+                <div key={value}>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    {label} price (₦)
+                  </label>
+                  <input
+                    value={form.pricing[value]}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        pricing: { ...p.pricing, [value]: e.target.value },
+                      }))
+                    }
+                    inputMode="decimal"
+                    placeholder={
+                      value === "weekly"
+                        ? "150000"
+                        : value === "biweekly"
+                          ? "280000"
+                          : "500000"
+                    }
+                    className={inputClassName}
+                  />
+                </div>
+              ))}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 Checkout time

@@ -5,6 +5,24 @@ export type UnitPricingDTO = {
   price: string;
 };
 
+/**
+ * `pricing[].mode` is the stay DURATION a rate applies to — not a nightly
+ * rate label. A service apartment is billed by week/two-weeks/month, so a
+ * unit can carry up to three tiers (one per duration), each with its own
+ * total price for that period.
+ */
+export type ServiceApartmentPricingMode = "weekly" | "biweekly" | "monthly";
+
+export const SERVICE_APARTMENT_PRICING_MODES: {
+  value: ServiceApartmentPricingMode;
+  label: string;
+  days: number;
+}[] = [
+  { value: "weekly", label: "Weekly", days: 7 },
+  { value: "biweekly", label: "Biweekly", days: 14 },
+  { value: "monthly", label: "Monthly", days: 30 },
+];
+
 /** POST /property/unit/{unitId}/service-apartment-offering */
 export type CreateServiceApartmentOfferingDTO = {
   unitId: string;
@@ -122,15 +140,47 @@ export const deleteServiceApartmentOffering = async (
   return { success: true, data: null };
 };
 
-/** Prefer nightly/daily price from offering.pricing[]; falls back to first entry. */
+function parsePrice(value: unknown): number {
+  const n = Number.parseFloat(String(value ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Total price set for a specific duration tier (weekly/biweekly/monthly), if any. */
+export const pricingTierFromOffering = (
+  offering: ServiceApartmentOfferingDTO | null | undefined,
+  mode: ServiceApartmentPricingMode,
+): number => {
+  const entry = offering?.pricing?.find(
+    (p) => String(p.mode || "").toLowerCase() === mode,
+  );
+  return entry ? parsePrice(entry.price) : 0;
+};
+
+/**
+ * Estimated nightly-equivalent rate for guest-facing "from ₦X/night" style
+ * summaries. Real billing is by duration tier (weekly/biweekly/monthly), not
+ * per night, so this divides the shortest available tier's total price by
+ * its number of days — it's an estimate for display only, not a bookable
+ * nightly rate.
+ */
 export const nightlyPriceFromOffering = (
   offering: ServiceApartmentOfferingDTO | null | undefined,
 ): number => {
   if (!offering?.pricing?.length) return 0;
-  const preferred =
-    offering.pricing.find((p) =>
-      /night|daily|day/i.test(String(p.mode || "")),
-    ) ?? offering.pricing[0];
-  const n = Number.parseFloat(String(preferred.price ?? "").replace(/,/g, ""));
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  for (const { value, days } of SERVICE_APARTMENT_PRICING_MODES) {
+    const total = pricingTierFromOffering(offering, value);
+    if (total > 0) return Math.round(total / days);
+  }
+  // Unrecognized mode label on legacy data — use it as-is rather than 0.
+  return parsePrice(offering.pricing[0]?.price);
+};
+
+/** Actual monthly tier if the landlord set one, else derived from the nightly estimate. */
+export const monthlyPriceFromOffering = (
+  offering: ServiceApartmentOfferingDTO | null | undefined,
+): number => {
+  const monthly = pricingTierFromOffering(offering, "monthly");
+  if (monthly > 0) return monthly;
+  const nightly = nightlyPriceFromOffering(offering);
+  return nightly > 0 ? nightly * 30 : 0;
 };

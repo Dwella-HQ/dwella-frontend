@@ -22,12 +22,16 @@ export {
   updateServiceApartmentOffering,
   deleteServiceApartmentOffering,
   nightlyPriceFromOffering,
+  monthlyPriceFromOffering,
+  pricingTierFromOffering,
+  SERVICE_APARTMENT_PRICING_MODES,
 } from "./serviceApartmentOffering";
 export type {
   CreateServiceApartmentOfferingDTO,
   UpdateServiceApartmentOfferingDTO,
   ServiceApartmentOfferingDTO,
   UnitPricingDTO,
+  ServiceApartmentPricingMode,
 } from "./serviceApartmentOffering";
 export {
   createRentOffering,

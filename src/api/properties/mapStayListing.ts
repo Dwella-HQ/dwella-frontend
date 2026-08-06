@@ -1,6 +1,7 @@
 import type { PropertyDTO } from "./properties.schema";
 import type { UnitDTO } from "@/api/units/units.schema";
 import {
+  monthlyPriceFromOffering,
   nightlyPriceFromOffering,
   type ServiceApartmentOfferingDTO,
 } from "./serviceApartmentOffering";
@@ -67,7 +68,10 @@ export const mapUnitOfferingToStayListing = (
       ? record.numberOfBathrooms
       : undefined;
   const unitImages = unitImageUrls(record);
+  // `nightly` is an estimate only — the offering is actually billed by
+  // weekly/biweekly/monthly duration tiers (see serviceApartmentOffering.ts).
   const nightly = nightlyPriceFromOffering(offering);
+  const monthly = monthlyPriceFromOffering(offering);
   const minNights =
     typeof offering?.minimumStay === "number" && offering.minimumStay > 0
       ? offering.minimumStay
@@ -91,7 +95,7 @@ export const mapUnitOfferingToStayListing = (
       name: `${base.name} — ${unitName}`,
       images: unitImages.length > 0 ? unitImages : base.images,
       image: unitImages[0] || base.image,
-      monthlyRent: nightly > 0 ? nightly * 30 : base.monthlyRent,
+      monthlyRent: monthly > 0 ? monthly : base.monthlyRent,
     },
     {
       listingType: "short_let",

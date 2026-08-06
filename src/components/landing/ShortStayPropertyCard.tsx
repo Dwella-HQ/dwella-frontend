@@ -127,7 +127,7 @@ export const ShortStayPropertyCard = ({ property, href }: Props) => {
 
           <div className="mt-4 border-t border-gray-100 pt-3">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-gray-400">
-              {isShortLet ? "Per night" : "Monthly Rent"}
+              {isShortLet ? "From per night" : "Monthly Rent"}
             </p>
             <p className="mt-0.5 text-lg font-bold text-gray-900">
               {formatNaira(
