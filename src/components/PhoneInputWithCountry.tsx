@@ -39,6 +39,7 @@ export const PhoneInputWithCountry = React.forwardRef<
     <PhoneInput
       id={id}
       international
+      limitMaxLength
       defaultCountry="NG"
       value={value}
       onChange={onChange ?? (() => {})}
