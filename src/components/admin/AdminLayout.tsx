@@ -12,6 +12,7 @@ import {
   Bell,
   LogOut,
   ShieldAlert,
+  ShieldCheck,
   Settings,
   Search,
   BadgeCheck,
@@ -51,6 +52,11 @@ const adminNav = [
   { name: "Messages", href: "/dashboard/admin/messages", icon: MessageSquare },
   { name: "Notifications", href: "/dashboard/admin/notifications", icon: Bell },
   { name: "Disputes", href: "/dashboard/admin/disputes", icon: ShieldAlert },
+  {
+    name: "Roles & Permissions",
+    href: "/dashboard/admin/roles-permissions",
+    icon: ShieldCheck,
+  },
   { name: "Settings", href: "/dashboard/admin/settings", icon: Settings },
 ];
 
