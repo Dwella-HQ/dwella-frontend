@@ -11,6 +11,7 @@ export function resolveLandlordBusinessPhone(
 ): string {
   return (
     landlord?.businessPhoneNumber?.trim() ||
+    landlord?.phoneNumber?.trim() ||
     landlord?.user?.phoneNumber?.trim() ||
     ""
   );
@@ -34,10 +35,12 @@ function normalizeLandlordEnvelope(raw: unknown): unknown {
   const businessName =
     (row.businessName as string | undefined) ??
     (row.landLordName as string | undefined) ??
+    (row.name as string | undefined) ??
     "";
   const landLordName =
     (row.landLordName as string | undefined) ??
     (row.businessName as string | undefined) ??
+    (row.name as string | undefined) ??
     "";
 
   return {
@@ -57,10 +60,12 @@ function normalizeLandlordRecord(raw: unknown): unknown {
   const businessName =
     (row.businessName as string | undefined) ??
     (row.landLordName as string | undefined) ??
+    (row.name as string | undefined) ??
     "";
   const landLordName =
     (row.landLordName as string | undefined) ??
     (row.businessName as string | undefined) ??
+    (row.name as string | undefined) ??
     "";
 
   return {
@@ -108,6 +113,10 @@ export function parseLandlordApiResponse(raw: unknown): ParseLandlordResult {
     };
   }
 
+  console.error(
+    "parseLandlordApiResponse: all parse attempts failed:",
+    normalizedDirect.error.issues,
+  );
   return {
     success: false,
     error: "Invalid response data format received",

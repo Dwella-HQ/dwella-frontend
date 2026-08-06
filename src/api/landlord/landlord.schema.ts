@@ -67,20 +67,29 @@ export const landlordSchema = z.object({
   user: z
     .object({
       id: z.string().uuid(),
-      email: z.string().email(),
-      fullName: z.string().optional(),
+      email: z.string(),
+      fullName: z.string().nullable().optional(),
       phoneNumber: z.string().nullable().optional(),
+      address: z.unknown().nullable().optional(),
     })
+    .passthrough()
+    .nullable()
     .optional(),
+  name: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  phoneNumber: z.string().nullable().optional(),
+  landlordType: z.string().nullable().optional(),
   address: z
     .object({
       address: z.string().optional(),
       street: z.string().nullable().optional(),
-      city: z.string(),
-      state: z.string(),
-      postalCode: z.string(),
-      country: z.string(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      postalCode: z.string().optional(),
+      country: z.string().optional(),
     })
+    .passthrough()
+    .nullable()
     .optional(),
   bankAccount: z
     .object({

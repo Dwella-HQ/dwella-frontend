@@ -88,7 +88,7 @@ export const landlordSchema = z.object({
       isActive: z.boolean().optional(),
     })
     .optional(),
-  address: propertyAddressSchema.optional(),
+  address: propertyAddressSchema.nullable().optional(),
   profilePicture: fileSchema.optional().nullable(),
   govermentIdDocument: fileSchema.optional().nullable(),
   landSurveyDocument: fileSchema.optional().nullable(),
@@ -119,7 +119,7 @@ export const propertySchema = z
     parkingSpace: z.boolean().optional(),
     photoIds: z.array(z.string().uuid()).optional(),
     documentIds: z.array(z.string().uuid()).optional(),
-    address: propertyAddressSchema.optional(), // Made optional to match create response
+    address: propertyAddressSchema.nullable().optional(), // API sends null when no address set
     amenities: z.array(z.string()).optional().default([]),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -168,7 +168,7 @@ export const createPropertyResponseSchema = z.object({
       parkingSpace: z.boolean().optional(),
       photoIds: z.array(z.string().uuid()).optional(),
       documentIds: z.array(z.string().uuid()).optional(),
-      address: propertyAddressSchema.optional(),
+      address: propertyAddressSchema.nullable().optional(),
       amenities: z.array(z.string()).optional(),
       isApproved: z.boolean().optional(),
       isActive: z.boolean().optional(),
