@@ -311,7 +311,10 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                 />
                 Change Photo
               </label>
-              <p className="text-xs text-gray-500">JPG, PNG up to 2MB</p>
+              <p className="text-xs text-gray-500">
+                JPG, PNG up to 2MB. Also used as your business logo if you
+                register as a business — you can add/change it there too.
+              </p>
               {isProfileUploading && (
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <span>Uploading...</span>

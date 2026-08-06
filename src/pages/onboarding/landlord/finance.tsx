@@ -41,7 +41,8 @@ const inputClassName =
 type UploadKey =
   | "cacCertificateId"
   | "taxRegulatoryDocumentId"
-  | "proofOfBusinessAddressId";
+  | "proofOfBusinessAddressId"
+  | "businessLogoId";
 
 const LandlordOnboardingKybPage: NextPageWithLayout = () => {
   const router = useRouter();
@@ -81,7 +82,17 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
     const stored = readJsonSession<LandlordOnboardingKyb>(
       LANDLORD_ONBOARDING_KEYS.kyb,
     );
-    if (stored) setKyb({ ...emptyLandlordKyb, ...stored });
+    // Pre-fill the business logo from the profile photo uploaded on the
+    // details step, if any — landlords who already added one there
+    // shouldn't have to upload it again here.
+    const existingProfilePictureId = sessionStorage.getItem(
+      LANDLORD_ONBOARDING_KEYS.profilePictureId,
+    );
+    setKyb({
+      ...emptyLandlordKyb,
+      businessLogoId: existingProfilePictureId || null,
+      ...stored,
+    });
   }, [router]);
 
   const persistKyb = React.useCallback((next: LandlordOnboardingKyb) => {
@@ -95,7 +106,8 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
       kyb.businessAddress.trim() &&
       kyb.cacCertificateId &&
       kyb.taxRegulatoryDocumentId &&
-      kyb.proofOfBusinessAddressId,
+      kyb.proofOfBusinessAddressId &&
+      kyb.businessLogoId,
   );
 
   const handleUpload = React.useCallback(
@@ -127,6 +139,14 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
 
       if (result.success) {
         persistKyb({ ...kyb, [key]: result.data.id });
+        // Keep the details-step profile photo in sync so both pages agree
+        // on the business logo if the user navigates back and forth.
+        if (key === "businessLogoId") {
+          sessionStorage.setItem(
+            LANDLORD_ONBOARDING_KEYS.profilePictureId,
+            result.data.id,
+          );
+        }
       } else {
         showToast(result.error || "Failed to upload document", "error");
       }
@@ -157,9 +177,6 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
     const kyc =
       readJsonSession<LandlordOnboardingKyc>(LANDLORD_ONBOARDING_KEYS.kyc) ??
       emptyLandlordKyc;
-    const profilePictureId = sessionStorage.getItem(
-      LANDLORD_ONBOARDING_KEYS.profilePictureId,
-    );
 
     if (
       !details.firstName ||
@@ -195,10 +212,8 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
         setSubmitError("Please upload your CAC certificate.");
         return;
       }
-      if (!profilePictureId) {
-        setSubmitError(
-          "Please upload a profile photo on the details step — it is used as your business logo.",
-        );
+      if (!kyb.businessLogoId) {
+        setSubmitError("Please upload a business logo.");
         return;
       }
     }
@@ -301,12 +316,12 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
     }
 
     // 4) Business KYB (only when landlord is a business)
-    if (kyb.isBusiness && profilePictureId && kyb.cacCertificateId) {
+    if (kyb.isBusiness && kyb.businessLogoId && kyb.cacCertificateId) {
       const kybResult = await createLandlordKyb(landlordId, {
         businessName: kyb.businessName.trim(),
         businessEmail: userEmail,
         businessPhoneNumber: details.phoneNumber.trim(),
-        businessLogoId: profilePictureId,
+        businessLogoId: kyb.businessLogoId,
         businessCacCertificateId: kyb.cacCertificateId,
         businessAddress: {
           address: kyb.businessAddress.trim(),
@@ -489,22 +504,33 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
                 {(
                   [
                     {
+                      key: "businessLogoId" as const,
+                      title: "Business Logo",
+                      label: "businessLogo",
+                      description:
+                        "Defaults to your profile photo from the Details step — upload a different image here if you'd like.",
+                      accept: ".jpg,.jpeg,.png",
+                    },
+                    {
                       key: "cacCertificateId" as const,
                       title: "Business CAC Certificate",
                       label: "cacCertificate",
                       description: null,
+                      accept: ".pdf,.jpg,.jpeg,.png",
                     },
                     {
                       key: "taxRegulatoryDocumentId" as const,
                       title: "Tax & Regulatory Documents",
                       label: "taxRegulatory",
                       description: "Tax certificate or TIN document.",
+                      accept: ".pdf,.jpg,.jpeg,.png",
                     },
                     {
                       key: "proofOfBusinessAddressId" as const,
                       title: "Proof Of Business Address",
                       label: "proofOfBusinessAddress",
                       description: "Utility Bill, or Lease Agreement",
+                      accept: ".pdf,.jpg,.jpeg,.png",
                     },
                   ] as const
                 ).map((field) => (
@@ -539,7 +565,7 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
                           Choose File
                           <input
                             type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
+                            accept={field.accept}
                             className="hidden"
                             onChange={(e) =>
                               handleUpload(e, field.key, field.label)

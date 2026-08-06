@@ -78,6 +78,8 @@ export type LandlordOnboardingKyb = {
   cacCertificateId: string | null;
   taxRegulatoryDocumentId: string | null;
   proofOfBusinessAddressId: string | null;
+  /** Used as the business logo. Defaults to the details-step profile photo, but can be uploaded/replaced right on the KYB step. */
+  businessLogoId: string | null;
 };
 
 export const emptyLandlordKyb: LandlordOnboardingKyb = {
@@ -87,6 +89,7 @@ export const emptyLandlordKyb: LandlordOnboardingKyb = {
   cacCertificateId: null,
   taxRegulatoryDocumentId: null,
   proofOfBusinessAddressId: null,
+  businessLogoId: null,
 };
 
 export const clearLandlordOnboardingSession = () => {

@@ -63,7 +63,13 @@ function clearSessionAndRedirectToLogin(): void {
   localStorage.removeItem("userId");
   localStorage.removeItem("landlordId");
   localStorage.removeItem("lastCreatedPropertyId");
-  sessionStorage.clear();
+  // Note: intentionally NOT clearing sessionStorage here. It only holds
+  // in-progress form drafts (onboarding steps, signup wizard, etc.) — no
+  // auth tokens live there. Wiping it would delete a user's unsaved
+  // progress the moment their access token expires, forcing them to
+  // redo every step after logging back in. `savePostLoginRedirect`
+  // already sends them back to this exact page post-login, so leaving
+  // the draft in place lets them resume seamlessly.
   window.location.href = "/auth/login";
 }
 
