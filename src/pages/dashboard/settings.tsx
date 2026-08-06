@@ -1372,9 +1372,10 @@ const SettingsPage: NextPageWithLayout = () => {
     showToast,
   ]);
 
-  // Submits identity KYC (`/user/:id/kyc`) — tries create first (covers
-  // landlords who never had a KYC record), falling back to update when one
-  // already exists.
+  // Submits identity KYC (`/user/:id/kyc`) — from Settings the user already
+  // has an account (and normally already has a KYC record from onboarding),
+  // so PATCH is the primary path here. Only falls back to POST/create when
+  // update 404s, i.e. a legacy user who never had a KYC record at all.
   const submitIdentityKyc = React.useCallback(
     async (next: IdentityDocumentsFormState) => {
       if (!userId) {
@@ -1388,12 +1389,12 @@ const SettingsPage: NextPageWithLayout = () => {
         proofOfAddressDocumentId: next.proofOfAddressDocumentId || undefined,
         tinDocumentId: next.tinDocumentId || undefined,
       };
-      const createResult = await createUserKyc(userId, { userId, ...body });
-      if (createResult.success) return createResult;
-      if (createResult.statusCode === 409 || createResult.statusCode === 400) {
-        return await updateUserKyc(userId, body);
+      const updateResult = await updateUserKyc(userId, body);
+      if (updateResult.success) return updateResult;
+      if (updateResult.statusCode === 404) {
+        return await createUserKyc(userId, { userId, ...body });
       }
-      return createResult;
+      return updateResult;
     },
     [userId],
   );
