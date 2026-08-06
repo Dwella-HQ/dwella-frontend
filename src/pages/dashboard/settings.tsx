@@ -30,6 +30,7 @@ import {
   getLandlordSettings,
   getLandlordVerificationStatus,
   createLandlordKyb,
+  initiateLandlordVerification,
   isApprovedLandlordVerificationComplete,
   resolveLandlordBusinessPhone,
   updateLandlordBankAccountSettings,
@@ -1372,6 +1373,27 @@ const SettingsPage: NextPageWithLayout = () => {
     showToast,
   ]);
 
+  // After documents are (re)saved, kick off a fresh admin review so the
+  // change doesn't just sit on the record unreviewed. Best-effort: the
+  // documents themselves already saved successfully by this point, so a
+  // failure here is logged rather than surfaced as an error to the user.
+  const triggerLandlordVerificationReview = React.useCallback(
+    async (id: string) => {
+      const verifyResult = await initiateLandlordVerification(id);
+      if (!verifyResult.success) {
+        console.warn(
+          "Initiate landlord verification failed:",
+          verifyResult.error,
+        );
+      }
+      const statusResult = await getLatestLandlordVerificationStatus(id);
+      setLandlordVerificationStatusOverride(
+        statusResult.success ? statusResult.status : null,
+      );
+    },
+    [],
+  );
+
   // Submits identity KYC (`/user/:id/kyc`) — from Settings the user already
   // has an account (and normally already has a KYC record from onboarding),
   // so PATCH is the primary path here. Only falls back to POST/create when
@@ -1477,10 +1499,20 @@ const SettingsPage: NextPageWithLayout = () => {
         const refreshedLandlord = await getLandlordByUser(userId);
         if (refreshedLandlord.success) setLandlord(refreshedLandlord.data);
       }
+      if (landlordId) {
+        await triggerLandlordVerificationReview(landlordId);
+      }
     } else {
       showToast(result.error || "Failed to save documents", "error");
     }
-  }, [identityDocs, showToast, submitIdentityKyc, userId]);
+  }, [
+    identityDocs,
+    landlordId,
+    showToast,
+    submitIdentityKyc,
+    triggerLandlordVerificationReview,
+    userId,
+  ]);
 
   const handleSaveBusinessDocuments = React.useCallback(async () => {
     if (!businessDocs.businessLogoId) {
@@ -1503,11 +1535,18 @@ const SettingsPage: NextPageWithLayout = () => {
           setKybRecord(record);
           setBusinessDocs(businessDocumentsFormFromKyb(record));
         }
+        await triggerLandlordVerificationReview(landlordId);
       }
     } else {
       showToast(result.error || "Failed to save business documents", "error");
     }
-  }, [businessDocs, landlordId, showToast, submitBusinessKyb]);
+  }, [
+    businessDocs,
+    landlordId,
+    showToast,
+    submitBusinessKyb,
+    triggerLandlordVerificationReview,
+  ]);
 
   const handleSavePreferences = React.useCallback(async () => {
     if (!landlordId) return;
@@ -1641,6 +1680,9 @@ const SettingsPage: NextPageWithLayout = () => {
             const refreshedLandlord = await getLandlordByUser(userId);
             if (refreshedLandlord.success) setLandlord(refreshedLandlord.data);
           }
+          if (landlordId) {
+            await triggerLandlordVerificationReview(landlordId);
+          }
           return;
         }
 
@@ -1658,9 +1700,11 @@ const SettingsPage: NextPageWithLayout = () => {
     [
       identityDocs,
       isLandlordVerified,
+      landlordId,
       landlordVerificationStatus,
       showToast,
       submitIdentityKyc,
+      triggerLandlordVerificationReview,
       userId,
       userToken,
     ],
@@ -1721,6 +1765,9 @@ const SettingsPage: NextPageWithLayout = () => {
         if (submitResult.success) {
           setBusinessDocs(next);
           showToast("Document reuploaded successfully.", "success");
+          if (landlordId) {
+            await triggerLandlordVerificationReview(landlordId);
+          }
           return;
         }
 
@@ -1738,9 +1785,11 @@ const SettingsPage: NextPageWithLayout = () => {
     [
       businessDocs,
       isLandlordVerified,
+      landlordId,
       landlordVerificationStatus,
       showToast,
       submitBusinessKyb,
+      triggerLandlordVerificationReview,
       userToken,
     ],
   );
