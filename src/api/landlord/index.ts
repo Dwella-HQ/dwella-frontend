@@ -15,6 +15,7 @@ export type {
   UpdateLandlordDTO,
 } from "./updateLandlord";
 export { queryLandlords } from "./queryLandlords";
+export { initiateLandlordVerification } from "./initiateLandlordVerification";
 export {
   createLandlordKyb,
   updateLandlordKyb,

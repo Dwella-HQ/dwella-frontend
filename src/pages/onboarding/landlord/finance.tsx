@@ -11,6 +11,7 @@ import {
   createLandlord,
   createLandlordKyb,
   getLandlordByUser,
+  initiateLandlordVerification,
   updateLandlordProfileSettings,
 } from "@/api/landlord";
 import { createUserKyc, updateUserKyc } from "@/api/user";
@@ -330,6 +331,15 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
       await ensureLandlordWallet(landlordId, "NGN");
     } catch (err) {
       console.warn("Ensure landlord wallet failed:", err);
+    }
+
+    try {
+      const verifyResult = await initiateLandlordVerification(landlordId);
+      if (!verifyResult.success) {
+        console.warn("Initiate landlord verification failed:", verifyResult.error);
+      }
+    } catch (err) {
+      console.warn("Initiate landlord verification failed:", err);
     }
 
     clearLandlordOnboardingSession();

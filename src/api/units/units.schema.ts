@@ -64,6 +64,15 @@ export const serviceApartmentOfferingSchema = z
   })
   .passthrough();
 
+export const rentOfferingSchema = z
+  .object({
+    id: z.string().optional(),
+    gracePeriod: z.number().nullable().optional(),
+    securityDeposit: z.number().nullable().optional(),
+    pricing: z.array(unitPricingSchema).nullable().optional(),
+  })
+  .passthrough();
+
 // Unit Response (may need to be adjusted based on actual API response)
 export const unitSchema = z
   .object({
@@ -85,6 +94,8 @@ export const unitSchema = z
       .nullable()
       .optional(),
     serviceApartmentOfferingId: z.string().nullable().optional(),
+    rentOffering: rentOfferingSchema.nullable().optional(),
+    rentOfferingId: z.string().nullable().optional(),
   })
   .passthrough();
 

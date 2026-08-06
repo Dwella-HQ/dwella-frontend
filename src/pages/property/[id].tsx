@@ -33,10 +33,7 @@ import {
   loadGuestStayListings,
   loadStayListingById,
 } from "@/lib/loadGuestStayListings";
-import {
-  mockShortStayListings,
-  type StayListing,
-} from "@/data/mockShortStay";
+import type { StayListing } from "@/data/mockShortStay";
 
 const amenityIconFor = (label: string) => {
   const key = label.toLowerCase();
@@ -114,20 +111,13 @@ export default function PropertyDetailPage() {
 
     void loadGuestStayListings().then((listings) => {
       if (cancelled) return;
-      const fromApi = listings
+      const others = listings
         .filter((p) => {
           const root = p.propertyId || p.id.split("__")[0];
           return root !== propertyRootId && p.status === "active";
         })
         .slice(0, 3);
-      const fromMocks = mockShortStayListings
-        .filter((p) => p.id !== propertyRootId && p.status === "active")
-        .slice(0, 3);
-      setSimilar(
-        fromApi.length > 0
-          ? fromApi
-          : fromMocks,
-      );
+      setSimilar(others);
     });
 
     return () => {

@@ -30,6 +30,17 @@ export type {
   UnitPricingDTO,
 } from "./serviceApartmentOffering";
 export {
+  createRentOffering,
+  getRentOffering,
+  updateRentOffering,
+  deleteRentOffering,
+} from "./rentOffering";
+export type {
+  CreateRentOfferingDTO,
+  UpdateRentOfferingDTO,
+  RentOfferingDTO,
+} from "./rentOffering";
+export {
   mapPropertyDTOToProperty,
   mapPropertyDTOToPublicListingProperty,
 } from "./mapProperty";

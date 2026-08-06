@@ -36,7 +36,12 @@ async function enrichPropertyUnits(dto: PropertyDTO): Promise<PropertyDTO> {
   return { ...dto, units: unitsResult.data };
 }
 
-/** Guest browse: real service apartments + other active listings + mocks. */
+/**
+ * Guest browse: real service apartments + other active listings from the
+ * backend. Mock listings are only used as a fallback when the real catalog
+ * is empty (e.g. a fresh/local environment with no seed data) or the API
+ * call fails — never mixed in alongside real data.
+ */
 export async function loadGuestStayListings(): Promise<StayListing[]> {
   const [saResult, allResult] = await Promise.all([
     getPropertiesQuery({ isOpenForServiceApartment: true }),
@@ -72,12 +77,14 @@ export async function loadGuestStayListings(): Promise<StayListing[]> {
     }
   }
 
-  const mockIds = new Set(mockShortStayListings.map((p) => p.id));
-  const fromApi = [...saListings, ...otherListings].filter(
-    (p) => !mockIds.has(p.id),
-  );
+  const fromApi = [...saListings, ...otherListings];
 
-  return [...mockShortStayListings, ...fromApi];
+  // Real catalog has data — show it, no mock filler mixed in.
+  if (fromApi.length > 0) return fromApi;
+
+  // Nothing real to show (empty catalog, or the API call failed) — fall
+  // back to demo listings so the page isn't blank.
+  return mockShortStayListings;
 }
 
 /** Detail page: mock, or property (+ optional unit offering). */
