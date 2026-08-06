@@ -18,6 +18,9 @@ export function resetClientSession(): void {
     "lastCreatedPropertyId",
   ];
   localKeysToClear.forEach((k) => localStorage.removeItem(k));
+  // The refresh token may live in sessionStorage instead of localStorage
+  // when "Keep me logged in" was unchecked — clear both defensively.
+  sessionStorage.removeItem("refreshToken");
 
   const sessionKeysToClear = [
     "landlordOnboardingDetails",

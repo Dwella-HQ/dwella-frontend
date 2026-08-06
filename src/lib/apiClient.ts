@@ -60,6 +60,7 @@ function clearSessionAndRedirectToLogin(): void {
   localStorage.removeItem("authToken");
   localStorage.removeItem("accessToken");
   localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   localStorage.removeItem("userId");
   localStorage.removeItem("landlordId");
   localStorage.removeItem("lastCreatedPropertyId");

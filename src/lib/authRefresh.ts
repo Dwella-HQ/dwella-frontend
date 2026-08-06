@@ -7,6 +7,35 @@ export const REFRESH_TOKEN_STORAGE_KEY = "refreshToken";
 export const AUTH_ACCESS_TOKEN_UPDATED_EVENT = "dwella:access-token-updated";
 
 /**
+ * "Keep me logged in" preference, set at login time. Controls *where* the
+ * refresh token is persisted:
+ *  - true  -> localStorage (survives closing the browser/tab — the access
+ *             token keeps silently renewing indefinitely, like today).
+ *  - false -> sessionStorage only (cleared when the tab/browser closes, so
+ *             once the current access token expires the user is signed out
+ *             for real instead of being silently kept alive).
+ * Defaults to `true` when unset so flows without an explicit checkbox
+ * (social login, signup auto-login) keep the previous always-persisted
+ * behavior.
+ */
+const REMEMBER_ME_STORAGE_KEY = "keepLoggedIn";
+
+export function setRememberMePreference(remember: boolean): void {
+  if (typeof window === "undefined") return;
+  if (remember) {
+    localStorage.setItem(REMEMBER_ME_STORAGE_KEY, "true");
+  } else {
+    localStorage.removeItem(REMEMBER_ME_STORAGE_KEY);
+  }
+}
+
+export function getRememberMePreference(): boolean {
+  if (typeof window === "undefined") return true;
+  const stored = localStorage.getItem(REMEMBER_ME_STORAGE_KEY);
+  return stored === null ? true : stored === "true";
+}
+
+/**
  * Extract refresh token from common login response shapes (email + social login).
  */
 export function extractRefreshTokenFromAuthPayload(
@@ -25,14 +54,24 @@ export function extractRefreshTokenFromAuthPayload(
 
 export function getStoredRefreshToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+  return (
+    sessionStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) ||
+    localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
+  );
 }
 
 export function setStoredRefreshToken(token: string | null): void {
   if (typeof window === "undefined") return;
-  if (token) {
+  if (!token) {
+    localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    return;
+  }
+  if (getRememberMePreference()) {
     localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+    sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   } else {
+    sessionStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
     localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   }
 }

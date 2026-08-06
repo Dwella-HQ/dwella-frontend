@@ -13,6 +13,7 @@ import { ensureLandlordWallet } from "@/api/wallet";
 import { consumePostLoginRedirect } from "@/utils/postLoginRedirect";
 import { getPropertyManagerPostAuthPath } from "@/lib/propertyManagerOnboardingFlow";
 import { persistFreshAuth, resetClientSession } from "@/lib/clientSession";
+import { setRememberMePreference } from "@/lib/authRefresh";
 
 import type { NextPageWithLayout } from "../_app";
 
@@ -88,8 +89,6 @@ const LoginPage: NextPageWithLayout = () => {
         token: accessToken,
       };
 
-      // Always clear stale cache/cookies before storing the new session.
-      resetClientSession();
       setUser(user);
       persistFreshAuth(String(apiUser.id), accessToken);
 
@@ -177,6 +176,15 @@ const LoginPage: NextPageWithLayout = () => {
       setError(null);
       setIsLoading(true);
 
+      // Clear any stale session/cache from a previous login *before*
+      // calling `login()` — that call persists the new refresh token as
+      // part of its own flow, and resetting afterwards (as this used to
+      // do, inside `completeLogin`) would wipe the token right back out.
+      resetClientSession();
+      // Decide *before* logging in where the refresh token will be kept —
+      // same reasoning as above.
+      setRememberMePreference(Boolean(values.keepLoggedIn));
+
       try {
         const result = await login({
           email: values.email,
@@ -187,14 +195,6 @@ const LoginPage: NextPageWithLayout = () => {
           setError(result.error);
           setIsLoading(false);
           return;
-        }
-
-        if (typeof window !== "undefined") {
-          if (values.keepLoggedIn) {
-            localStorage.setItem("keepLoggedIn", "true");
-          } else {
-            localStorage.removeItem("keepLoggedIn");
-          }
         }
 
         const apiUser = result.data.data.user;

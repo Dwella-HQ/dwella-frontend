@@ -139,6 +139,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("user");
         localStorage.removeItem("authToken");
         localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+        sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
         localStorage.removeItem("userId");
         localStorage.removeItem("landlordId");
         localStorage.removeItem("tenantId");
@@ -162,6 +163,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem("user");
       localStorage.removeItem("authToken");
       localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+      sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
       localStorage.removeItem("userId");
       localStorage.removeItem("landlordId");
       localStorage.removeItem("tenantId");
