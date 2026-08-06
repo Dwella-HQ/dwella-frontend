@@ -207,7 +207,7 @@ export const InviteManagerModal = ({
                       type="text"
                       placeholder="e.g. Chinedu Okafor"
                       {...register("fullName")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     />
                     {errors.fullName && (
                       <p className="mt-1 text-xs text-red-600">{errors.fullName.message}</p>
@@ -221,7 +221,7 @@ export const InviteManagerModal = ({
                       type="email"
                       placeholder="e.g. manager@example.com"
                       {...register("email")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     />
                     {errors.email && (
                       <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>

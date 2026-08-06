@@ -148,7 +148,7 @@ export const ResetPasswordForm = ({
                 type="text"
                 placeholder="Enter reset token from email"
                 readOnly={!!defaultToken}
-                className={`h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent ${
+                className={`h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main ${
                   defaultToken ? "bg-gray-50 cursor-not-allowed" : ""
                 }`}
                 aria-required="true"
@@ -183,7 +183,7 @@ export const ResetPasswordForm = ({
                   type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
                   placeholder="Enter new password"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                   aria-required="true"
                   aria-invalid={!!errors.password}
                   aria-describedby={errors.password ? "password-error" : undefined}
@@ -225,7 +225,7 @@ export const ResetPasswordForm = ({
                   type={showConfirmPassword ? "text" : "password"}
                   autoComplete="new-password"
                   placeholder="Confirm new password"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 transition focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                   aria-required="true"
                   aria-invalid={!!errors.confirmPassword}
                   aria-describedby={errors.confirmPassword ? "confirmPassword-error" : undefined}

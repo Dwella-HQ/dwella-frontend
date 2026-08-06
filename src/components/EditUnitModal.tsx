@@ -200,7 +200,7 @@ export const EditUnitModal = ({
                 <input
                   type="text"
                   {...register("name")}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                 />
                 {errors.name && (
                   <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>
@@ -225,7 +225,7 @@ export const EditUnitModal = ({
                           v === "" ? "" : Number(v).toLocaleString("en-NG"),
                         );
                       }}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     />
                   )}
                 />
@@ -245,7 +245,7 @@ export const EditUnitModal = ({
                     type="number"
                     min={0}
                     {...register("numberOfBedrooms")}
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                   />
                   {errors.numberOfBedrooms && (
                     <p className="mt-1 text-xs text-red-600">
@@ -261,7 +261,7 @@ export const EditUnitModal = ({
                     type="number"
                     min={0}
                     {...register("numberOfBathrooms")}
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                   />
                   {errors.numberOfBathrooms && (
                     <p className="mt-1 text-xs text-red-600">

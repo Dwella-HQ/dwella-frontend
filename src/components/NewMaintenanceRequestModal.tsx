@@ -226,7 +226,7 @@ export const NewMaintenanceRequestModal = ({
                 </label>
                 <select
                   {...register("property")}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                 >
                   <option value="">Select property</option>
                   {properties.map((property) => (
@@ -250,7 +250,7 @@ export const NewMaintenanceRequestModal = ({
                 <select
                   {...register("unit")}
                   disabled={unitsLoading || !selectedPropertyId}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main disabled:bg-gray-50 disabled:text-gray-500"
                 >
                   <option value="">
                     {!selectedPropertyId
@@ -279,7 +279,7 @@ export const NewMaintenanceRequestModal = ({
                 </label>
                 <select
                   {...register("maintenanceType")}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                 >
                   <option value="">
                     {typesLoading
@@ -311,7 +311,7 @@ export const NewMaintenanceRequestModal = ({
                   disabled={
                     !selectedType || (selectedType?.subTypes?.length ?? 0) === 0
                   }
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main disabled:bg-gray-50 disabled:text-gray-500"
                 >
                   <option value="">
                     {selectedType && (selectedType.subTypes?.length ?? 0) > 0
@@ -370,7 +370,7 @@ export const NewMaintenanceRequestModal = ({
                   {...register("additionalDetails")}
                   rows={4}
                   placeholder="Provide any additional information about the maintenance request..."
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                 />
                 {errors.additionalDetails && (
                   <p className="mt-1 text-xs text-red-600">

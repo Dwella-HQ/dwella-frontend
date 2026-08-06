@@ -10,7 +10,7 @@ import {
 import { useToast } from "@/components/Toast";
 
 const inputClassName =
-  "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent";
+  "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main";
 
 type FormState = {
   nightlyPrice: string;
@@ -274,7 +274,7 @@ export const ServiceApartmentOfferingPanel = ({ unitId, onChanged }: Props) => {
                 setForm((p) => ({ ...p, description: e.target.value }))
               }
               placeholder="Bright 2BR with reliable power, treated water, and fast Wi‑Fi."
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
             />
           </div>
           <div>
@@ -288,7 +288,7 @@ export const ServiceApartmentOfferingPanel = ({ unitId, onChanged }: Props) => {
                 setForm((p) => ({ ...p, rules: e.target.value }))
               }
               placeholder={"No parties\nNo smoking\nPets on request"}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
             />
           </div>
 

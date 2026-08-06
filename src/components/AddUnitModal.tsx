@@ -384,7 +384,7 @@ export const AddUnitModal = ({
                     <select
                       {...register("property")}
                       disabled={preassignedProperty}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     >
                       {preassignedProperty ? (
                         <option value={propertyId}>
@@ -417,7 +417,7 @@ export const AddUnitModal = ({
                       type="text"
                       placeholder="e.g. Flat 2B"
                       {...register("unitName")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     />
                     {errors.unitName && (
                       <p className="mt-1 text-xs text-red-600">
@@ -433,7 +433,7 @@ export const AddUnitModal = ({
                       type="number"
                       placeholder="e.g. 2"
                       {...register("bedrooms")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     />
                     {errors.bedrooms && (
                       <p className="mt-1 text-xs text-red-600">
@@ -449,7 +449,7 @@ export const AddUnitModal = ({
                       type="number"
                       placeholder="e.g. 2"
                       {...register("bathrooms")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     />
                     {errors.bathrooms && (
                       <p className="mt-1 text-xs text-red-600">
@@ -465,7 +465,7 @@ export const AddUnitModal = ({
                       type="text"
                       placeholder="e.g. 250000"
                       {...register("monthlyRent")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     />
                     {errors.monthlyRent && (
                       <p className="mt-1 text-xs text-red-600">
@@ -479,7 +479,7 @@ export const AddUnitModal = ({
                     </label>
                     <select
                       {...register("rentDuration")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     >
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
@@ -500,7 +500,7 @@ export const AddUnitModal = ({
                       type="text"
                       placeholder="e.g. 50000"
                       {...register("cautionFee")}
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                     />
                   </div>
                 </div>

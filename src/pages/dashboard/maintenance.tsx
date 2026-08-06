@@ -392,7 +392,7 @@ const TenantNewRequestForm = ({
               setSelectedSubTypeId("");
             }}
             disabled={typesLoading || !!typesError}
-            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main disabled:bg-gray-50 disabled:text-gray-500"
           >
             <option value="">
               {typesLoading
@@ -421,7 +421,7 @@ const TenantNewRequestForm = ({
             disabled={
               !selectedType || (selectedType?.subTypes?.length ?? 0) === 0
             }
-            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main disabled:bg-gray-50 disabled:text-gray-500"
           >
             <option value="">
               {selectedType && (selectedType.subTypes?.length ?? 0) > 0
@@ -477,7 +477,7 @@ const TenantNewRequestForm = ({
             placeholder="Please provide detailed information about the issue..."
             rows={5}
             maxLength={500}
-            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent resize-none"
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main resize-none"
           />
           <p className="mt-1 text-xs text-gray-500 text-right">
             {description.length} / 500 characters
@@ -1089,13 +1089,13 @@ const LandlordMaintenancePage = () => {
               placeholder="Search requests..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-[38px] w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+              className="h-[38px] w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
             />
           </div>
           <select
             value={selectedPriority}
             onChange={(e) => setSelectedPriority(e.target.value)}
-            className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent lg:w-[160px]"
+            className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main lg:w-[160px]"
           >
             <option>All Priorities</option>
             <option value="low">Low</option>
@@ -1105,7 +1105,7 @@ const LandlordMaintenancePage = () => {
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent lg:w-[160px]"
+            className="h-[38px] rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main lg:w-[160px]"
           >
             <option>All Categories</option>
             <option>Plumbing</option>

@@ -48,7 +48,7 @@ const PROFILE_KEY = "guestSettingsProfile";
 const NOTIF_KEY = "guestSettingsNotifications";
 
 const inputClassName =
-  "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-main)] focus:border-transparent";
+  "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-main)] focus:border-brand-main";
 
 const defaultNotifs: NotificationPrefs = {
   payments: { email: true, push: true, sms: false },

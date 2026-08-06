@@ -44,7 +44,7 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
   --brand-main: #228cc6;
@@ -63,28 +63,6 @@
   --brand-pending-text: #facc15;
   --brand-border-light: #e5e7eb;
   --brand-border-dark: #374151;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --brand-main: #110b79;
-    --brand-secondary: #c2000b;
-    --brand-ash: #e4e4e4;
-    --brand-white: #ffffff;
-    --brand-black: #000000;
-    --brand-main-bg: #110b791a;
-    --brand-green: #00c950;
-    --brand-success-bg: #00c95026;
-    --brand-success-text: #00c950;
-    --brand-failed-bg: #dc262626;
-    --brand-failed-text: #dc2626;
-    --brand-pending-bg: #facc1526;
-    --brand-pending-text: #facc15;
-    --brand-border-light: #e5e7eb;
-    --brand-border-dark: #374151;
-  }
 }
 
 body {

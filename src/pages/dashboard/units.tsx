@@ -588,7 +588,7 @@ const UnitsPage: NextPageWithLayout = () => {
                   setItemsPerPage(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="h-9 rounded-lg border border-gray-300 bg-white px-3 sm:px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                className="h-9 rounded-lg border border-gray-300 bg-white px-3 sm:px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
               >
                 <option value={12}>12</option>
                 <option value={24}>24</option>

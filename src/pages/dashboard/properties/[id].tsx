@@ -1644,7 +1644,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                                 Monthly rent grace period
                               </label>
                               <select
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                                 value={gracePeriods.monthlyRentGracePeriod}
                                 onChange={(e) =>
                                   setGracePeriods((prev) => ({
@@ -1665,7 +1665,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                                 Quarterly rent grace period
                               </label>
                               <select
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                                 value={gracePeriods.quarterlyRentGracePeriod}
                                 onChange={(e) =>
                                   setGracePeriods((prev) => ({
@@ -1686,7 +1686,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                                 Yearly rent grace period
                               </label>
                               <select
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                                 value={gracePeriods.yearlyRentGracePeriod}
                                 onChange={(e) =>
                                   setGracePeriods((prev) => ({
@@ -1795,7 +1795,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                                 Late fee type
                               </label>
                               <select
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                                 value={propertyLateFee.lateFeeType}
                                 onChange={(e) =>
                                   setPropertyLateFee((p) => ({

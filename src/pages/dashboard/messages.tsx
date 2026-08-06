@@ -160,7 +160,7 @@ const ConversationList = ({
             placeholder="Search messages..."
             value={searchQuery}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
+            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
           />
         </div>
       </div>
@@ -708,7 +708,7 @@ const MessagesContent = () => {
                     onKeyDown={(event) => {
                       if (event.key === "Enter") handleSendMessage();
                     }}
-                    className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main sm:px-4"
+                    className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main sm:px-4"
                   />
                   <motion.button
                     type="button"

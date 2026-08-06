@@ -49,7 +49,7 @@ function LeaseDatePickerField({
         <button
           type="button"
           id={id}
-          className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+          className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
         >
           <span className={value ? "" : "text-gray-400"}>
             {value ? format(parseISO(value), "MMM d, yyyy") : "Select date"}
@@ -781,7 +781,7 @@ export const AddTenantModal = ({
                                   setSelectedUnitId(null);
                                   setAvailableUnits([]);
                                 }}
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                               >
                                 <option value="">Select property</option>
                                 {availableProperties.map((p) => (
@@ -810,7 +810,7 @@ export const AddTenantModal = ({
                             onChange={(e) =>
                               setSelectedUnitId(e.target.value || null)
                             }
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           >
                             <option value="">Select unit</option>
                             {availableUnits.map((u) => (
@@ -851,7 +851,7 @@ export const AddTenantModal = ({
                           type="text"
                           placeholder="e.g. Ada Johnson"
                           {...register("fullName", { required: true })}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                         />
                         {errors.fullName && (
                           <p className="mt-1 text-xs text-red-600">Required</p>
@@ -867,7 +867,7 @@ export const AddTenantModal = ({
                             type="email"
                             placeholder="e.g. tenant@example.com"
                             {...register("email", { required: true })}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           />
                           {errors.email && (
                             <p className="mt-1 text-xs text-red-600">
@@ -916,7 +916,7 @@ export const AddTenantModal = ({
                           </label>
                           <select
                             {...register("idType", { required: true })}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           >
                             <option value="">Select type</option>
                             {ID_TYPE_OPTIONS.map((o) => (
@@ -939,7 +939,7 @@ export const AddTenantModal = ({
                             type="text"
                             placeholder="e.g. 12345678901"
                             {...register("idNumber", { required: true })}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           />
                           {errors.idNumber && (
                             <p className="mt-1 text-xs text-red-600">
@@ -1017,7 +1017,7 @@ export const AddTenantModal = ({
                           </label>
                           <select
                             {...register("employed", { required: true })}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           >
                             <option value="">Select</option>
                             <option value="yes">Yes</option>
@@ -1044,7 +1044,7 @@ export const AddTenantModal = ({
                                 "Employer name is required",
                             })}
                             disabled={employedValue === "no"}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           />
                           {errors.employerName && (
                             <p className="mt-1 text-xs text-red-600">
@@ -1113,7 +1113,7 @@ export const AddTenantModal = ({
                                   setSelectedApplicantId(null);
                                   setAvailableUnits([]);
                                 }}
-                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                               >
                                 <option value="">Select property</option>
                                 {availableProperties.map((p) => (
@@ -1142,7 +1142,7 @@ export const AddTenantModal = ({
                             onChange={(e) =>
                               setSelectedUnitId(e.target.value || null)
                             }
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           >
                             <option value="">Select unit</option>
                             {availableUnits.map((u) => (
@@ -1296,7 +1296,7 @@ export const AddTenantModal = ({
                             </label>
                             <select
                               {...register("idType", { required: true })}
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                             >
                               <option value="">Select type</option>
                               {ID_TYPE_OPTIONS.map((o) => (
@@ -1319,7 +1319,7 @@ export const AddTenantModal = ({
                               type="text"
                               placeholder="e.g. 12345678901"
                               {...register("idNumber", { required: true })}
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                             />
                             {errors.idNumber && (
                               <p className="mt-1 text-xs text-red-600">
@@ -1395,7 +1395,7 @@ export const AddTenantModal = ({
                             </label>
                             <select
                               {...register("employed", { required: true })}
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                             >
                               <option value="">Select</option>
                               <option value="yes">Yes</option>
@@ -1422,7 +1422,7 @@ export const AddTenantModal = ({
                                   "Employer name is required",
                               })}
                               disabled={employedValue === "no"}
-                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                             />
                             {errors.employerName && (
                               <p className="mt-1 text-xs text-red-600">
@@ -1540,7 +1540,7 @@ export const AddTenantModal = ({
                                 Number(v).toLocaleString("en-NG"),
                               );
                             }}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           />
                         </div>
                         <div>
@@ -1549,7 +1549,7 @@ export const AddTenantModal = ({
                           </label>
                           <select
                             {...register("rentFrequency")}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           >
                             {RENT_FREQUENCY_OPTIONS.map((o) => (
                               <option key={o.value} value={o.value}>
@@ -1575,7 +1575,7 @@ export const AddTenantModal = ({
                                   : Number(v).toLocaleString("en-NG"),
                               );
                             }}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           />
                         </div>
                         <div>
@@ -1584,7 +1584,7 @@ export const AddTenantModal = ({
                           </label>
                           <select
                             {...register("serviceChargeFrequency")}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           >
                             {SERVICE_CHARGE_FREQUENCY_OPTIONS.map((o) => (
                               <option key={o.value} value={o.value}>
@@ -1610,7 +1610,7 @@ export const AddTenantModal = ({
                                   : Number(v).toLocaleString("en-NG"),
                               );
                             }}
-                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           />
                         </div>
                       </div>

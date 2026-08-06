@@ -976,7 +976,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                           type="text"
                           placeholder="e.g. Ocean View Apartments"
                           {...register("propertyName")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                         />
                         {errors.propertyName && (
                           <p className="mt-1 text-xs text-red-600">
@@ -990,7 +990,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         </label>
                         <select
                           {...register("yearBuilt")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                         >
                           <option value="">Select Year</option>
                           {yearOptions.map((year) => (
@@ -1011,7 +1011,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         </label>
                         <select
                           {...register("parkingSpace")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                         >
                           <option value="">Placeholder</option>
                           <option value="yes">Yes</option>
@@ -1031,7 +1031,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                           placeholder="Enter property description..."
                           rows={4}
                           {...register("description")}
-                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                         />
                       </div>
                       <div className="sm:col-span-3">
@@ -1118,7 +1118,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                           type="text"
                           placeholder="Street address"
                           {...register("address")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                         />
                         {errors.address && (
                           <p className="mt-1 text-xs text-red-600">
@@ -1137,7 +1137,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                               setValue("city", "");
                             },
                           })}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                         >
                           <option value="">Select State</option>
                           {nigerianStates.map((state) => (
@@ -1159,7 +1159,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                         <select
                           {...register("city")}
                           disabled={!selectedState}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
                         >
                           <option value="">
                             {selectedState
@@ -1186,7 +1186,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
                           type="text"
                           placeholder="e.g. 930212"
                           {...register("postalCode")}
-                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                         />
                         {errors.postalCode && (
                           <p className="mt-1 text-xs text-red-600">

@@ -305,7 +305,7 @@ const GuestMessagesPage: NextPageWithLayout = () => {
                   }
                 }}
                 placeholder="Type your message..."
-                className="h-11 flex-1 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--brand-main)]"
+                className="h-11 flex-1 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-[var(--brand-main)]"
               />
               <button
                 type="button"

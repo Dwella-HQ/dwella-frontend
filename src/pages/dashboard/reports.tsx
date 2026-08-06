@@ -976,7 +976,7 @@ const ReportsPage: NextPageWithLayout = () => {
               <select
                 value={selectedReportType}
                 onChange={(e) => setSelectedReportType(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option>Rent Collection</option>
                 <option>Occupancy Report</option>
@@ -991,7 +991,7 @@ const ReportsPage: NextPageWithLayout = () => {
               <select
                 value={selectedDateRange}
                 onChange={(e) => setSelectedDateRange(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option>Last 3 Months</option>
                 <option>Last 6 Months</option>
@@ -1005,7 +1005,7 @@ const ReportsPage: NextPageWithLayout = () => {
               <select
                 value={selectedProperty}
                 onChange={(e) => setSelectedProperty(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option>All Properties</option>
                 {propertyOptions.map((property) => (
@@ -1025,7 +1025,7 @@ const ReportsPage: NextPageWithLayout = () => {
               <select
                 value={selectedExportFormat}
                 onChange={(e) => setSelectedExportFormat(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-main"
+                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
               >
                 <option>CSV</option>
               </select>
