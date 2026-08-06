@@ -9,6 +9,7 @@ import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
 import { useUser } from "@/contexts/UserContext";
+import { ID_NUMBER_MAX_LENGTH, TIN_MAX_LENGTH } from "@/lib/kycLimits";
 import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
@@ -210,8 +211,12 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
                   <input
                     value={kyc.idNumber}
                     onChange={(e) =>
-                      persistKyc({ ...kyc, idNumber: e.target.value })
+                      persistKyc({
+                        ...kyc,
+                        idNumber: e.target.value.slice(0, ID_NUMBER_MAX_LENGTH),
+                      })
                     }
+                    maxLength={ID_NUMBER_MAX_LENGTH}
                     placeholder="e.g. A12345678"
                     className={inputClassName}
                   />
@@ -270,8 +275,12 @@ const LandlordOnboardingKycPage: NextPageWithLayout = () => {
                   <input
                     value={kyc.tinNumber}
                     onChange={(e) =>
-                      persistKyc({ ...kyc, tinNumber: e.target.value })
+                      persistKyc({
+                        ...kyc,
+                        tinNumber: e.target.value.slice(0, TIN_MAX_LENGTH),
+                      })
                     }
+                    maxLength={TIN_MAX_LENGTH}
                     placeholder="e.g. 12345678-0001"
                     className={inputClassName}
                   />

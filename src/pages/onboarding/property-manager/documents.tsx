@@ -9,6 +9,7 @@ import { SignUpProgress } from "@/components/SignUpProgress";
 import { useToast } from "@/components/Toast";
 import { uploadFile } from "@/api/files";
 import { useUser } from "@/contexts/UserContext";
+import { ID_NUMBER_MAX_LENGTH } from "@/lib/kycLimits";
 import logo from "@/assets/logo_blue_horizontal.png";
 
 import type { NextPageWithLayout } from "../../_app";
@@ -204,8 +205,12 @@ const PropertyManagerOnboardingKycPage: NextPageWithLayout = () => {
                   <input
                     value={kyc.idNumber}
                     onChange={(e) =>
-                      persistKyc({ ...kyc, idNumber: e.target.value })
+                      persistKyc({
+                        ...kyc,
+                        idNumber: e.target.value.slice(0, ID_NUMBER_MAX_LENGTH),
+                      })
                     }
+                    maxLength={ID_NUMBER_MAX_LENGTH}
                     placeholder="e.g. A12345678"
                     className={inputClassName}
                   />

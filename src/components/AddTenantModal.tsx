@@ -28,6 +28,7 @@ import { getUnitsByProperty } from "@/api/units";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
+import { ID_NUMBER_MAX_LENGTH } from "@/lib/kycLimits";
 
 function LeaseDatePickerField({
   value,
@@ -938,7 +939,11 @@ export const AddTenantModal = ({
                           <input
                             type="text"
                             placeholder="e.g. 12345678901"
-                            {...register("idNumber", { required: true })}
+                            maxLength={ID_NUMBER_MAX_LENGTH}
+                            {...register("idNumber", {
+                              required: true,
+                              maxLength: ID_NUMBER_MAX_LENGTH,
+                            })}
                             className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                           />
                           {errors.idNumber && (
@@ -1318,7 +1323,11 @@ export const AddTenantModal = ({
                             <input
                               type="text"
                               placeholder="e.g. 12345678901"
-                              {...register("idNumber", { required: true })}
+                              maxLength={ID_NUMBER_MAX_LENGTH}
+                              {...register("idNumber", {
+                                required: true,
+                                maxLength: ID_NUMBER_MAX_LENGTH,
+                              })}
                               className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                             />
                             {errors.idNumber && (
