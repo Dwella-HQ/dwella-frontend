@@ -26,12 +26,15 @@ import { getProfile } from "@/api/auth";
 import {
   getLandlord,
   getLandlordByUser,
+  getLandlordKyb,
   getLandlordSettings,
   getLandlordVerificationStatus,
+  createLandlordKyb,
   isApprovedLandlordVerificationComplete,
   resolveLandlordBusinessPhone,
-  updateLandlord,
+  updateLandlordBankAccountSettings,
   updateLandlordGracePeriodsSettings,
+  updateLandlordKyb,
   updateLandlordLateFeeSettings,
   updateLandlordNotificationPreferencesSettings,
   updateLandlordPlatformPreferencesSettings,
@@ -44,6 +47,9 @@ import type {
   LandlordSettingsDTO,
   LandlordSettingsProfileUpdateDTO,
 } from "@/api/landlord";
+import { createUserKyc, getUserKyc, updateUserKyc } from "@/api/user";
+import type { ClientIdType } from "@/api/user";
+import { ID_NUMBER_MAX_LENGTH, TIN_MAX_LENGTH } from "@/lib/kycLimits";
 import {
   getWithdrawalBanksByCurrency,
   resolveWithdrawalAccount,
@@ -207,50 +213,103 @@ type PreferencesSnapshot = {
   };
 };
 
-type DocumentsFormState = {
-  govermentIdDocumentId: string;
-  landSurveyDocumentId: string;
-  proofOfOwnershipDocumentId: string;
-  taxIdentificationNumberDocumentId: string;
+/**
+ * Verification documents actually supported by the API today (per the
+ * OpenAPI spec): `CreateClientKycDto`/`UpdateClientKycDto` (user-level KYC,
+ * `/user/{id}/kyc`) and `CreateLandlordKybDto`/`UpdateLandlordKybDto`
+ * (business-level KYB, `/landlord/{id}/kyb`). There is no "Land Survey" or
+ * "Proof of Ownership" document in the current API — those were leftovers
+ * from an older `UpdateLandlordDto` shape that no longer accepts them.
+ */
+type IdentityDocumentsFormState = {
+  idType: ClientIdType | "";
+  idNumber: string;
+  idDocumentId: string;
+  proofOfAddressDocumentId: string;
+  tinNumber: string;
+  tinDocumentId: string;
 };
 
-const createEmptyDocumentsForm = (): DocumentsFormState => ({
-  govermentIdDocumentId: "",
-  landSurveyDocumentId: "",
-  proofOfOwnershipDocumentId: "",
-  taxIdentificationNumberDocumentId: "",
+const createEmptyIdentityDocumentsForm = (): IdentityDocumentsFormState => ({
+  idType: "",
+  idNumber: "",
+  idDocumentId: "",
+  proofOfAddressDocumentId: "",
+  tinNumber: "",
+  tinDocumentId: "",
 });
 
-const documentIdFromRef = (value: unknown): string => {
-  if (typeof value === "string") return value.trim();
-  if (!value || typeof value !== "object") return "";
-
-  const fileRef = value as { id?: unknown };
-  return typeof fileRef.id === "string" ? fileRef.id.trim() : "";
+type BusinessDocumentsFormState = {
+  businessLogoId: string;
+  cacCertificateId: string;
+  taxRegulatoryDocumentId: string;
+  proofOfBusinessAddressId: string;
 };
 
-const hasAllVerificationDocuments = (documents: DocumentsFormState) =>
-  Object.values(documents).every((documentId) => documentId.trim().length > 0);
+const createEmptyBusinessDocumentsForm = (): BusinessDocumentsFormState => ({
+  businessLogoId: "",
+  cacCertificateId: "",
+  taxRegulatoryDocumentId: "",
+  proofOfBusinessAddressId: "",
+});
 
-const documentsFormFromLandlord = (
-  landlord: LandlordDTO,
-): DocumentsFormState => {
-  const source = landlord as Record<string, unknown>;
+/** Reads `{ id, url, fileName }` off an embedded `File` object from the API. */
+const fileRefFrom = (
+  value: unknown,
+): { url?: string; fileName?: string; id?: string } | null => {
+  if (!value || typeof value !== "object") return null;
+  const v = value as { url?: unknown; fileName?: unknown; id?: unknown };
+  const url = typeof v.url === "string" ? v.url : "";
+  const fileName = typeof v.fileName === "string" ? v.fileName : "";
+  const id = typeof v.id === "string" ? v.id : "";
+  if (!url && !fileName && !id) return null;
+  return { url, fileName, id };
+};
 
+/** Unwraps a `{ success, data }`/`{ data }` envelope some endpoints use. */
+const unwrapEnvelope = (raw: unknown): Record<string, unknown> | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (obj.data && typeof obj.data === "object") {
+    return obj.data as Record<string, unknown>;
+  }
+  return obj;
+};
+
+const identityDocumentsFormFromKyc = (
+  kyc: Record<string, unknown> | null,
+): IdentityDocumentsFormState => {
+  if (!kyc) return createEmptyIdentityDocumentsForm();
   return {
-    govermentIdDocumentId:
-      documentIdFromRef(landlord.govermentIdDocumentId) ||
-      documentIdFromRef(source.govermentIdDocument) ||
-      documentIdFromRef(source.governmentIdDocument),
-    landSurveyDocumentId:
-      documentIdFromRef(landlord.landSurveyDocumentId) ||
-      documentIdFromRef(source.landSurveyDocument),
-    proofOfOwnershipDocumentId:
-      documentIdFromRef(landlord.proofOfOwnershipDocumentId) ||
-      documentIdFromRef(source.proofOfOwnershipDocument),
-    taxIdentificationNumberDocumentId:
-      documentIdFromRef(landlord.taxIdentificationNumberDocumentId) ||
-      documentIdFromRef(source.taxIdentificationNumberDocument),
+    idType: (typeof kyc.idType === "string"
+      ? kyc.idType
+      : "") as ClientIdType | "",
+    idNumber: typeof kyc.idNumber === "string" ? kyc.idNumber : "",
+    idDocumentId: fileRefFrom(kyc.idDocument)?.id || "",
+    proofOfAddressDocumentId:
+      fileRefFrom(kyc.proofOfAddressDocument)?.id || "",
+    tinNumber: typeof kyc.tinNumber === "string" ? kyc.tinNumber : "",
+    tinDocumentId: fileRefFrom(kyc.tinDocument)?.id || "",
+  };
+};
+
+const ID_TYPE_OPTIONS: { value: ClientIdType; label: string }[] = [
+  { value: "NATIONAL_ID", label: "National ID" },
+  { value: "DRIVER_LICENSE", label: "Driver's License" },
+  { value: "PASSPORT", label: "International Passport" },
+  { value: "OTHER", label: "Other" },
+];
+
+const businessDocumentsFormFromKyb = (
+  kyb: Record<string, unknown> | null,
+): BusinessDocumentsFormState => {
+  if (!kyb) return createEmptyBusinessDocumentsForm();
+  return {
+    businessLogoId: fileRefFrom(kyb.businessLogo)?.id || "",
+    cacCertificateId: fileRefFrom(kyb.businessCACCertificate)?.id || "",
+    taxRegulatoryDocumentId: fileRefFrom(kyb.businessTINCertificate)?.id || "",
+    proofOfBusinessAddressId:
+      fileRefFrom(kyb.businessProofOfAddressDocument)?.id || "",
   };
 };
 
@@ -339,9 +398,17 @@ const SettingsPage: NextPageWithLayout = () => {
     postalCode: "",
     country: "Nigeria",
   });
-  const [documentsForm, setDocumentsForm] = React.useState<DocumentsFormState>(
-    createEmptyDocumentsForm,
-  );
+  const [identityDocs, setIdentityDocs] =
+    React.useState<IdentityDocumentsFormState>(createEmptyIdentityDocumentsForm);
+  const [businessDocs, setBusinessDocs] =
+    React.useState<BusinessDocumentsFormState>(createEmptyBusinessDocumentsForm);
+  const [kycRecord, setKycRecord] = React.useState<
+    Record<string, unknown> | null
+  >(null);
+  const [kybRecord, setKybRecord] = React.useState<
+    Record<string, unknown> | null
+  >(null);
+  const [isLoadingDocuments, setIsLoadingDocuments] = React.useState(false);
   const [platformPrefsForm, setPlatformPrefsForm] = React.useState({
     defaultCurrency: "NGN",
     defaultLateFeeAmount: "0",
@@ -545,7 +612,6 @@ const SettingsPage: NextPageWithLayout = () => {
 
       if (landlordResult.success) {
         setLandlord(landlordResult.data);
-        setDocumentsForm(documentsFormFromLandlord(landlordResult.data));
         applyProfileFormFromLandlord(landlordResult.data, user?.email);
         if (typeof window !== "undefined") {
           console.info(
@@ -624,7 +690,6 @@ const SettingsPage: NextPageWithLayout = () => {
 
       if (landlordResult.success) {
         setLandlord(landlordResult.data);
-        setDocumentsForm(documentsFormFromLandlord(landlordResult.data));
         applyProfileFormFromLandlord(landlordResult.data, user?.email);
       }
 
@@ -645,6 +710,37 @@ const SettingsPage: NextPageWithLayout = () => {
   const isLandlordVerified = landlordVerificationStatus
     ? landlordVerificationStatus === "VERIFIED"
     : isApprovedLandlordVerificationComplete(landlord);
+  const isBusinessLandlord = landlord?.landlordType === "business";
+
+  // KYC (identity) applies to every landlord; KYB (business) applies only
+  // when they registered as a business. Both are separate resources from
+  // `/landlord/:id` — see `/user/:id/kyc` and `/landlord/:id/kyb`.
+  React.useEffect(() => {
+    if (!userId || userRole !== "landlord") return;
+    let cancelled = false;
+    const loadDocuments = async () => {
+      setIsLoadingDocuments(true);
+      const kycResult = await getUserKyc(userId);
+      if (!cancelled && kycResult.success) {
+        const record = unwrapEnvelope(kycResult.data);
+        setKycRecord(record);
+        setIdentityDocs(identityDocumentsFormFromKyc(record));
+      }
+      if (landlordId && isBusinessLandlord) {
+        const kybResult = await getLandlordKyb(landlordId);
+        if (!cancelled && kybResult.success) {
+          const record = unwrapEnvelope(kybResult.data);
+          setKybRecord(record);
+          setBusinessDocs(businessDocumentsFormFromKyb(record));
+        }
+      }
+      if (!cancelled) setIsLoadingDocuments(false);
+    };
+    void loadDocuments();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, userRole, landlordId, isBusinessLandlord]);
 
   const hasSavedBankAccount = React.useMemo(() => {
     const digits = paymentForm.accountNumber.replace(/\D/g, "");
@@ -702,7 +798,6 @@ const SettingsPage: NextPageWithLayout = () => {
       if (result.success) {
         setLandlord(result.data);
         applyProfileFormFromLandlord(result.data, user?.email);
-        setDocumentsForm(documentsFormFromLandlord(result.data));
       }
 
       setIsLoadingLandlord(false);
@@ -1040,32 +1135,33 @@ const SettingsPage: NextPageWithLayout = () => {
       return;
     }
 
-    const bankPayload: { bankAccount: LandlordBankAccountDTO } = {
-      bankAccount: {
-        accountName,
-        accountNumber: digits,
-        bankName,
-        bankCode,
-        bvn,
-      },
+    const bankPayload: LandlordBankAccountDTO = {
+      accountName,
+      accountNumber: digits,
+      bankName,
+      bankCode,
+      bvn,
     };
 
     if (typeof window !== "undefined") {
       console.info(
         PAYMENT_SETTINGS_LOG,
-        "PATCH /landlord/:id body (save bank):",
+        "PATCH /landlord/:id/settings/bank-account body:",
         JSON.stringify(bankPayload, null, 2),
       );
     }
 
     setIsSaving(true);
-    const result = await updateLandlord(landlordId, bankPayload);
+    const result = await updateLandlordBankAccountSettings(
+      landlordId,
+      bankPayload,
+    );
     setIsSaving(false);
 
     if (typeof window !== "undefined") {
       console.info(
         PAYMENT_SETTINGS_LOG,
-        "PATCH /landlord/:id response:",
+        "PATCH /landlord/:id/settings/bank-account response:",
         result.success ? { success: true, data: result.data } : result,
       );
     }
@@ -1276,42 +1372,141 @@ const SettingsPage: NextPageWithLayout = () => {
     showToast,
   ]);
 
-  const toDocumentsPayload = React.useCallback(
-    (documents: DocumentsFormState) => ({
-      govermentIdDocumentId: documents.govermentIdDocumentId,
-      landSurveyDocumentId: documents.landSurveyDocumentId,
-      proofOfOwnershipDocumentId: documents.proofOfOwnershipDocumentId,
-      taxIdentificationNumberDocumentId:
-        documents.taxIdentificationNumberDocumentId,
-    }),
-    [],
+  // Submits identity KYC (`/user/:id/kyc`) — tries create first (covers
+  // landlords who never had a KYC record), falling back to update when one
+  // already exists.
+  const submitIdentityKyc = React.useCallback(
+    async (next: IdentityDocumentsFormState) => {
+      if (!userId) {
+        return { success: false as const, error: "Missing user" };
+      }
+      const body = {
+        idType: next.idType as ClientIdType,
+        tinNumber: next.tinNumber.trim(),
+        idNumber: next.idNumber.trim() || undefined,
+        idDocumentId: next.idDocumentId || undefined,
+        proofOfAddressDocumentId: next.proofOfAddressDocumentId || undefined,
+        tinDocumentId: next.tinDocumentId || undefined,
+      };
+      const createResult = await createUserKyc(userId, { userId, ...body });
+      if (createResult.success) return createResult;
+      if (createResult.statusCode === 409 || createResult.statusCode === 400) {
+        return await updateUserKyc(userId, body);
+      }
+      return createResult;
+    },
+    [userId],
   );
 
-  const handleSaveDocuments = React.useCallback(async () => {
-    if (!landlordId) return;
-    if (!hasAllVerificationDocuments(documentsForm)) {
-      showToast("Please upload all verification documents.", "error");
+  // Submits business KYB (`/landlord/:id/kyb`) — tries update first (the
+  // record is normally already created during onboarding), falling back to
+  // create for legacy business landlords who never had a KYB record yet.
+  const submitBusinessKyb = React.useCallback(
+    async (next: BusinessDocumentsFormState) => {
+      if (!landlordId) {
+        return { success: false as const, error: "Missing landlord" };
+      }
+      const body = {
+        businessLogoId: next.businessLogoId || undefined,
+        businessCacCertificateId: next.cacCertificateId || undefined,
+        businessTinCertificateId: next.taxRegulatoryDocumentId || undefined,
+        businessProofOfAddressId: next.proofOfBusinessAddressId || undefined,
+        businessTinNumber: identityDocs.tinNumber.trim() || undefined,
+      };
+      const updateResult = await updateLandlordKyb(landlordId, body);
+      if (updateResult.success) return updateResult;
+      if (updateResult.statusCode === 404) {
+        return await createLandlordKyb(landlordId, {
+          businessName:
+            profileForm.businessName.trim() || landlord?.businessName || "",
+          businessEmail:
+            profileForm.businessEmail.trim() ||
+            landlord?.businessEmail ||
+            user?.email ||
+            "",
+          businessPhoneNumber:
+            resolveLandlordBusinessPhone(landlord) ||
+            profileForm.businessPhoneNumber.trim(),
+          businessAddress: {
+            address: profileForm.address.trim(),
+            city: profileForm.city.trim(),
+            state: profileForm.state.trim(),
+            postalCode: profileForm.postalCode.trim() || undefined,
+            country: profileForm.country.trim() || "Nigeria",
+          },
+          businessLogoId: next.businessLogoId,
+          businessCacCertificateId: next.cacCertificateId,
+          businessTinCertificateId: next.taxRegulatoryDocumentId || undefined,
+          businessProofOfAddressId: next.proofOfBusinessAddressId || undefined,
+          businessTinNumber: identityDocs.tinNumber.trim() || undefined,
+        });
+      }
+      return updateResult;
+    },
+    [
+      identityDocs.tinNumber,
+      landlord,
+      landlordId,
+      profileForm,
+      user?.email,
+    ],
+  );
+
+  const handleSaveIdentityDocuments = React.useCallback(async () => {
+    if (!identityDocs.idType) {
+      showToast("Please select an I.D. type.", "error");
+      return;
+    }
+    if (!identityDocs.tinNumber.trim()) {
+      showToast("Please enter your Tax Identification Number (TIN).", "error");
       return;
     }
     setIsSaving(true);
-    const result = await updateLandlord(
-      landlordId,
-      toDocumentsPayload(documentsForm),
-    );
+    const result = await submitIdentityKyc(identityDocs);
     setIsSaving(false);
     if (result.success) {
-      showToast("Documents updated successfully", "success");
+      showToast("Identity documents saved for review", "success");
       if (userId) {
-        const refreshed = await getLandlordByUser(userId);
+        const refreshed = await getUserKyc(userId);
         if (refreshed.success) {
-          setLandlord(refreshed.data);
-          setDocumentsForm(documentsFormFromLandlord(refreshed.data));
+          const record = unwrapEnvelope(refreshed.data);
+          setKycRecord(record);
+          setIdentityDocs(identityDocumentsFormFromKyc(record));
+        }
+        const refreshedLandlord = await getLandlordByUser(userId);
+        if (refreshedLandlord.success) setLandlord(refreshedLandlord.data);
+      }
+    } else {
+      showToast(result.error || "Failed to save documents", "error");
+    }
+  }, [identityDocs, showToast, submitIdentityKyc, userId]);
+
+  const handleSaveBusinessDocuments = React.useCallback(async () => {
+    if (!businessDocs.businessLogoId) {
+      showToast("Please upload a business logo.", "error");
+      return;
+    }
+    if (!businessDocs.cacCertificateId) {
+      showToast("Please upload your CAC certificate.", "error");
+      return;
+    }
+    setIsSaving(true);
+    const result = await submitBusinessKyb(businessDocs);
+    setIsSaving(false);
+    if (result.success) {
+      showToast("Business documents saved for review", "success");
+      if (landlordId) {
+        const refreshed = await getLandlordKyb(landlordId);
+        if (refreshed.success) {
+          const record = unwrapEnvelope(refreshed.data);
+          setKybRecord(record);
+          setBusinessDocs(businessDocumentsFormFromKyb(record));
         }
       }
     } else {
-      showToast(result.error || "Failed to update documents", "error");
+      showToast(result.error || "Failed to save business documents", "error");
     }
-  }, [documentsForm, landlordId, showToast, toDocumentsPayload, userId]);
+  }, [businessDocs, landlordId, showToast, submitBusinessKyb]);
 
   const handleSavePreferences = React.useCallback(async () => {
     if (!landlordId) return;
@@ -1390,13 +1585,9 @@ const SettingsPage: NextPageWithLayout = () => {
     toNotificationArray,
   ]);
 
-  const handleUploadDocument = React.useCallback(
+  const handleUploadIdentityDocument = React.useCallback(
     async (
-      key:
-        | "govermentIdDocumentId"
-        | "landSurveyDocumentId"
-        | "proofOfOwnershipDocumentId"
-        | "taxIdentificationNumberDocumentId",
+      key: "idDocumentId" | "proofOfAddressDocumentId" | "tinDocumentId",
       file: File,
     ) => {
       if (!userToken) {
@@ -1423,96 +1614,150 @@ const SettingsPage: NextPageWithLayout = () => {
         return;
       }
 
-      const nextDocuments = {
-        ...documentsForm,
+      const next: IdentityDocumentsFormState = {
+        ...identityDocs,
         [key]: result.data.id,
       };
 
       if (isLandlordVerified) {
-        if (!landlordId) {
+        if (!next.idType || !next.tinNumber.trim()) {
           setIsUploadingDoc(null);
+          setIdentityDocs(next);
           showToast(
-            "Your landlord account could not be found. Please sign in again.",
-            "error",
-          );
-          return;
-        }
-
-        if (!hasAllVerificationDocuments(nextDocuments)) {
-          setIsUploadingDoc(null);
-          setDocumentsForm(nextDocuments);
-          showToast(
-            "Document uploaded. Upload the remaining verification documents, then save.",
+            "Document uploaded. Fill in the required I.D. type and TIN, then save.",
             "success",
           );
           return;
         }
 
-        const updateResult = await updateLandlord(
-          landlordId,
-          toDocumentsPayload(nextDocuments),
-        );
+        const submitResult = await submitIdentityKyc(next);
         setIsUploadingDoc(null);
 
-        if (updateResult.success) {
-          setDocumentsForm(nextDocuments);
+        if (submitResult.success) {
+          setIdentityDocs(next);
           showToast("Document reuploaded successfully.", "success");
           if (userId) {
             const refreshedLandlord = await getLandlordByUser(userId);
-            if (refreshedLandlord.success) {
-              setLandlord(refreshedLandlord.data);
-              setDocumentsForm(
-                documentsFormFromLandlord(refreshedLandlord.data),
-              );
-            }
+            if (refreshedLandlord.success) setLandlord(refreshedLandlord.data);
           }
           return;
         }
 
         showToast(
-          updateResult.error || "Failed to submit reuploaded document",
+          submitResult.error || "Failed to submit reuploaded document",
           "error",
         );
         return;
       }
 
       setIsUploadingDoc(null);
-      setDocumentsForm(nextDocuments);
+      setIdentityDocs(next);
       showToast("Document uploaded", "success");
     },
     [
-      documentsForm,
+      identityDocs,
       isLandlordVerified,
       landlordVerificationStatus,
-      landlordId,
       showToast,
-      toDocumentsPayload,
+      submitIdentityKyc,
       userId,
       userToken,
     ],
   );
 
-  const documentPreview = React.useMemo(() => {
-    const asFileRef = (value: unknown) => {
-      if (!value || typeof value !== "object") return null;
-      const v = value as { url?: unknown; fileName?: unknown; id?: unknown };
-      const url = typeof v.url === "string" ? v.url : "";
-      const fileName = typeof v.fileName === "string" ? v.fileName : "";
-      const id = typeof v.id === "string" ? v.id : "";
-      if (!url && !fileName && !id) return null;
-      return { url, fileName, id };
-    };
+  const handleUploadBusinessDocument = React.useCallback(
+    async (
+      key:
+        | "businessLogoId"
+        | "cacCertificateId"
+        | "taxRegulatoryDocumentId"
+        | "proofOfBusinessAddressId",
+      file: File,
+    ) => {
+      if (!userToken) {
+        showToast("You must be signed in to upload files", "error");
+        return;
+      }
+      if (landlordVerificationStatus === "PENDING") {
+        showToast(
+          "A landlord verification is already pending. You can reupload after admin review.",
+          "info",
+        );
+        return;
+      }
+      setIsUploadingDoc(key);
+      const result = await uploadFile({
+        file,
+        folder: "landlord",
+        label: key,
+        token: userToken,
+      });
+      if (!result.success) {
+        setIsUploadingDoc(null);
+        showToast(result.error || "Failed to upload document", "error");
+        return;
+      }
 
-    const source = landlord as Record<string, unknown> | null;
-    return {
-      governmentId:
-        asFileRef(source?.govermentIdDocument) ??
-        asFileRef(source?.governmentIdDocument),
-      landSurvey: asFileRef(source?.landSurveyDocument),
-      proofOfOwnership: asFileRef(source?.proofOfOwnershipDocument),
-      tin: asFileRef(source?.taxIdentificationNumberDocument),
-    };
-  }, [landlord]);
+      const next: BusinessDocumentsFormState = {
+        ...businessDocs,
+        [key]: result.data.id,
+      };
+
+      if (isLandlordVerified) {
+        if (!next.businessLogoId || !next.cacCertificateId) {
+          setIsUploadingDoc(null);
+          setBusinessDocs(next);
+          showToast(
+            "Document uploaded. Upload the remaining business documents, then save.",
+            "success",
+          );
+          return;
+        }
+
+        const submitResult = await submitBusinessKyb(next);
+        setIsUploadingDoc(null);
+
+        if (submitResult.success) {
+          setBusinessDocs(next);
+          showToast("Document reuploaded successfully.", "success");
+          return;
+        }
+
+        showToast(
+          submitResult.error || "Failed to submit reuploaded document",
+          "error",
+        );
+        return;
+      }
+
+      setIsUploadingDoc(null);
+      setBusinessDocs(next);
+      showToast("Document uploaded", "success");
+    },
+    [
+      businessDocs,
+      isLandlordVerified,
+      landlordVerificationStatus,
+      showToast,
+      submitBusinessKyb,
+      userToken,
+    ],
+  );
+
+  const documentPreview = React.useMemo(
+    () => ({
+      idDocument: fileRefFrom(kycRecord?.idDocument),
+      proofOfAddress: fileRefFrom(kycRecord?.proofOfAddressDocument),
+      tinDocument: fileRefFrom(kycRecord?.tinDocument),
+      businessLogo: fileRefFrom(kybRecord?.businessLogo),
+      cacCertificate: fileRefFrom(kybRecord?.businessCACCertificate),
+      taxRegulatoryDocument: fileRefFrom(kybRecord?.businessTINCertificate),
+      proofOfBusinessAddress: fileRefFrom(
+        kybRecord?.businessProofOfAddressDocument,
+      ),
+    }),
+    [kycRecord, kybRecord],
+  );
 
   const renderUploadedDocumentInfo = React.useCallback(
     (
@@ -1948,122 +2193,72 @@ const SettingsPage: NextPageWithLayout = () => {
                   </div>
                 ) : null}
 
+                {isLoadingDocuments ? (
+                  <p className="text-sm text-gray-500">
+                    Loading your verification documents...
+                  </p>
+                ) : null}
+
                 <div className="space-y-6">
-                  {/* Government Issued ID */}
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Identity Verification (KYC)
+                  </h3>
+
+                  {/* I.D. Type + Number */}
                   <div>
-                    <h3 className="mb-1 text-sm font-semibold text-gray-900">
-                      Government Issued ID
-                    </h3>
+                    <h4 className="mb-1 text-sm font-semibold text-gray-900">
+                      Government Issued I.D.
+                    </h4>
                     <p className="mb-3 text-sm text-gray-600">
                       Driver&apos;s License, National ID, or International
                       Passport
                     </p>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label
-                        aria-disabled={isReuploadDisabled}
-                        className={documentUploadButtonClass}
-                        title={
-                          isReuploadDisabled
-                            ? "Pending verification is awaiting admin review"
-                            : undefined
-                        }
-                      >
-                        <Upload className="h-4 w-4" />
-                        {isUploadingDoc === "govermentIdDocumentId"
-                          ? isLandlordVerified
-                            ? "Reuploading..."
-                            : "Uploading..."
-                          : isLandlordVerified
-                            ? "Reupload"
-                            : "Choose File"}
-                        <input
-                          type="file"
-                          className="hidden"
+                    <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-700">
+                          I.D. Type
+                        </label>
+                        <select
+                          value={identityDocs.idType}
                           disabled={isReuploadDisabled}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              void handleUploadDocument(
-                                "govermentIdDocumentId",
-                                file,
-                              );
-                            }
-                          }}
-                        />
-                      </label>
-                      {renderUploadedDocumentInfo(
-                        documentPreview.governmentId,
-                        documentsForm.govermentIdDocumentId,
-                      )}
-                    </div>
-                    {documentsForm.govermentIdDocumentId && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        Document uploaded
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Land Survey Document */}
-                  <div>
-                    <h3 className="mb-1 text-sm font-semibold text-gray-900">
-                      Land Survey Document
-                    </h3>
-                    <p className="mb-3 text-sm text-gray-600">
-                      Property map, site plans, or official record
-                    </p>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label
-                        aria-disabled={isReuploadDisabled}
-                        className={documentUploadButtonClass}
-                        title={
-                          isReuploadDisabled
-                            ? "Pending verification is awaiting admin review"
-                            : undefined
-                        }
-                      >
-                        <Upload className="h-4 w-4" />
-                        {isUploadingDoc === "landSurveyDocumentId"
-                          ? isLandlordVerified
-                            ? "Reuploading..."
-                            : "Uploading..."
-                          : isLandlordVerified
-                            ? "Reupload"
-                            : "Choose File"}
+                          onChange={(e) =>
+                            setIdentityDocs((prev) => ({
+                              ...prev,
+                              idType: e.target.value as ClientIdType | "",
+                            }))
+                          }
+                          className={SETTINGS_FIELD_EDITABLE}
+                        >
+                          <option value="">Select ID type</option>
+                          {ID_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-700">
+                          I.D. Number
+                        </label>
                         <input
-                          type="file"
-                          className="hidden"
+                          value={identityDocs.idNumber}
                           disabled={isReuploadDisabled}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              void handleUploadDocument(
-                                "landSurveyDocumentId",
-                                file,
-                              );
-                            }
-                          }}
+                          maxLength={ID_NUMBER_MAX_LENGTH}
+                          onChange={(e) =>
+                            setIdentityDocs((prev) => ({
+                              ...prev,
+                              idNumber: e.target.value.slice(
+                                0,
+                                ID_NUMBER_MAX_LENGTH,
+                              ),
+                            }))
+                          }
+                          placeholder="e.g. A12345678"
+                          className={SETTINGS_FIELD_EDITABLE}
                         />
-                      </label>
-                      {renderUploadedDocumentInfo(
-                        documentPreview.landSurvey,
-                        documentsForm.landSurveyDocumentId,
-                      )}
+                      </div>
                     </div>
-                    {documentsForm.landSurveyDocumentId && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        Document uploaded
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Proof of Ownership */}
-                  <div>
-                    <h3 className="mb-1 text-sm font-semibold text-gray-900">
-                      Proof of Ownership
-                    </h3>
-                    <p className="mb-3 text-sm text-gray-600">
-                      Document, receipt of purchase, or transfer agreement
-                    </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <label
                         aria-disabled={isReuploadDisabled}
@@ -2075,7 +2270,7 @@ const SettingsPage: NextPageWithLayout = () => {
                         }
                       >
                         <Upload className="h-4 w-4" />
-                        {isUploadingDoc === "proofOfOwnershipDocumentId"
+                        {isUploadingDoc === "idDocumentId"
                           ? isLandlordVerified
                             ? "Reuploading..."
                             : "Uploading..."
@@ -2089,8 +2284,8 @@ const SettingsPage: NextPageWithLayout = () => {
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              void handleUploadDocument(
-                                "proofOfOwnershipDocumentId",
+                              void handleUploadIdentityDocument(
+                                "idDocumentId",
                                 file,
                               );
                             }
@@ -2098,11 +2293,65 @@ const SettingsPage: NextPageWithLayout = () => {
                         />
                       </label>
                       {renderUploadedDocumentInfo(
-                        documentPreview.proofOfOwnership,
-                        documentsForm.proofOfOwnershipDocumentId,
+                        documentPreview.idDocument,
+                        identityDocs.idDocumentId,
                       )}
                     </div>
-                    {documentsForm.proofOfOwnershipDocumentId && (
+                    {identityDocs.idDocumentId && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Document uploaded
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Proof of Address */}
+                  <div>
+                    <h4 className="mb-1 text-sm font-semibold text-gray-900">
+                      Proof of Address
+                    </h4>
+                    <p className="mb-3 text-sm text-gray-600">
+                      Utility bill, water bill, or waste bill issued within
+                      the last 3 months
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        aria-disabled={isReuploadDisabled}
+                        className={documentUploadButtonClass}
+                        title={
+                          isReuploadDisabled
+                            ? "Pending verification is awaiting admin review"
+                            : undefined
+                        }
+                      >
+                        <Upload className="h-4 w-4" />
+                        {isUploadingDoc === "proofOfAddressDocumentId"
+                          ? isLandlordVerified
+                            ? "Reuploading..."
+                            : "Uploading..."
+                          : isLandlordVerified
+                            ? "Reupload"
+                            : "Choose File (Optional)"}
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={isReuploadDisabled}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              void handleUploadIdentityDocument(
+                                "proofOfAddressDocumentId",
+                                file,
+                              );
+                            }
+                          }}
+                        />
+                      </label>
+                      {renderUploadedDocumentInfo(
+                        documentPreview.proofOfAddress,
+                        identityDocs.proofOfAddressDocumentId,
+                      )}
+                    </div>
+                    {identityDocs.proofOfAddressDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
                         Document uploaded
                       </p>
@@ -2111,12 +2360,33 @@ const SettingsPage: NextPageWithLayout = () => {
 
                   {/* Tax Identification Number */}
                   <div>
-                    <h3 className="mb-1 text-sm font-semibold text-gray-900">
+                    <h4 className="mb-1 text-sm font-semibold text-gray-900">
                       Tax Identification Number (TIN)
-                    </h3>
+                    </h4>
                     <p className="mb-3 text-sm text-gray-600">
                       Tax certificate or TIN document
                     </p>
+                    <div className="mb-3 max-w-xs">
+                      <label className="mb-1 block text-xs font-medium text-gray-700">
+                        TIN Number
+                      </label>
+                      <input
+                        value={identityDocs.tinNumber}
+                        disabled={isReuploadDisabled}
+                        maxLength={TIN_MAX_LENGTH}
+                        onChange={(e) =>
+                          setIdentityDocs((prev) => ({
+                            ...prev,
+                            tinNumber: e.target.value.slice(
+                              0,
+                              TIN_MAX_LENGTH,
+                            ),
+                          }))
+                        }
+                        placeholder="e.g. 12345678-0001"
+                        className={SETTINGS_FIELD_EDITABLE}
+                      />
+                    </div>
                     <div className="flex flex-wrap items-center gap-3">
                       <label
                         aria-disabled={isReuploadDisabled}
@@ -2128,7 +2398,7 @@ const SettingsPage: NextPageWithLayout = () => {
                         }
                       >
                         <Upload className="h-4 w-4" />
-                        {isUploadingDoc === "taxIdentificationNumberDocumentId"
+                        {isUploadingDoc === "tinDocumentId"
                           ? isLandlordVerified
                             ? "Reuploading..."
                             : "Uploading..."
@@ -2142,8 +2412,8 @@ const SettingsPage: NextPageWithLayout = () => {
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              void handleUploadDocument(
-                                "taxIdentificationNumberDocumentId",
+                              void handleUploadIdentityDocument(
+                                "tinDocumentId",
                                 file,
                               );
                             }
@@ -2151,28 +2421,274 @@ const SettingsPage: NextPageWithLayout = () => {
                         />
                       </label>
                       {renderUploadedDocumentInfo(
-                        documentPreview.tin,
-                        documentsForm.taxIdentificationNumberDocumentId,
+                        documentPreview.tinDocument,
+                        identityDocs.tinDocumentId,
                       )}
                     </div>
-                    {documentsForm.taxIdentificationNumberDocumentId && (
+                    {identityDocs.tinDocumentId && (
                       <p className="mt-2 text-xs text-gray-500">
                         Document uploaded
                       </p>
                     )}
                   </div>
                 </div>
+
+                <p className="text-xs text-gray-500">
+                  I.D. type and TIN number are required; document uploads are
+                  optional but recommended for faster admin review.
+                </p>
+
                 {!isLandlordVerified ? (
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     type="button"
-                    onClick={handleSaveDocuments}
+                    onClick={handleSaveIdentityDocuments}
                     disabled={isSaving}
                     className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                   >
-                    {isSaving ? "Saving..." : "Save Documents"}
+                    {isSaving ? "Saving..." : "Save Identity Documents"}
                   </motion.button>
+                ) : null}
+
+                {isBusinessLandlord ? (
+                  <div className="space-y-6 border-t border-gray-200 pt-6">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Business Verification (KYB)
+                    </h3>
+
+                    {/* Business Logo */}
+                    <div>
+                      <h4 className="mb-1 text-sm font-semibold text-gray-900">
+                        Business Logo
+                      </h4>
+                      <p className="mb-3 text-sm text-gray-600">
+                        Displayed on your business profile
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label
+                          aria-disabled={isReuploadDisabled}
+                          className={documentUploadButtonClass}
+                          title={
+                            isReuploadDisabled
+                              ? "Pending verification is awaiting admin review"
+                              : undefined
+                          }
+                        >
+                          <Upload className="h-4 w-4" />
+                          {isUploadingDoc === "businessLogoId"
+                            ? isLandlordVerified
+                              ? "Reuploading..."
+                              : "Uploading..."
+                            : isLandlordVerified
+                              ? "Reupload"
+                              : "Choose File"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={isReuploadDisabled}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                void handleUploadBusinessDocument(
+                                  "businessLogoId",
+                                  file,
+                                );
+                              }
+                            }}
+                          />
+                        </label>
+                        {renderUploadedDocumentInfo(
+                          documentPreview.businessLogo,
+                          businessDocs.businessLogoId,
+                        )}
+                      </div>
+                      {businessDocs.businessLogoId && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Document uploaded
+                        </p>
+                      )}
+                    </div>
+
+                    {/* CAC Certificate */}
+                    <div>
+                      <h4 className="mb-1 text-sm font-semibold text-gray-900">
+                        CAC Certificate
+                      </h4>
+                      <p className="mb-3 text-sm text-gray-600">
+                        Corporate Affairs Commission registration certificate
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label
+                          aria-disabled={isReuploadDisabled}
+                          className={documentUploadButtonClass}
+                          title={
+                            isReuploadDisabled
+                              ? "Pending verification is awaiting admin review"
+                              : undefined
+                          }
+                        >
+                          <Upload className="h-4 w-4" />
+                          {isUploadingDoc === "cacCertificateId"
+                            ? isLandlordVerified
+                              ? "Reuploading..."
+                              : "Uploading..."
+                            : isLandlordVerified
+                              ? "Reupload"
+                              : "Choose File"}
+                          <input
+                            type="file"
+                            className="hidden"
+                            disabled={isReuploadDisabled}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                void handleUploadBusinessDocument(
+                                  "cacCertificateId",
+                                  file,
+                                );
+                              }
+                            }}
+                          />
+                        </label>
+                        {renderUploadedDocumentInfo(
+                          documentPreview.cacCertificate,
+                          businessDocs.cacCertificateId,
+                        )}
+                      </div>
+                      {businessDocs.cacCertificateId && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Document uploaded
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Business Tax/Regulatory Document */}
+                    <div>
+                      <h4 className="mb-1 text-sm font-semibold text-gray-900">
+                        Business Tax Certificate
+                      </h4>
+                      <p className="mb-3 text-sm text-gray-600">
+                        Business TIN certificate or tax/regulatory document
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label
+                          aria-disabled={isReuploadDisabled}
+                          className={documentUploadButtonClass}
+                          title={
+                            isReuploadDisabled
+                              ? "Pending verification is awaiting admin review"
+                              : undefined
+                          }
+                        >
+                          <Upload className="h-4 w-4" />
+                          {isUploadingDoc === "taxRegulatoryDocumentId"
+                            ? isLandlordVerified
+                              ? "Reuploading..."
+                              : "Uploading..."
+                            : isLandlordVerified
+                              ? "Reupload"
+                              : "Choose File (Optional)"}
+                          <input
+                            type="file"
+                            className="hidden"
+                            disabled={isReuploadDisabled}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                void handleUploadBusinessDocument(
+                                  "taxRegulatoryDocumentId",
+                                  file,
+                                );
+                              }
+                            }}
+                          />
+                        </label>
+                        {renderUploadedDocumentInfo(
+                          documentPreview.taxRegulatoryDocument,
+                          businessDocs.taxRegulatoryDocumentId,
+                        )}
+                      </div>
+                      {businessDocs.taxRegulatoryDocumentId && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Document uploaded
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Proof of Business Address */}
+                    <div>
+                      <h4 className="mb-1 text-sm font-semibold text-gray-900">
+                        Proof of Business Address
+                      </h4>
+                      <p className="mb-3 text-sm text-gray-600">
+                        Utility bill or official document confirming your
+                        business address
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label
+                          aria-disabled={isReuploadDisabled}
+                          className={documentUploadButtonClass}
+                          title={
+                            isReuploadDisabled
+                              ? "Pending verification is awaiting admin review"
+                              : undefined
+                          }
+                        >
+                          <Upload className="h-4 w-4" />
+                          {isUploadingDoc === "proofOfBusinessAddressId"
+                            ? isLandlordVerified
+                              ? "Reuploading..."
+                              : "Uploading..."
+                            : isLandlordVerified
+                              ? "Reupload"
+                              : "Choose File (Optional)"}
+                          <input
+                            type="file"
+                            className="hidden"
+                            disabled={isReuploadDisabled}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                void handleUploadBusinessDocument(
+                                  "proofOfBusinessAddressId",
+                                  file,
+                                );
+                              }
+                            }}
+                          />
+                        </label>
+                        {renderUploadedDocumentInfo(
+                          documentPreview.proofOfBusinessAddress,
+                          businessDocs.proofOfBusinessAddressId,
+                        )}
+                      </div>
+                      {businessDocs.proofOfBusinessAddressId && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Document uploaded
+                        </p>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-gray-500">
+                      Business logo and CAC certificate are required; the tax
+                      certificate and proof of address are optional.
+                    </p>
+
+                    {!isLandlordVerified ? (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="button"
+                        onClick={handleSaveBusinessDocuments}
+                        disabled={isSaving}
+                        className="rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                      >
+                        {isSaving ? "Saving..." : "Save Business Documents"}
+                      </motion.button>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             )}
