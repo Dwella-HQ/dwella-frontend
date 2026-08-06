@@ -931,18 +931,31 @@ const AddPropertyPage: NextPageWithLayout = () => {
         <div className="rounded-lg border border-gray-200 bg-white p-6">
           {user?.role === "landlord" && !isLandlordVerified ? (
             <div
-              className={`mb-6 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+              className={`mb-6 flex flex-col gap-3 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${
                 landlordVerificationStatus === "REJECTED"
                   ? "border-red-200 bg-red-50 text-red-800"
                   : "border-amber-200 bg-amber-50 text-amber-800"
               }`}
             >
-              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <p>
-                {landlordVerificationStatus === "REJECTED"
-                  ? "Your landlord verification was rejected. Reupload your documents from Settings for admin review before creating properties."
-                  : "Your landlord account is not approved yet. Property creation is disabled until verification is approved."}
-              </p>
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <p>
+                  {landlordVerificationStatus === "REJECTED"
+                    ? "Your landlord verification was rejected. Reupload your documents from Settings for admin review before creating properties."
+                    : "Your landlord account is not approved yet. Property creation is disabled until verification is approved."}
+                </p>
+              </div>
+              {landlordVerificationStatus === "REJECTED" ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push("/dashboard/settings?tab=documents")
+                  }
+                  className="inline-flex shrink-0 items-center justify-center rounded-lg border border-red-300 bg-white px-3.5 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 sm:ml-7"
+                >
+                  Reupload Documents
+                </button>
+              ) : null}
             </div>
           ) : null}
           <AnimatePresence mode="wait">

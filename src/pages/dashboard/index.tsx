@@ -1753,7 +1753,7 @@ const LandlordDashboard = () => {
         </div>
         {!isLandlordVerified ? (
           <div
-            className={`rounded-lg border px-4 py-3 text-sm ${
+            className={`flex flex-col gap-3 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${
               landlordVerificationStatus === "REJECTED"
                 ? "border-red-200 bg-red-50 text-red-800"
                 : "border-amber-200 bg-amber-50 text-amber-800"
@@ -1764,6 +1764,17 @@ const LandlordDashboard = () => {
                 ? "Your landlord verification was rejected. Please reupload your documents from Settings for admin review before creating properties."
                 : "Your landlord account is not approved yet. You cannot create properties until verification is approved."}
             </p>
+            {landlordVerificationStatus === "REJECTED" ? (
+              <button
+                type="button"
+                onClick={() =>
+                  router.push("/dashboard/settings?tab=documents")
+                }
+                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-red-300 bg-white px-3.5 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 sm:self-auto"
+              >
+                Reupload Documents
+              </button>
+            ) : null}
           </div>
         ) : null}
 

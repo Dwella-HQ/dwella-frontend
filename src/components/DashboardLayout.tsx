@@ -142,15 +142,28 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               >
                 {showUnverifiedFailSafeBanner ? (
                   <div
-                    className={`rounded-lg border px-4 py-3 text-sm ${
+                    className={`flex flex-col gap-3 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${
                       landlordVerificationStatus === "REJECTED"
                         ? "border-red-200 bg-red-50 text-red-800"
                         : "border-amber-200 bg-amber-50 text-amber-900"
                     }`}
                   >
-                    {landlordVerificationStatus === "REJECTED"
-                      ? "Your landlord verification was rejected. You can only access Dashboard and Settings until you reupload your documents from Settings for admin review."
-                      : "Your landlord account is not approved yet. You can only access Dashboard and Settings until verification is approved."}
+                    <span>
+                      {landlordVerificationStatus === "REJECTED"
+                        ? "Your landlord verification was rejected. You can only access Dashboard and Settings until you reupload your documents from Settings for admin review."
+                        : "Your landlord account is not approved yet. You can only access Dashboard and Settings until verification is approved."}
+                    </span>
+                    {landlordVerificationStatus === "REJECTED" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push("/dashboard/settings?tab=documents")
+                        }
+                        className="inline-flex shrink-0 items-center justify-center rounded-lg border border-red-300 bg-white px-3.5 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+                      >
+                        Reupload Documents
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
                 {children}

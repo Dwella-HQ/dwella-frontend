@@ -1,6 +1,7 @@
 import { isValidPhoneNumber } from "react-phone-number-input";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 import Head from "next/head";
+import { useRouter } from "next/router";
 import * as React from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
@@ -292,13 +293,33 @@ function SettingsSectionCancelButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+const SETTINGS_TAB_IDS: SettingsTab[] = [
+  "profile",
+  "documents",
+  "notifications",
+  "payment-details",
+  "preferences",
+  "change-password",
+];
+
 const SettingsPage: NextPageWithLayout = () => {
+  const router = useRouter();
   const { user } = useUser();
   const userId = user?.id ? String(user.id) : null;
   const userRole = user?.role ?? null;
   const userToken = user?.token ?? null;
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = React.useState<SettingsTab>("profile");
+
+  // Allow deep-linking into a specific tab, e.g. /dashboard/settings?tab=documents
+  React.useEffect(() => {
+    if (!router.isReady) return;
+    const requested = router.query.tab;
+    const tab = Array.isArray(requested) ? requested[0] : requested;
+    if (tab && SETTINGS_TAB_IDS.includes(tab as SettingsTab)) {
+      setActiveTab(tab as SettingsTab);
+    }
+  }, [router.isReady, router.query.tab]);
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
   const [showNewPassword, setShowNewPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
