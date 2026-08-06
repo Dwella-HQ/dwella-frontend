@@ -108,6 +108,17 @@ export const InviteManagerModal = ({
   };
 
   const onSubmit = handleSubmit(async (data) => {
+    // Backend requires at least one property and one permission — it
+    // rejects the request outright (500) if either array is empty.
+    if (selectedProperties.length === 0) {
+      showToast("Please select at least one property to assign.", "error");
+      return;
+    }
+    if (selectedPermissions.length === 0) {
+      showToast("Please select at least one permission.", "error");
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -124,8 +135,8 @@ export const InviteManagerModal = ({
         fullName: data.fullName,
         email: data.email,
         phoneNumber: data.phone,
-        propertyIds: selectedProperties.length > 0 ? selectedProperties : undefined,
-        permissions: selectedPermissions.length > 0 ? selectedPermissions : undefined,
+        propertyIds: selectedProperties,
+        permissions: selectedPermissions,
       });
 
       if (result.success) {
@@ -259,7 +270,7 @@ export const InviteManagerModal = ({
               {/* Assign Properties */}
               <div>
                 <h3 className="mb-4 text-sm font-semibold uppercase" style={{ color: '#99A1AF' }}>
-                  Assign Properties
+                  Assign Properties <span className="text-red-500">*</span>
                 </h3>
                 {isLoadingProperties ? (
                   <div className="flex items-center justify-center py-8">
@@ -299,7 +310,7 @@ export const InviteManagerModal = ({
               {/* Permissions */}
               <div>
                 <h3 className="mb-4 text-sm font-semibold uppercase" style={{ color: '#99A1AF' }}>
-                  Permissions
+                  Permissions <span className="text-red-500">*</span>
                 </h3>
                 <div className="space-y-3">
                   {permissions.map((permission) => (

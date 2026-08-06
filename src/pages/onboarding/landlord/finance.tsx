@@ -230,7 +230,7 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
         : details.address.trim(),
       city: details.city.trim(),
       state: details.state.trim(),
-      postalCode: "",
+      postalCode: details.postalCode.trim() || undefined,
       country: details.country.trim(),
     };
 
@@ -327,7 +327,7 @@ const LandlordOnboardingKybPage: NextPageWithLayout = () => {
           address: kyb.businessAddress.trim(),
           city: details.city.trim(),
           state: details.state.trim(),
-          postalCode: "",
+          postalCode: details.postalCode.trim() || undefined,
           country: details.country.trim(),
         },
         businessTinCertificateId: kyb.taxRegulatoryDocumentId || undefined,

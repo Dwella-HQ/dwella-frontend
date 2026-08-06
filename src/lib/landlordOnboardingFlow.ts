@@ -32,6 +32,7 @@ export type LandlordOnboardingDetails = {
   country: string;
   state: string;
   city: string;
+  postalCode: string;
 };
 
 export const emptyLandlordDetails: LandlordOnboardingDetails = {
@@ -44,6 +45,7 @@ export const emptyLandlordDetails: LandlordOnboardingDetails = {
   country: "Nigeria",
   state: "",
   city: "",
+  postalCode: "",
 };
 
 export type GovernmentIdType =

@@ -30,6 +30,7 @@ export type PropertyManagerOnboardingDetails = {
   country: string;
   state: string;
   city: string;
+  postalCode: string;
 };
 
 export const emptyPropertyManagerDetails: PropertyManagerOnboardingDetails = {
@@ -41,6 +42,7 @@ export const emptyPropertyManagerDetails: PropertyManagerOnboardingDetails = {
   country: "Nigeria",
   state: "",
   city: "",
+  postalCode: "",
 };
 
 export type PropertyManagerOnboardingKyc = {

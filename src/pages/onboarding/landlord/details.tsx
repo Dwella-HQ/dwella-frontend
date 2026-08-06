@@ -201,7 +201,7 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
           address: details.address.trim(),
           city: details.city.trim(),
           state: details.state.trim(),
-          postalCode: "",
+          postalCode: details.postalCode.trim() || undefined,
           country: details.country.trim(),
         },
         // DOB / BVN are not on UpdateUserDto — kept in session until bank settings.
@@ -474,6 +474,18 @@ const LandlordOnboardingDetailsPage: NextPageWithLayout = () => {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Postal Code
+              </label>
+              <input
+                name="postalCode"
+                value={details.postalCode}
+                onChange={handleChange}
+                placeholder="e.g. 100001"
+                className={inputClassName}
+              />
             </div>
           </div>
 

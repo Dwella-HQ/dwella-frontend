@@ -74,12 +74,17 @@ export type PropertyManagersResponseDTO = z.infer<
 >;
 
 // Create Property Manager Request (for invite endpoint)
+// OpenAPI `InvitePropertyManagerDto` requires propertyIds + permissions
+// (both must be non-empty arrays) — the backend rejects the request
+// otherwise.
 export const invitePropertyManagerRequestSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   email: z.string().email("Invalid email address"),
   phoneNumber: z.string().optional(),
-  propertyIds: z.array(z.string().uuid()).optional(),
-  permissions: z.array(z.string()).optional(),
+  propertyIds: z
+    .array(z.string().uuid())
+    .min(1, "Select at least one property"),
+  permissions: z.array(z.string()).min(1, "Select at least one permission"),
 });
 
 export type InvitePropertyManagerRequestDTO = z.infer<
