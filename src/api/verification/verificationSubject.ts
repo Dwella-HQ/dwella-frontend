@@ -11,9 +11,18 @@ export type VerificationFileRef = {
 
 export type VerificationLandlordNested = {
   id?: string;
+  name?: string | null;
+  landLordName?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
   businessName?: string | null;
   businessEmail?: string | null;
   businessPhoneNumber?: string | null;
+  kyb?: {
+    businessName?: string | null;
+    businessEmail?: string | null;
+    businessPhoneNumber?: string | null;
+  } | null;
   verificationStatus?: string | null;
   isActive?: boolean;
   isApproved?: boolean;
@@ -88,12 +97,54 @@ export function getVerifiedByNested(
   return raw ?? null;
 }
 
+function cleanString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function landlordDisplayName(
+  land?: VerificationLandlordNested | null,
+): string {
+  return (
+    cleanString(land?.businessName) ||
+    cleanString(land?.kyb?.businessName) ||
+    cleanString(land?.name) ||
+    cleanString(land?.landLordName) ||
+    cleanString(land?.user?.fullName) ||
+    ""
+  );
+}
+
+export function landlordDisplayEmail(
+  land?: VerificationLandlordNested | null,
+): string {
+  return (
+    cleanString(land?.businessEmail) ||
+    cleanString(land?.kyb?.businessEmail) ||
+    cleanString(land?.email) ||
+    cleanString(land?.user?.email) ||
+    ""
+  );
+}
+
+export function landlordDisplayPhone(
+  land?: VerificationLandlordNested | null,
+): string {
+  return (
+    cleanString(land?.businessPhoneNumber) ||
+    cleanString(land?.kyb?.businessPhoneNumber) ||
+    cleanString(land?.phoneNumber) ||
+    cleanString(land?.user?.phoneNumber) ||
+    ""
+  );
+}
+
 /** Primary label for list rows / detail headline */
 export function verificationSubjectLabel(v: VerificationDTO): string {
   const prop = getPropertyNested(v);
   const land = getLandlordNested(v);
   if (prop?.name?.trim()) return prop.name.trim();
-  if (land?.businessName?.trim()) return land.businessName.trim();
+  const landlordName = landlordDisplayName(land);
+  if (landlordName) return landlordName;
   const pid = prop?.id ?? (v as { propertyId?: string }).propertyId;
   const lid = land?.id ?? (v as { landlordId?: string }).landlordId;
   if (pid) return `Property ${pid.slice(0, 8)}…`;

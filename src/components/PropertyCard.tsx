@@ -1,7 +1,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { MapPin, Home, Users } from "lucide-react";
+import { MapPin, Home, Users, CalendarDays } from "lucide-react";
 import type { Property } from "@/data/mockLandlordData";
 
 export type PropertyCardProps = {
@@ -11,6 +11,8 @@ export type PropertyCardProps = {
 };
 
 export const PropertyCard = ({ property, onClick, index = 0 }: PropertyCardProps) => {
+  const isShortLet = property.isOpenForServiceApartment === true;
+
   return (
     <motion.div
       onClick={onClick}
@@ -50,6 +52,14 @@ export const PropertyCard = ({ property, onClick, index = 0 }: PropertyCardProps
                 : "Inactive"}
           </span>
         </div>
+        {isShortLet && (
+          <div className="absolute right-3 top-3">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-gray-950 shadow-sm">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Short-Let
+            </span>
+          </div>
+        )}
         {/* Amenities Overlay */}
         <div className="absolute bottom-3 left-3 flex flex-wrap gap-1">
           {property.amenities.slice(0, 3).map((amenity, index) => (
@@ -78,6 +88,12 @@ export const PropertyCard = ({ property, onClick, index = 0 }: PropertyCardProps
             <Home className="h-4 w-4" />
             <span>{property.units} Units</span>
           </div>
+          {isShortLet && (
+            <div className="flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-1 rounded-full">
+              <CalendarDays className="h-4 w-4" />
+              <span>Service apartment</span>
+            </div>
+          )}
           <div className="flex items-center gap-1 bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
             <Users className="h-4 w-4" />
             <span>{property.occupancy}% Occupancy</span>
@@ -99,4 +115,3 @@ export const PropertyCard = ({ property, onClick, index = 0 }: PropertyCardProps
     </motion.div>
   );
 };
-

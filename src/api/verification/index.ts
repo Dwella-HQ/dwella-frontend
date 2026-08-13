@@ -21,6 +21,9 @@ export {
   getLandlordNested,
   getPropertyNested,
   getVerifiedByNested,
+  landlordDisplayEmail,
+  landlordDisplayName,
+  landlordDisplayPhone,
   verificationSubjectLabel,
 } from "./verificationSubject";
 export type {

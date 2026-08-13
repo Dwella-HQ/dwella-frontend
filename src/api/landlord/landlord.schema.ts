@@ -34,6 +34,25 @@ const documentFileSchema = z
   .optional()
   .nullable();
 
+const landlordKybSchema = z
+  .object({
+    id: z.string().optional(),
+    businessName: z.string().nullish(),
+    businessEmail: z.string().nullish(),
+    businessPhoneNumber: z.string().nullish(),
+    businessAddress: z.unknown().nullable().optional(),
+    businessLogo: documentFileSchema,
+    businessCACCertificate: documentFileSchema,
+    businessTINCertificate: documentFileSchema,
+    businessTINNumber: z.string().nullish(),
+    businessProofOfAddressDocument: documentFileSchema,
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+  })
+  .passthrough()
+  .nullable()
+  .optional();
+
 // Landlord Response
 export const landlordSchema = z.object({
   id: z.string().uuid(),
@@ -78,6 +97,7 @@ export const landlordSchema = z.object({
   name: z.string().nullable().optional(),
   email: z.string().nullable().optional(),
   phoneNumber: z.string().nullable().optional(),
+  kyb: landlordKybSchema,
   landlordType: z.string().nullable().optional(),
   address: z
     .object({

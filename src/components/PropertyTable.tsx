@@ -1,6 +1,6 @@
 import * as React from "react";
 import Image from "next/image";
-import { MapPin } from "lucide-react";
+import { CalendarDays, MapPin } from "lucide-react";
 import type { Property } from "@/data/mockLandlordData";
 
 export type PropertyTableProps = {
@@ -76,8 +76,16 @@ export const PropertyTable = ({ properties, onPropertyClick }: PropertyTableProp
                       />
                     </div>
                     <div>
-                      <div className="text-sm font-semibold text-gray-900 whitespace-nowrap">
-                        {property.name}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                          {property.name}
+                        </span>
+                        {property.isOpenForServiceApartment ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            <CalendarDays className="h-3 w-3" />
+                            Short-Let
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -119,4 +127,3 @@ export const PropertyTable = ({ properties, onPropertyClick }: PropertyTableProp
     </div>
   );
 };
-

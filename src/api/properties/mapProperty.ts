@@ -92,6 +92,7 @@ export const mapPropertyDTOToProperty = (dto: PropertyDTO): Property => {
     yearBuilt,
     parkingSpace: dto.parkingSpace,
     propertyType: dto.propertyType ?? null,
+    isOpenForServiceApartment: dto.isOpenForServiceApartment === true,
     landlordName: landlordDisplayName(dto),
     landlordAvatarUrl: dto.landlord?.profilePicture?.url ?? null,
   };

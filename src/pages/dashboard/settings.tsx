@@ -133,10 +133,18 @@ function buildLandlordProfilePayload(
     businessName:
       profileForm.businessName.trim() ||
       landlord?.businessName ||
+      landlord?.kyb?.businessName ||
       landlord?.landLordName ||
+      landlord?.name ||
+      landlord?.user?.fullName ||
       "",
     businessEmail:
-      profileForm.businessEmail.trim() || landlord?.businessEmail || "",
+      profileForm.businessEmail.trim() ||
+      landlord?.businessEmail ||
+      landlord?.kyb?.businessEmail ||
+      landlord?.email ||
+      landlord?.user?.email ||
+      "",
     businessPhoneNumber:
       phoneOverride !== undefined
         ? phoneOverride.trim()
@@ -275,6 +283,24 @@ const unwrapEnvelope = (raw: unknown): Record<string, unknown> | null => {
     return obj.data as Record<string, unknown>;
   }
   return obj;
+};
+
+const recordString = (
+  record: Record<string, unknown> | null | undefined,
+  key: string,
+): string => {
+  const value = record?.[key];
+  return typeof value === "string" ? value.trim() : "";
+};
+
+const recordAddressPart = (
+  record: Record<string, unknown> | null | undefined,
+  key: string,
+): string => {
+  const address = record?.businessAddress;
+  if (!address || typeof address !== "object") return "";
+  const value = (address as Record<string, unknown>)[key];
+  return typeof value === "string" ? value.trim() : "";
 };
 
 const identityDocumentsFormFromKyc = (
@@ -529,12 +555,52 @@ const SettingsPage: NextPageWithLayout = () => {
     [],
   );
 
+  const applyProfileFormFromKyb = React.useCallback(
+    (record: Record<string, unknown> | null) => {
+      if (!record) return;
+      const merge = (prev: ProfileFormState): ProfileFormState => ({
+        ...prev,
+        businessName:
+          prev.businessName.trim() || recordString(record, "businessName"),
+        businessEmail:
+          prev.businessEmail.trim() || recordString(record, "businessEmail"),
+        businessPhoneNumber:
+          prev.businessPhoneNumber.trim() ||
+          recordString(record, "businessPhoneNumber"),
+        address:
+          prev.address.trim() || recordAddressPart(record, "address"),
+        city: prev.city.trim() || recordAddressPart(record, "city"),
+        state: prev.state.trim() || recordAddressPart(record, "state"),
+        postalCode:
+          prev.postalCode.trim() || recordAddressPart(record, "postalCode"),
+        country:
+          prev.country.trim() || recordAddressPart(record, "country") || "Nigeria",
+      });
+      setProfileForm((prev) => merge(prev));
+      if (!isEditingProfile) {
+        setProfileSnapshot((prev) => merge(prev));
+      }
+    },
+    [isEditingProfile],
+  );
+
   const applyProfileFormFromLandlord = React.useCallback(
     (data: LandlordDTO, fallbackEmail?: string) => {
       const next: ProfileFormState = {
-        businessName: data.businessName ?? data.landLordName ?? "",
+        businessName:
+          data.businessName ??
+          data.kyb?.businessName ??
+          data.landLordName ??
+          data.name ??
+          data.user?.fullName ??
+          "",
         businessEmail:
-          data.businessEmail ?? data.user?.email ?? fallbackEmail ?? "",
+          data.businessEmail ??
+          data.kyb?.businessEmail ??
+          data.email ??
+          data.user?.email ??
+          fallbackEmail ??
+          "",
         businessPhoneNumber: resolveLandlordBusinessPhone(data),
         address: data.address?.address ?? "",
         city: data.address?.city ?? "",
@@ -711,7 +777,9 @@ const SettingsPage: NextPageWithLayout = () => {
   const isLandlordVerified = landlordVerificationStatus
     ? landlordVerificationStatus === "VERIFIED"
     : isApprovedLandlordVerificationComplete(landlord);
-  const isBusinessLandlord = landlord?.landlordType === "business";
+  const hasKybRecord = Boolean(kybRecord);
+  const isBusinessLandlord =
+    landlord?.landlordType === "business" || hasKybRecord;
 
   // KYC (identity) applies to every landlord; KYB (business) applies only
   // when they registered as a business. Both are separate resources from
@@ -727,12 +795,16 @@ const SettingsPage: NextPageWithLayout = () => {
         setKycRecord(record);
         setIdentityDocs(identityDocumentsFormFromKyc(record));
       }
-      if (landlordId && isBusinessLandlord) {
+      if (landlordId) {
         const kybResult = await getLandlordKyb(landlordId);
         if (!cancelled && kybResult.success) {
           const record = unwrapEnvelope(kybResult.data);
           setKybRecord(record);
           setBusinessDocs(businessDocumentsFormFromKyb(record));
+          applyProfileFormFromKyb(record);
+        } else if (!cancelled) {
+          setKybRecord(null);
+          setBusinessDocs(createEmptyBusinessDocumentsForm());
         }
       }
       if (!cancelled) setIsLoadingDocuments(false);
@@ -741,7 +813,7 @@ const SettingsPage: NextPageWithLayout = () => {
     return () => {
       cancelled = true;
     };
-  }, [userId, userRole, landlordId, isBusinessLandlord]);
+  }, [userId, userRole, landlordId, applyProfileFormFromKyb]);
 
   const hasSavedBankAccount = React.useMemo(() => {
     const digits = paymentForm.accountNumber.replace(/\D/g, "");
@@ -897,21 +969,29 @@ const SettingsPage: NextPageWithLayout = () => {
   };
 
   const businessDisplayName =
-    profileForm.businessName ||
-    landlord?.businessName ||
-    landlord?.landLordName ||
+    profileForm.businessName.trim() ||
+    landlord?.businessName?.trim() ||
+    landlord?.kyb?.businessName?.trim() ||
+    recordString(kybRecord, "businessName") ||
+    landlord?.landLordName?.trim() ||
+    landlord?.name?.trim() ||
+    landlord?.user?.fullName?.trim() ||
     "";
   const businessDisplayEmail =
-    profileForm.businessEmail ||
-    landlord?.businessEmail ||
-    landlord?.user?.email ||
+    profileForm.businessEmail.trim() ||
+    landlord?.businessEmail?.trim() ||
+    landlord?.kyb?.businessEmail?.trim() ||
+    recordString(kybRecord, "businessEmail") ||
+    landlord?.email?.trim() ||
+    landlord?.user?.email?.trim() ||
     user?.email ||
     "";
   const businessDisplayPhone =
+    profileForm.businessPhoneNumber.trim() ||
     resolveLandlordBusinessPhone(landlord) ||
-    (isEditingProfile ? profileForm.businessPhoneNumber.trim() : "");
+    recordString(kybRecord, "businessPhoneNumber");
   const needsBusinessPhonePrompt =
-    !resolveLandlordBusinessPhone(landlord) && !isEditingProfile;
+    !businessDisplayPhone && !isEditingProfile;
   const profileName = businessDisplayName || user?.name || "Landlord";
   const profilePicture = landlord?.profilePicture?.url;
   const initials = getInitials(profileName);
@@ -1441,15 +1521,23 @@ const SettingsPage: NextPageWithLayout = () => {
       if (updateResult.statusCode === 404) {
         return await createLandlordKyb(landlordId, {
           businessName:
-            profileForm.businessName.trim() || landlord?.businessName || "",
+            profileForm.businessName.trim() ||
+            landlord?.businessName ||
+            landlord?.kyb?.businessName ||
+            recordString(kybRecord, "businessName") ||
+            "",
           businessEmail:
             profileForm.businessEmail.trim() ||
             landlord?.businessEmail ||
+            landlord?.kyb?.businessEmail ||
+            recordString(kybRecord, "businessEmail") ||
+            landlord?.email ||
             user?.email ||
             "",
           businessPhoneNumber:
             resolveLandlordBusinessPhone(landlord) ||
-            profileForm.businessPhoneNumber.trim(),
+            profileForm.businessPhoneNumber.trim() ||
+            recordString(kybRecord, "businessPhoneNumber"),
           businessAddress: {
             address: profileForm.address.trim(),
             city: profileForm.city.trim(),
@@ -1471,6 +1559,7 @@ const SettingsPage: NextPageWithLayout = () => {
       landlord,
       landlordId,
       profileForm,
+      kybRecord,
       user?.email,
     ],
   );

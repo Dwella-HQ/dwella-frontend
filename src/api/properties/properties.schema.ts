@@ -165,6 +165,7 @@ export const createPropertyResponseSchema = z.object({
         .optional(),
       numberOfUnits: z.number().int().min(0).optional(), // Allow 0 for initial creation
       description: z.string().optional().nullable(),
+      isOpenForServiceApartment: z.boolean().optional(),
       parkingSpace: z.boolean().optional(),
       photoIds: z.array(z.string().uuid()).optional(),
       documentIds: z.array(z.string().uuid()).optional(),

@@ -5,24 +5,65 @@ export type ParseLandlordResult =
   | { success: true; data: LandlordDTO }
   | { success: false; error: string };
 
+const filledString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
 /** API often returns phone on `user.phoneNumber` while `businessPhoneNumber` stays null. */
 export function resolveLandlordBusinessPhone(
   landlord?: LandlordDTO | null,
 ): string {
   return (
     landlord?.businessPhoneNumber?.trim() ||
+    landlord?.kyb?.businessPhoneNumber?.trim() ||
     landlord?.phoneNumber?.trim() ||
     landlord?.user?.phoneNumber?.trim() ||
     ""
   );
 }
 
-function enrichLandlordBusinessPhone(landlord: LandlordDTO): LandlordDTO {
-  const resolved = resolveLandlordBusinessPhone(landlord);
-  if (!resolved || landlord.businessPhoneNumber?.trim()) {
-    return landlord;
-  }
-  return { ...landlord, businessPhoneNumber: resolved };
+function resolveLandlordBusinessName(landlord?: LandlordDTO | null): string {
+  return (
+    filledString(landlord?.businessName) ||
+    filledString(landlord?.kyb?.businessName) ||
+    filledString(landlord?.landLordName) ||
+    filledString(landlord?.name) ||
+    filledString(landlord?.user?.fullName) ||
+    ""
+  );
+}
+
+function resolveLandlordBusinessEmail(landlord?: LandlordDTO | null): string {
+  return (
+    filledString(landlord?.businessEmail) ||
+    filledString(landlord?.kyb?.businessEmail) ||
+    filledString(landlord?.email) ||
+    filledString(landlord?.user?.email) ||
+    ""
+  );
+}
+
+function enrichLandlordBusinessFields(landlord: LandlordDTO): LandlordDTO {
+  const businessName = resolveLandlordBusinessName(landlord);
+  const businessEmail = resolveLandlordBusinessEmail(landlord);
+  const businessPhoneNumber = resolveLandlordBusinessPhone(landlord);
+
+  return {
+    ...landlord,
+    businessName: businessName || landlord.businessName,
+    landLordName: filledString(landlord.landLordName) || businessName,
+    businessEmail: businessEmail || landlord.businessEmail,
+    businessPhoneNumber: businessPhoneNumber || landlord.businessPhoneNumber,
+  };
+}
+
+function nestedKybString(
+  row: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const kyb = row.kyb;
+  if (!kyb || typeof kyb !== "object") return undefined;
+  const value = (kyb as Record<string, unknown>)[key];
+  return filledString(value);
 }
 
 function normalizeLandlordEnvelope(raw: unknown): unknown {
@@ -33,21 +74,33 @@ function normalizeLandlordEnvelope(raw: unknown): unknown {
 
   const row = data as Record<string, unknown>;
   const businessName =
-    (row.businessName as string | undefined) ??
-    (row.landLordName as string | undefined) ??
-    (row.name as string | undefined) ??
+    filledString(row.businessName) ??
+    nestedKybString(row, "businessName") ??
+    filledString(row.landLordName) ??
+    filledString(row.name) ??
     "";
   const landLordName =
-    (row.landLordName as string | undefined) ??
-    (row.businessName as string | undefined) ??
-    (row.name as string | undefined) ??
+    filledString(row.landLordName) ??
+    filledString(row.businessName) ??
+    nestedKybString(row, "businessName") ??
+    filledString(row.name) ??
     "";
+  const businessEmail =
+    filledString(row.businessEmail) ??
+    nestedKybString(row, "businessEmail") ??
+    filledString(row.email);
+  const businessPhoneNumber =
+    filledString(row.businessPhoneNumber) ??
+    nestedKybString(row, "businessPhoneNumber") ??
+    filledString(row.phoneNumber);
 
   return {
     ...envelope,
     data: {
       ...row,
       businessName,
+      businessEmail,
+      businessPhoneNumber,
       landLordName,
     },
   };
@@ -58,19 +111,31 @@ function normalizeLandlordRecord(raw: unknown): unknown {
 
   const row = raw as Record<string, unknown>;
   const businessName =
-    (row.businessName as string | undefined) ??
-    (row.landLordName as string | undefined) ??
-    (row.name as string | undefined) ??
+    filledString(row.businessName) ??
+    nestedKybString(row, "businessName") ??
+    filledString(row.landLordName) ??
+    filledString(row.name) ??
     "";
   const landLordName =
-    (row.landLordName as string | undefined) ??
-    (row.businessName as string | undefined) ??
-    (row.name as string | undefined) ??
+    filledString(row.landLordName) ??
+    filledString(row.businessName) ??
+    nestedKybString(row, "businessName") ??
+    filledString(row.name) ??
     "";
+  const businessEmail =
+    filledString(row.businessEmail) ??
+    nestedKybString(row, "businessEmail") ??
+    filledString(row.email);
+  const businessPhoneNumber =
+    filledString(row.businessPhoneNumber) ??
+    nestedKybString(row, "businessPhoneNumber") ??
+    filledString(row.phoneNumber);
 
   return {
     ...row,
     businessName,
+    businessEmail,
+    businessPhoneNumber,
     landLordName,
   };
 }
@@ -79,7 +144,7 @@ function normalizeLandlordRecord(raw: unknown): unknown {
 export function parseLandlordApiResponse(raw: unknown): ParseLandlordResult {
   const parsed = landlordResponseSchema.safeParse(raw);
   if (parsed.success) {
-    const landlord = enrichLandlordBusinessPhone(
+    const landlord = enrichLandlordBusinessFields(
       parsed.data.data || (parsed.data as unknown as LandlordDTO),
     );
     return { success: true, data: landlord };
@@ -89,7 +154,7 @@ export function parseLandlordApiResponse(raw: unknown): ParseLandlordResult {
     normalizeLandlordEnvelope(raw),
   );
   if (reparsed.success) {
-    const landlord = enrichLandlordBusinessPhone(
+    const landlord = enrichLandlordBusinessFields(
       reparsed.data.data || (reparsed.data as unknown as LandlordDTO),
     );
     return { success: true, data: landlord };
@@ -99,7 +164,7 @@ export function parseLandlordApiResponse(raw: unknown): ParseLandlordResult {
   if (direct.success) {
     return {
       success: true,
-      data: enrichLandlordBusinessPhone(direct.data),
+      data: enrichLandlordBusinessFields(direct.data),
     };
   }
 
@@ -109,7 +174,7 @@ export function parseLandlordApiResponse(raw: unknown): ParseLandlordResult {
   if (normalizedDirect.success) {
     return {
       success: true,
-      data: enrichLandlordBusinessPhone(normalizedDirect.data),
+      data: enrichLandlordBusinessFields(normalizedDirect.data),
     };
   }
 

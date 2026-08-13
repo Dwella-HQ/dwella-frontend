@@ -17,11 +17,85 @@ export type PropertyTenantsTabProps = {
   propertyIsVerified?: boolean;
 };
 
+type DisplayTenant = Tenant & {
+  actionTenantId?: string;
+  statusLabel?: string;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function firstString(
+  record: Record<string, unknown> | null,
+  keys: string[],
+): string | undefined {
+  if (!record) return undefined;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value))
+      return String(value);
+  }
+  return undefined;
+}
+
+function getInviteTenantId(inv: InvitedTenantDTO): string | undefined {
+  const record = inv as unknown as Record<string, unknown>;
+  const tenant = asRecord(record.tenant);
+  const user = asRecord(record.user);
+  return (
+    firstString(record, ["tenantId", "tenant_id"]) ||
+    firstString(tenant, ["id", "_id", "tenantId", "tenant_id"]) ||
+    firstString(user, ["tenantId", "tenant_id"])
+  );
+}
+
+function getInviteEmail(inv: InvitedTenantDTO): string {
+  const record = inv as unknown as Record<string, unknown>;
+  const tenant = asRecord(record.tenant);
+  const user = asRecord(record.user);
+  return (
+    inv.email?.trim() ||
+    firstString(tenant, ["email", "businessEmail"]) ||
+    firstString(user, ["email", "businessEmail"]) ||
+    ""
+  );
+}
+
+function getInvitePhone(inv: InvitedTenantDTO): string {
+  const record = inv as unknown as Record<string, unknown>;
+  const tenant = asRecord(record.tenant);
+  const user = asRecord(record.user);
+  return (
+    inv.phoneNumber?.trim() ||
+    firstString(record, ["phone", "phone_number"]) ||
+    firstString(tenant, ["phoneNumber", "phone", "businessPhone"]) ||
+    firstString(user, ["phoneNumber", "phone", "businessPhone"]) ||
+    "-"
+  );
+}
+
+function getInviteUnitLabel(inv: InvitedTenantDTO): string {
+  return (
+    inv.unitName?.trim() ||
+    inv.unit?.name?.trim() ||
+    (inv.unitId ? `Unit ref. ${inv.unitId.slice(0, 8)}...` : "-")
+  );
+}
+
 function displayName(inv: InvitedTenantDTO): string {
+  const record = inv as unknown as Record<string, unknown>;
+  const tenant = asRecord(record.tenant);
+  const user = asRecord(record.user);
   return (
     inv.fullName?.trim() ||
     inv.name?.trim() ||
-    inv.email?.split("@")[0] ||
+    firstString(tenant, ["fullName", "name"]) ||
+    firstString(user, ["fullName", "name"]) ||
+    getInviteEmail(inv).split("@")[0] ||
     "Invited tenant"
   );
 }
@@ -30,6 +104,17 @@ function formatInvitedDate(iso?: string): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatDisplayDate(value?: string): string {
+  if (!value || value === "-") return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -56,6 +141,9 @@ export const PropertyTenantsTab = ({
   const router = useRouter();
   const [isAddTenantOpen, setIsAddTenantOpen] = React.useState(false);
   const [invited, setInvited] = React.useState<InvitedTenantDTO[]>([]);
+  const [acceptedInvites, setAcceptedInvites] = React.useState<
+    InvitedTenantDTO[]
+  >([]);
   const [inviteStatusFilter, setInviteStatusFilter] = React.useState<
     InviteStatus | "all"
   >("all");
@@ -79,9 +167,19 @@ export const PropertyTenantsTab = ({
     setInvitedLoading(false);
   }, [propertyId, inviteStatusFilter]);
 
+  const loadAcceptedInvites = React.useCallback(async () => {
+    if (!propertyId) return;
+    const result = await getInvitedTenantsForProperty(propertyId, "accepted");
+    setAcceptedInvites(result.success ? result.data : []);
+  }, [propertyId]);
+
   React.useEffect(() => {
     loadInvited();
   }, [loadInvited]);
+
+  React.useEffect(() => {
+    loadAcceptedInvites();
+  }, [loadAcceptedInvites]);
 
   const getInitials = (name: string) => {
     return name
@@ -91,6 +189,61 @@ export const PropertyTenantsTab = ({
       .toUpperCase()
       .slice(0, 2);
   };
+
+  const currentTenants = React.useMemo<DisplayTenant[]>(() => {
+    const rows: DisplayTenant[] = tenants.map((tenant) => ({
+      ...tenant,
+      actionTenantId: tenant.id,
+      statusLabel: "Paid",
+    }));
+    const seen = new Set<string>();
+
+    const remember = (tenant: DisplayTenant) => {
+      if (tenant.id) seen.add(`id:${tenant.id}`);
+      if (tenant.email) seen.add(`email:${tenant.email.toLowerCase()}`);
+      if (tenant.unitId) seen.add(`unit:${tenant.unitId.toLowerCase()}`);
+    };
+
+    rows.forEach(remember);
+
+    for (const invite of acceptedInvites) {
+      const tenantId = getInviteTenantId(invite);
+      const email = getInviteEmail(invite);
+      const unitLabel = getInviteUnitLabel(invite);
+      const keys = [
+        tenantId ? `id:${tenantId}` : null,
+        email ? `email:${email.toLowerCase()}` : null,
+        unitLabel !== "-" ? `unit:${unitLabel.toLowerCase()}` : null,
+      ].filter(Boolean) as string[];
+
+      if (keys.some((key) => seen.has(key))) continue;
+
+      const tenant: DisplayTenant = {
+        id: tenantId || `invite:${invite.id}`,
+        actionTenantId: tenantId,
+        propertyId,
+        unitId: unitLabel,
+        name: displayName(invite),
+        email,
+        phone: getInvitePhone(invite),
+        leaseStart: formatDisplayDate(invite.leaseStartDate),
+        leaseEnd: formatDisplayDate(invite.leaseEndDate),
+        nextPayment: "-",
+        status: "occupied",
+        statusLabel: "Accepted",
+      };
+
+      rows.push(tenant);
+      remember(tenant);
+    }
+
+    return rows;
+  }, [acceptedInvites, propertyId, tenants]);
+
+  const refreshInvites = React.useCallback(() => {
+    void loadInvited();
+    void loadAcceptedInvites();
+  }, [loadAcceptedInvites, loadInvited]);
 
   return (
     <div className="space-y-6">
@@ -104,9 +257,11 @@ export const PropertyTenantsTab = ({
             </p>
           </div>
 
-          {tenants.length > 0 ? (
+          {currentTenants.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-1 xl:grid-cols-2">
-              {tenants.map((tenant, index) => (
+              {currentTenants.map((tenant, index) => {
+                const canOpenTenant = Boolean(tenant.actionTenantId);
+                return (
                 <motion.div
                   key={tenant.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -139,7 +294,7 @@ export const PropertyTenantsTab = ({
                       </div>
                       <div className="mt-3">
                         <span className="inline-flex rounded-full bg-brand-green px-3 py-1 text-xs font-medium text-white">
-                          Paid
+                          {tenant.statusLabel || "Active"}
                         </span>
                       </div>
                     </div>
@@ -148,10 +303,18 @@ export const PropertyTenantsTab = ({
                   <div className="mt-4 flex gap-2">
                     <motion.button
                       type="button"
-                      onClick={() => router.push(messageTenantHref(tenant.id))}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 flex items-center justify-center gap-2"
+                      onClick={() => {
+                        if (tenant.actionTenantId)
+                          router.push(messageTenantHref(tenant.actionTenantId));
+                      }}
+                      disabled={!canOpenTenant}
+                      whileHover={canOpenTenant ? { scale: 1.02 } : undefined}
+                      whileTap={canOpenTenant ? { scale: 0.98 } : undefined}
+                      className={`flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium transition flex items-center justify-center gap-2 ${
+                        canOpenTenant
+                          ? "text-gray-700 hover:bg-gray-50"
+                          : "cursor-not-allowed text-gray-400 opacity-70"
+                      }`}
                     >
                       <MessageSquare className="h-4 w-4" />
                       Message
@@ -159,18 +322,25 @@ export const PropertyTenantsTab = ({
                     <motion.button
                       type="button"
                       onClick={() =>
-                        router.push(`/dashboard/tenants/${tenant.id}`)
+                        tenant.actionTenantId &&
+                        router.push(`/dashboard/tenants/${tenant.actionTenantId}`)
                       }
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="flex-1 rounded-lg bg-brand-main px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-main/90 flex items-center justify-center gap-2"
+                      disabled={!canOpenTenant}
+                      whileHover={canOpenTenant ? { scale: 1.02 } : undefined}
+                      whileTap={canOpenTenant ? { scale: 0.98 } : undefined}
+                      className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition flex items-center justify-center gap-2 ${
+                        canOpenTenant
+                          ? "bg-brand-main text-white hover:bg-brand-main/90"
+                          : "cursor-not-allowed bg-gray-200 text-gray-500"
+                      }`}
                     >
                       <User className="h-4 w-4" />
                       Profile
                     </motion.button>
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <motion.div
@@ -254,11 +424,8 @@ export const PropertyTenantsTab = ({
             <ul className="space-y-3">
               {invited.map((inv, index) => {
                 const name = displayName(inv);
-                const email = inv.email ?? "—";
-                const unitLabel =
-                  inv.unitName?.trim() ||
-                  inv.unit?.name?.trim() ||
-                  (inv.unitId ? `Unit ref. ${inv.unitId.slice(0, 8)}…` : "—");
+                const email = getInviteEmail(inv) || "-";
+                const unitLabel = getInviteUnitLabel(inv);
                 const when = formatInvitedDate(inv.invitedAt || inv.createdAt);
                 const statusLabel = inv.status?.trim()
                   ? `${inv.status.trim().slice(0, 1).toUpperCase()}${inv.status
@@ -333,7 +500,7 @@ export const PropertyTenantsTab = ({
         onClose={() => setIsAddTenantOpen(false)}
         propertyId={propertyId}
         propertyIsVerified={propertyIsVerified}
-        onSuccess={loadInvited}
+        onSuccess={refreshInvites}
       />
     </div>
   );

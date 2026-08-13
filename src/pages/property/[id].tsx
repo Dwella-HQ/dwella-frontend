@@ -57,10 +57,12 @@ const nightsBetween = (checkIn: string, checkOut: string) => {
 
 export default function PropertyDetailPage() {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isLoading: userLoading } = useUser();
   const { showToast } = useToast();
   const id = router.query.id as string | undefined;
   const isLoggedInGuest = user?.role === "guest";
+  const isRenterSession = user?.role === "guest" || user?.role === "tenant";
+  const isAuthenticated = Boolean(user?.id || user?.token);
   const [property, setProperty] = React.useState<StayListing | null>(null);
   const [similar, setSimilar] = React.useState<StayListing[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -136,14 +138,20 @@ export default function PropertyDetailPage() {
   const handleBook = React.useCallback(() => {
     if (!property) return;
 
-    if (!isLoggedInGuest && guestPreview) {
+    if (userLoading) {
+      showToast("Checking your session. Please try again in a moment.", "info");
+      return;
+    }
+
+    if (!isAuthenticated) {
       setShowGuestModal(true);
       return;
     }
 
-    if (!isLoggedInGuest) {
-      void router.push(
-        `/auth/login?redirect=${encodeURIComponent(`/property/${property.id}`)}`,
+    if (!isRenterSession) {
+      showToast(
+        "Please use a tenant or guest account to continue with this property.",
+        "info",
       );
       return;
     }
@@ -191,8 +199,9 @@ export default function PropertyDetailPage() {
     );
   }, [
     property,
-    isLoggedInGuest,
-    guestPreview,
+    userLoading,
+    isAuthenticated,
+    isRenterSession,
     isShortLet,
     checkIn,
     checkOut,
@@ -326,7 +335,7 @@ export default function PropertyDetailPage() {
 
           <div
             className={`mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 ${
-              guestPreview && showGuestModal ? "select-none blur-[1.2px]" : ""
+              showGuestModal ? "select-none blur-[1.2px]" : ""
             }`}
           >
             <motion.div
@@ -686,15 +695,29 @@ export default function PropertyDetailPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (isLoggedInGuest) {
-                          void router.push("/guest/messages");
+                        if (userLoading) {
+                          showToast(
+                            "Checking your session. Please try again in a moment.",
+                            "info",
+                          );
                           return;
                         }
-                        if (guestPreview) {
+                        if (!isAuthenticated) {
                           setShowGuestModal(true);
                           return;
                         }
-                        void router.push(loginHref);
+                        if (!isRenterSession) {
+                          showToast(
+                            "Please use a tenant or guest account to contact the landlord.",
+                            "info",
+                          );
+                          return;
+                        }
+                        void router.push(
+                          user?.role === "guest"
+                            ? "/guest/messages"
+                            : "/dashboard/messages",
+                        );
                       }}
                       className="mt-5 flex w-full items-center justify-center rounded-xl border border-gray-900 bg-white py-3.5 text-sm font-semibold text-gray-900 transition hover:bg-gray-50"
                     >
@@ -732,7 +755,7 @@ export default function PropertyDetailPage() {
             ) : null}
           </div>
 
-          {guestPreview && showGuestModal && id ? (
+          {showGuestModal && id ? (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
               onClick={() => setShowGuestModal(false)}

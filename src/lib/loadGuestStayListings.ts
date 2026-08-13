@@ -70,7 +70,15 @@ export async function loadGuestStayListings(): Promise<StayListing[]> {
     for (const dto of allResult.data) {
       if (dto.isApproved === false) continue;
       if (saPropertyIds.has(dto.id)) continue;
-      if (dto.isOpenForServiceApartment) continue;
+      if (dto.isOpenForServiceApartment) {
+        const enriched = await enrichPropertyUnits(dto);
+        otherListings.push(
+          ...mapPropertyDTOToStayListings(enriched).filter(
+            (listing) => listing.listingType === "short_let",
+          ),
+        );
+        continue;
+      }
       otherListings.push(
         toStayListing(mapPropertyDTOToPublicListingProperty(dto)),
       );

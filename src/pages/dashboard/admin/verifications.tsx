@@ -14,6 +14,9 @@ import {
   getLandlordNested,
   getPropertyNested,
   getVerifiedByNested,
+  landlordDisplayEmail,
+  landlordDisplayName,
+  landlordDisplayPhone,
   getVerificationById,
   getVerifications,
   patchLandlordVerificationStatus,
@@ -577,6 +580,9 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                   const reasonText = formatReason(d.reason);
                   const landlordIdDisp = entityLandlordId(d);
                   const propertyIdDisp = entityPropertyId(d);
+                  const landlordName = landlordDisplayName(land);
+                  const landlordEmail = landlordDisplayEmail(land);
+                  const landlordPhone = landlordDisplayPhone(land);
 
                   return (
                     <div className="min-w-0 space-y-5">
@@ -689,18 +695,16 @@ const AdminVerificationsPage: NextPageWithLayout = () => {
                             ) : null}
                             <div className="min-w-0 flex-1 space-y-1 text-[13px]">
                               <p className="font-medium">
-                                {land.businessName ?? "—"}
+                                {landlordName || "—"}
                               </p>
                               <p className="text-[#475569]">
-                                {land.businessEmail ?? land.user?.email ?? "—"}
+                                {landlordEmail || "—"}
                               </p>
-                              {(land.businessPhoneNumber ||
-                                land.user?.phoneNumber) && (
+                              {landlordPhone ? (
                                 <p className="text-[#475569]">
-                                  {land.businessPhoneNumber ??
-                                    land.user?.phoneNumber}
+                                  {landlordPhone}
                                 </p>
-                              )}
+                              ) : null}
                               {land.address ? (
                                 <p className="flex gap-1.5 text-[12px] text-[#64748B]">
                                   <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />

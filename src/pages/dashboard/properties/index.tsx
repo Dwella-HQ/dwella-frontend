@@ -11,6 +11,7 @@ import {
   Users,
   AlertCircle,
   Download,
+  CalendarDays,
 } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 
@@ -42,6 +43,7 @@ type FilterStatus =
   | "active"
   | "inactive"
   | "pending"
+  | "short_let"
   | "occupied"
   | "commercial"
   | "residential";
@@ -183,6 +185,8 @@ const PropertiesPage: NextPageWithLayout = () => {
       filtered = filtered.filter((p) => p.status === "pending");
     } else if (statusFilter === "inactive") {
       filtered = filtered.filter((p) => p.status === "inactive");
+    } else if (statusFilter === "short_let") {
+      filtered = filtered.filter((p) => p.isOpenForServiceApartment === true);
     }
 
     // Apply occupancy filter
@@ -245,6 +249,11 @@ const PropertiesPage: NextPageWithLayout = () => {
         { header: "Monthly Rent", value: (property) => property.monthlyRent },
         { header: "Next Due", value: (property) => property.nextDue },
         { header: "Status", value: (property) => property.status },
+        {
+          header: "Service Apartment",
+          value: (property) =>
+            property.isOpenForServiceApartment ? "Yes" : "No",
+        },
         {
           header: "Amenities",
           value: (property) => property.amenities.join(", "),
@@ -367,6 +376,7 @@ const PropertiesPage: NextPageWithLayout = () => {
                           { value: "all", label: "All Properties" },
                           { value: "active", label: "Active" },
                           { value: "pending", label: "Pending Verification" },
+                          { value: "short_let", label: "Short-Let Enabled" },
                         ].map((option) => {
                           const isSelected = statusFilter === option.value;
                           return (
@@ -533,6 +543,7 @@ const PropertiesPage: NextPageWithLayout = () => {
             { value: "active", label: "Active" },
             { value: "inactive", label: "Inactive" },
             { value: "pending", label: "Pending" },
+            { value: "short_let", label: "Short-Let" },
             { value: "occupied", label: "Occupied > 90%" },
             { value: "commercial", label: "Commercial" },
             { value: "residential", label: "Residential" },
@@ -550,6 +561,7 @@ const PropertiesPage: NextPageWithLayout = () => {
                   case "active":
                   case "inactive":
                   case "pending":
+                  case "short_let":
                     setStatusFilter(filter.value);
                     setOccupancyFilter("all");
                     break;
@@ -570,6 +582,9 @@ const PropertiesPage: NextPageWithLayout = () => {
                   : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
               }`}
             >
+              {filter.value === "short_let" ? (
+                <CalendarDays className="mr-1.5 inline h-4 w-4 align-[-2px]" />
+              ) : null}
               {filter.label}
             </button>
           ))}

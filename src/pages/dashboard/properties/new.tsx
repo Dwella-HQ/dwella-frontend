@@ -96,6 +96,43 @@ type Unit = {
   image: string;
 };
 
+type UploadedPhoto = {
+  file?: File;
+  name: string;
+  preview: string;
+  fileId?: string;
+  isUploading?: boolean;
+  uploadError?: string;
+};
+
+type UploadedDocument = {
+  file?: File;
+  name: string;
+  size: string;
+  fileId?: string;
+  isUploading?: boolean;
+  uploadError?: string;
+};
+
+type AddPropertyDraft = {
+  formValues: Partial<BasicDetailsFormValues>;
+  currentStep: number;
+  selectedAmenities: string[];
+  isOpenForServiceApartment: boolean;
+  uploadedPhotos: Array<Pick<UploadedPhoto, "name" | "preview" | "fileId">>;
+  uploadedDocuments: Array<Pick<UploadedDocument, "name" | "size" | "fileId">>;
+  landSurveyDoc: Pick<UploadedDocument, "name" | "size" | "fileId"> | null;
+  proofOfOwnershipDoc: Pick<UploadedDocument, "name" | "size" | "fileId"> | null;
+  powerOfAttorneyDoc: Pick<UploadedDocument, "name" | "size" | "fileId"> | null;
+  otherDoc: Pick<UploadedDocument, "name" | "size" | "fileId"> | null;
+};
+
+const ADD_PROPERTY_DRAFT_VERSION = 1;
+const addPropertyDraftKey = (userId?: string | number | null) =>
+  `dwelliva:add-property-draft:v${ADD_PROPERTY_DRAFT_VERSION}:${
+    userId ? String(userId) : "anonymous"
+  }`;
+
 const AddPropertyPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { user } = useUser();
@@ -111,24 +148,11 @@ const AddPropertyPage: NextPageWithLayout = () => {
     { id: string; name: string }[]
   >([]);
   const [amenitiesLoading, setAmenitiesLoading] = React.useState(true);
-  const [uploadedPhotos, setUploadedPhotos] = React.useState<
-    {
-      file: File;
-      preview: string;
-      fileId?: string;
-      isUploading?: boolean;
-      uploadError?: string;
-    }[]
-  >([]);
+  const [uploadedPhotos, setUploadedPhotos] = React.useState<UploadedPhoto[]>(
+    [],
+  );
   const [uploadedDocuments, setUploadedDocuments] = React.useState<
-    {
-      file: File;
-      name: string;
-      size: string;
-      fileId?: string;
-      isUploading?: boolean;
-      uploadError?: string;
-    }[]
+    UploadedDocument[]
   >([]);
   const [photoUploadProgress, setPhotoUploadProgress] = React.useState<
     Record<number, number>
@@ -138,38 +162,13 @@ const AddPropertyPage: NextPageWithLayout = () => {
   >({});
 
   // Document types state
-  const [landSurveyDoc, setLandSurveyDoc] = React.useState<{
-    file: File;
-    name: string;
-    size: string;
-    fileId?: string;
-    isUploading?: boolean;
-    uploadError?: string;
-  } | null>(null);
-  const [proofOfOwnershipDoc, setProofOfOwnershipDoc] = React.useState<{
-    file: File;
-    name: string;
-    size: string;
-    fileId?: string;
-    isUploading?: boolean;
-    uploadError?: string;
-  } | null>(null);
-  const [powerOfAttorneyDoc, setPowerOfAttorneyDoc] = React.useState<{
-    file: File;
-    name: string;
-    size: string;
-    fileId?: string;
-    isUploading?: boolean;
-    uploadError?: string;
-  } | null>(null);
-  const [otherDoc, setOtherDoc] = React.useState<{
-    file: File;
-    name: string;
-    size: string;
-    fileId?: string;
-    isUploading?: boolean;
-    uploadError?: string;
-  } | null>(null);
+  const [landSurveyDoc, setLandSurveyDoc] =
+    React.useState<UploadedDocument | null>(null);
+  const [proofOfOwnershipDoc, setProofOfOwnershipDoc] =
+    React.useState<UploadedDocument | null>(null);
+  const [powerOfAttorneyDoc, setPowerOfAttorneyDoc] =
+    React.useState<UploadedDocument | null>(null);
+  const [otherDoc, setOtherDoc] = React.useState<UploadedDocument | null>(null);
 
   const [landSurveyProgress, setLandSurveyProgress] = React.useState(0);
   const [proofOfOwnershipProgress, setProofOfOwnershipProgress] =
@@ -191,6 +190,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
       setAmenitiesLoading(false);
     });
   }, []);
+
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [isLandlordVerified, setIsLandlordVerified] = React.useState(true);
   const [landlordVerificationStatus, setLandlordVerificationStatus] =
@@ -235,6 +235,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
     getValues,
     watch,
     setValue,
+    reset,
   } = useForm<BasicDetailsFormValues>({
     resolver: zodResolver(basicDetailsSchema),
     defaultValues: {
@@ -243,8 +244,15 @@ const AddPropertyPage: NextPageWithLayout = () => {
     },
   });
 
+  const draftStorageKey = React.useMemo(
+    () => addPropertyDraftKey(user?.id),
+    [user?.id],
+  );
+  const [hasRestoredDraft, setHasRestoredDraft] = React.useState(false);
+  const watchedFormValues = watch();
+
   // Watch state to filter cities
-  const selectedState = watch("state");
+  const selectedState = watchedFormValues.state;
 
   // Get Nigeria country code
   const nigeria = Country.getAllCountries().find((c) => c.name === "Nigeria");
@@ -257,6 +265,158 @@ const AddPropertyPage: NextPageWithLayout = () => {
   const citiesForState = selectedState
     ? City.getCitiesOfState(nigeriaCode, selectedState)
     : [];
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || hasRestoredDraft) return;
+    const saved = window.localStorage.getItem(draftStorageKey);
+    if (!saved) {
+      setHasRestoredDraft(true);
+      return;
+    }
+
+    try {
+      const draft = JSON.parse(saved) as AddPropertyDraft;
+      reset({
+        country: draft.formValues.country || "Nigeria",
+        yearBuilt:
+          draft.formValues.yearBuilt || String(new Date().getFullYear()),
+        propertyName: draft.formValues.propertyName || "",
+        parkingSpace: draft.formValues.parkingSpace || "",
+        description: draft.formValues.description || "",
+        address: draft.formValues.address || "",
+        city: draft.formValues.city || "",
+        state: draft.formValues.state || "",
+        postalCode: draft.formValues.postalCode || "",
+      });
+      setCurrentStep(
+        Number.isInteger(draft.currentStep)
+          ? Math.min(Math.max(draft.currentStep, 1), 3)
+          : 1,
+      );
+      setSelectedAmenities(
+        Array.isArray(draft.selectedAmenities) ? draft.selectedAmenities : [],
+      );
+      setIsOpenForServiceApartment(Boolean(draft.isOpenForServiceApartment));
+      setUploadedPhotos(
+        Array.isArray(draft.uploadedPhotos)
+          ? draft.uploadedPhotos
+              .filter((photo) => photo.fileId)
+              .map((photo) => ({
+                name: photo.name || "Uploaded photo",
+                preview: photo.preview || "",
+                fileId: photo.fileId,
+                isUploading: false,
+              }))
+          : [],
+      );
+      setUploadedDocuments(
+        Array.isArray(draft.uploadedDocuments)
+          ? draft.uploadedDocuments
+              .filter((doc) => doc.fileId)
+              .map((doc) => ({
+                name: doc.name || "Uploaded document",
+                size: doc.size || "",
+                fileId: doc.fileId,
+                isUploading: false,
+              }))
+          : [],
+      );
+      const restoreDoc = (
+        doc: AddPropertyDraft["landSurveyDoc"],
+      ): UploadedDocument | null =>
+        doc?.fileId
+          ? {
+              name: doc.name || "Uploaded document",
+              size: doc.size || "",
+              fileId: doc.fileId,
+              isUploading: false,
+            }
+          : null;
+      setLandSurveyDoc(restoreDoc(draft.landSurveyDoc));
+      setProofOfOwnershipDoc(restoreDoc(draft.proofOfOwnershipDoc));
+      setPowerOfAttorneyDoc(restoreDoc(draft.powerOfAttorneyDoc));
+      setOtherDoc(restoreDoc(draft.otherDoc));
+      showToast("Restored your property draft.", "success");
+    } catch {
+      window.localStorage.removeItem(draftStorageKey);
+    } finally {
+      setHasRestoredDraft(true);
+    }
+  }, [draftStorageKey, hasRestoredDraft, reset, showToast]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !hasRestoredDraft) return;
+    if (currentStep === 4 || createdPropertyId) return;
+
+    const draft: AddPropertyDraft = {
+      formValues: watchedFormValues,
+      currentStep,
+      selectedAmenities,
+      isOpenForServiceApartment,
+      uploadedPhotos: uploadedPhotos
+        .filter((photo) => photo.fileId && !photo.isUploading)
+        .map((photo) => ({
+          name: photo.name || photo.file?.name || "Uploaded photo",
+          preview: photo.preview,
+          fileId: photo.fileId,
+        })),
+      uploadedDocuments: uploadedDocuments
+        .filter((doc) => doc.fileId && !doc.isUploading)
+        .map((doc) => ({
+          name: doc.name,
+          size: doc.size,
+          fileId: doc.fileId,
+        })),
+      landSurveyDoc:
+        landSurveyDoc?.fileId && !landSurveyDoc.isUploading
+          ? {
+              name: landSurveyDoc.name,
+              size: landSurveyDoc.size,
+              fileId: landSurveyDoc.fileId,
+            }
+          : null,
+      proofOfOwnershipDoc:
+        proofOfOwnershipDoc?.fileId && !proofOfOwnershipDoc.isUploading
+          ? {
+              name: proofOfOwnershipDoc.name,
+              size: proofOfOwnershipDoc.size,
+              fileId: proofOfOwnershipDoc.fileId,
+            }
+          : null,
+      powerOfAttorneyDoc:
+        powerOfAttorneyDoc?.fileId && !powerOfAttorneyDoc.isUploading
+          ? {
+              name: powerOfAttorneyDoc.name,
+              size: powerOfAttorneyDoc.size,
+              fileId: powerOfAttorneyDoc.fileId,
+            }
+          : null,
+      otherDoc:
+        otherDoc?.fileId && !otherDoc.isUploading
+          ? {
+              name: otherDoc.name,
+              size: otherDoc.size,
+              fileId: otherDoc.fileId,
+            }
+          : null,
+    };
+
+    window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+  }, [
+    createdPropertyId,
+    currentStep,
+    draftStorageKey,
+    hasRestoredDraft,
+    isOpenForServiceApartment,
+    landSurveyDoc,
+    otherDoc,
+    powerOfAttorneyDoc,
+    proofOfOwnershipDoc,
+    selectedAmenities,
+    uploadedDocuments,
+    uploadedPhotos,
+    watchedFormValues,
+  ]);
 
   const steps = [
     { number: 1, label: "Basic Details" },
@@ -281,6 +441,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
       reader.onloadend = () => {
         const newPhoto = {
           file,
+          name: file.name,
           preview: reader.result as string,
           isUploading: true,
           uploadError: undefined,
@@ -599,7 +760,9 @@ const AddPropertyPage: NextPageWithLayout = () => {
         if (photo.fileId) {
           photoIds.push(photo.fileId);
         } else if (photo.uploadError) {
-          const message = `Photo "${photo.file.name}" failed to upload: ${photo.uploadError}`;
+          const message = `Photo "${
+            photo.file?.name || photo.name || "Uploaded photo"
+          }" failed to upload: ${photo.uploadError}`;
           setSubmitError(message);
           showToast(message, "error");
           setIsSubmitting(false);
@@ -769,6 +932,7 @@ const AddPropertyPage: NextPageWithLayout = () => {
         setCreatedPropertyId(result.data.id);
         setCreatedPropertyName(formData.propertyName);
         if (typeof window !== "undefined") {
+          window.localStorage.removeItem(draftStorageKey);
           localStorage.setItem("lastCreatedPropertyId", result.data.id);
         }
         setCurrentStep(4);
@@ -1240,12 +1404,21 @@ const AddPropertyPage: NextPageWithLayout = () => {
                           key={index}
                           className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200"
                         >
-                          <Image
-                            src={photo.preview}
-                            alt={`Property photo ${index + 1}`}
-                            fill
-                            className="object-cover"
-                          />
+                          {photo.preview ? (
+                            <Image
+                              src={photo.preview}
+                              alt={`Property photo ${index + 1}`}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full flex-col items-center justify-center bg-gray-100 px-3 text-center text-xs text-gray-500">
+                              <Camera className="mb-2 h-5 w-5 text-gray-400" />
+                              <span className="line-clamp-2">
+                                {photo.name || "Uploaded photo"}
+                              </span>
+                            </div>
+                          )}
                           {photo.isUploading &&
                             photoUploadProgress[index] !== undefined && (
                               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-white text-xs">

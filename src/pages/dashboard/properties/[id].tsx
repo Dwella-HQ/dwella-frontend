@@ -25,6 +25,7 @@ import {
   CalendarClock,
   Globe,
   Upload,
+  CalendarDays,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 
@@ -613,7 +614,11 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     });
     setIsSavingServiceApartment(false);
     if (result.success) {
-      setPropertyDTO(result.data);
+      setPropertyDTO((prev) => ({
+        ...(prev ?? result.data),
+        ...result.data,
+        isOpenForServiceApartment,
+      }));
       showToast(
         isOpenForServiceApartment
           ? "Property is open for service apartments."
@@ -864,6 +869,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     return sum + (Number.isFinite(rent) ? rent : 0);
   }, 0);
   const rentLabel = (() => {
+    if (isOpenForServiceApartment) return "Service rent";
     const normalizeFrequency = (value: unknown): string | null => {
       if (typeof value !== "string") return null;
       const key = value.trim().toLowerCase();
@@ -993,6 +999,12 @@ const PropertyDetailPage: NextPageWithLayout = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
               {property.name}
             </h1>
+            {isOpenForServiceApartment ? (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                <CalendarDays className="h-3.5 w-3.5" />
+                Service apartment enabled
+              </div>
+            ) : null}
             <div className="mt-1 flex items-center gap-1 text-sm text-gray-600">
               <MapPin className="h-4 w-4" />
               <span>

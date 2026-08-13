@@ -16,6 +16,7 @@ export type Property = {
   yearBuilt?: string;
   parkingSpace?: boolean;
   propertyType?: string | null;
+  isOpenForServiceApartment?: boolean;
   landlordName?: string;
   landlordAvatarUrl?: string | null;
 };

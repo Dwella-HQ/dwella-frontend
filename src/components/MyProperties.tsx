@@ -2,7 +2,7 @@ import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
-import { MapPin, Home, Users } from "lucide-react";
+import { CalendarDays, MapPin, Home, Users } from "lucide-react";
 import type { Property } from "@/data/mockLandlordData";
 
 export type MyPropertiesProps = {
@@ -65,6 +65,14 @@ export const MyProperties = ({ properties, onViewAll }: MyPropertiesProps) => {
                     property.status.slice(1)}
                 </span>
               </div>
+              {property.isOpenForServiceApartment ? (
+                <div className="absolute right-3 top-3">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-xs font-bold text-gray-950 shadow-sm">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    Short-Let
+                  </span>
+                </div>
+              ) : null}
               <div className="absolute bottom-3 left-3 flex flex-wrap gap-1">
                 {property.amenities.slice(0, 3).map((amenity, index) => (
                   <span
@@ -94,6 +102,12 @@ export const MyProperties = ({ properties, onViewAll }: MyPropertiesProps) => {
                   <Home className="h-4 w-4" />
                   <span>{property.units} Units</span>
                 </div>
+                {property.isOpenForServiceApartment ? (
+                  <div className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-800">
+                    <CalendarDays className="h-4 w-4" />
+                    <span>Service apartment</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-1 bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
                   <Users className="h-4 w-4" />
                   <span>{property.occupancy}% Occupancy</span>
