@@ -10,7 +10,11 @@ export type PropertyCardProps = {
   index?: number;
 };
 
-export const PropertyCard = ({ property, onClick, index = 0 }: PropertyCardProps) => {
+export const PropertyCard = ({
+  property,
+  onClick,
+  index = 0,
+}: PropertyCardProps) => {
   const isShortLet = property.isOpenForServiceApartment === true;
 
   return (
@@ -23,7 +27,7 @@ export const PropertyCard = ({ property, onClick, index = 0 }: PropertyCardProps
       whileTap={{ scale: 0.98 }}
       className="group cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md"
     >
-      <motion.div 
+      <motion.div
         className="relative min-h-52 w-full overflow-hidden bg-gray-200"
         whileHover={{ scale: 1.05 }}
         transition={{ duration: 0.3 }}
@@ -83,32 +87,38 @@ export const PropertyCard = ({ property, onClick, index = 0 }: PropertyCardProps
           <MapPin className="h-4 w-4" />
           <span className="line-clamp-1">{property.address}</span>
         </div>
-        <div className="mt-3 flex items-center gap-4 text-sm text-gray-600">
-          <div className="flex items-center gap-1 bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-            <Home className="h-4 w-4" />
-            <span>{property.units} Units</span>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+          <div className="inline-flex h-8 items-center gap-1.5 rounded-full bg-gray-100 px-2.5 text-gray-700">
+            <Home className="h-3.5 w-3.5" />
+            <span className="whitespace-nowrap">
+              {property.units} {property.units === 1 ? "Unit" : "Units"}
+            </span>
           </div>
           {isShortLet && (
-            <div className="flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-1 rounded-full">
-              <CalendarDays className="h-4 w-4" />
-              <span>Service apartment</span>
+            <div className="inline-flex h-8 items-center gap-1.5 rounded-full bg-amber-50 px-2.5 text-amber-800 ring-1 ring-amber-100">
+              <CalendarDays className="h-3.5 w-3.5" />
+              <span className="whitespace-nowrap">Service apt.</span>
             </div>
           )}
-          <div className="flex items-center gap-1 bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-            <Users className="h-4 w-4" />
-            <span>{property.occupancy}% Occupancy</span>
+          <div className="inline-flex h-8 items-center gap-1.5 rounded-full bg-gray-100 px-2.5 text-gray-700">
+            <Users className="h-3.5 w-3.5" />
+            <span className="whitespace-nowrap">
+              {property.occupancy}% Occupancy
+            </span>
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
           <div className="flex flex-col gap-2">
             <p className="text-xs text-gray-500">TOTAL UNITS</p>
             <p className="text-sm font-semibold text-gray-900">
-              {property.units} {property.units === 1 ? 'Unit' : 'Units'}
+              {property.units} {property.units === 1 ? "Unit" : "Units"}
             </p>
           </div>
           <div className="flex flex-col gap-2 text-right">
             <p className="text-xs text-gray-500">OCCUPANCY</p>
-            <p className="text-sm font-semibold text-gray-900">{property.occupancy}%</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {property.occupancy}%
+            </p>
           </div>
         </div>
       </div>

@@ -5,11 +5,11 @@ import {
   nightlyPriceFromOffering,
   type ServiceApartmentOfferingDTO,
 } from "./serviceApartmentOffering";
-import { mapPropertyDTOToPublicListingProperty } from "./mapProperty";
 import {
-  toStayListing,
-  type StayListing,
-} from "@/data/mockShortStay";
+  imageUrlsFromUnknown,
+  mapPropertyDTOToPublicListingProperty,
+} from "./mapProperty";
+import { toStayListing, type StayListing } from "@/data/mockShortStay";
 
 function asUnitRecord(unit: unknown): Record<string, unknown> | null {
   if (!unit || typeof unit !== "object") return null;
@@ -25,14 +25,14 @@ function offeringFromUnit(
 }
 
 function unitImageUrls(unit: Record<string, unknown>): string[] {
-  const images = Array.isArray(unit.images) ? unit.images : [];
-  return images
-    .map((img) =>
-      img && typeof img === "object" && typeof (img as { url?: string }).url === "string"
-        ? (img as { url: string }).url
-        : "",
-    )
-    .filter(Boolean);
+  return imageUrlsFromUnknown([
+    unit.images,
+    unit.photos,
+    unit.unitImages,
+    unit.coverPhoto,
+    unit.photo,
+    unit.image,
+  ]);
 }
 
 function splitRules(rules: string | undefined | null): string[] {

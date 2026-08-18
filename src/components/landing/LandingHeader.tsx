@@ -19,6 +19,7 @@ export const LandingHeader = () => {
     { label: "About Us", href: "/about" },
     { label: "Features", href: "/features" },
     { label: "Pricing", href: "/pricing" },
+    { label: "FAQs", href: "/faqs" },
   ];
 
   const isActiveRoute = (href: string): boolean => {

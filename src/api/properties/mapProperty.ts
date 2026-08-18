@@ -1,6 +1,63 @@
 import type { PropertyDTO } from "./properties.schema";
 import type { Property } from "@/data/mockLandlordData";
 
+const DIRECT_IMAGE_URL_KEYS = [
+  "url",
+  "secureUrl",
+  "fileUrl",
+  "publicUrl",
+  "location",
+  "path",
+  "src",
+] as const;
+
+const NESTED_IMAGE_KEYS = ["file", "image", "photo", "data"] as const;
+
+function isUsableImageUrl(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("data:image/")
+  );
+}
+
+export function extractImageUrl(value: unknown, depth = 0): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return isUsableImageUrl(trimmed) ? trimmed : null;
+  }
+
+  if (!value || typeof value !== "object" || depth > 2) return null;
+  const record = value as Record<string, unknown>;
+
+  for (const key of DIRECT_IMAGE_URL_KEYS) {
+    const raw = record[key];
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (isUsableImageUrl(trimmed)) return trimmed;
+    }
+  }
+
+  for (const key of NESTED_IMAGE_KEYS) {
+    const nested = extractImageUrl(record[key], depth + 1);
+    if (nested) return nested;
+  }
+
+  return null;
+}
+
+export function imageUrlsFromUnknown(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : value ? [value] : [];
+  const urls = source.flatMap((item) => {
+    if (Array.isArray(item)) return imageUrlsFromUnknown(item);
+    const url = extractImageUrl(item);
+    return url ? [url] : [];
+  });
+  return Array.from(new Set(urls));
+}
+
 function minRentFromUnits(dto: PropertyDTO): number {
   const units = Array.isArray(dto.units) ? dto.units : [];
   let min = Infinity;
@@ -20,10 +77,20 @@ function minRentFromUnits(dto: PropertyDTO): number {
 }
 
 function photoUrlsFromDto(dto: PropertyDTO): string[] {
-  const photos = Array.isArray(dto.photos) ? dto.photos : [];
-  return photos
-    .map((photo) => (photo && typeof photo.url === "string" ? photo.url : ""))
-    .filter(Boolean);
+  const record = dto as unknown as Record<string, unknown>;
+  const candidates = [
+    record.photos,
+    record.images,
+    record.propertyImages,
+    record.propertyPhotos,
+    record.coverPhoto,
+    record.photo,
+    record.image,
+  ];
+
+  return Array.from(
+    new Set(candidates.flatMap((candidate) => imageUrlsFromUnknown(candidate))),
+  );
 }
 
 function landlordDisplayName(dto: PropertyDTO): string {

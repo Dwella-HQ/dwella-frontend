@@ -13,12 +13,20 @@ type Props = {
 const formatNaira = (amount: number) =>
   amount > 0 ? `₦${amount.toLocaleString("en-NG")}` : "Contact for price";
 
+const FALLBACK_PROPERTY_IMAGE =
+  "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&h=600&fit=crop";
+
 export const ShortStayPropertyCard = ({ property, href }: Props) => {
-  const images =
-    property.images && property.images.length > 0
-      ? property.images
-      : [property.image];
+  const images = React.useMemo(() => {
+    const source =
+      property.images && property.images.length > 0
+        ? property.images
+        : [property.image];
+    const unique = Array.from(new Set(source.filter(Boolean))).slice(0, 6);
+    return unique.length > 0 ? unique : [FALLBACK_PROPERTY_IMAGE];
+  }, [property.image, property.images]);
   const [activeIndex, setActiveIndex] = React.useState(0);
+  const [isPaused, setIsPaused] = React.useState(false);
   const showAmenities = property.amenities.slice(0, 3);
   const extra = property.amenities.length - 3;
   const isShortLet = property.listingType === "short_let";
@@ -38,36 +46,57 @@ export const ShortStayPropertyCard = ({ property, href }: Props) => {
     [images.length],
   );
 
+  React.useEffect(() => {
+    setActiveIndex(0);
+  }, [images]);
+
+  React.useEffect(() => {
+    if (images.length <= 1 || isPaused) return;
+    const id = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % images.length);
+    }, 4200);
+    return () => window.clearInterval(id);
+  }, [images.length, isPaused]);
+
   return (
     <motion.article
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 280, damping: 24 }}
       className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)]"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
     >
       <Link href={detailHref} className="block">
         <div className="relative aspect-[4/3] w-full bg-gray-100">
-          <Image
-            src={images[activeIndex] || property.image}
-            alt={property.name}
-            fill
-            className="object-cover transition duration-500 group-hover:scale-[1.03]"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          />
+          {images.map((image, idx) => (
+            <Image
+              key={`${image}-${idx}`}
+              src={image}
+              alt={property.name}
+              fill
+              className={`object-cover transition duration-700 ease-out ${
+                idx === activeIndex
+                  ? "opacity-100 group-hover:scale-[1.03]"
+                  : "opacity-0 scale-[1.02]"
+              }`}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          ))}
 
           {property.status === "active" ? (
-            <span className="absolute left-3 top-3 rounded-full bg-[#22C55E] px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
+            <span className="absolute left-3 top-3 z-10 rounded-full bg-[#22C55E] px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
               Active
             </span>
           ) : null}
 
           {isShortLet ? (
-            <span className="absolute right-3 top-3 rounded-full bg-[#F5A623] px-2.5 py-1 text-xs font-semibold text-gray-900 shadow-sm">
+            <span className="absolute right-3 top-3 z-10 rounded-full bg-[#F5A623] px-2.5 py-1 text-xs font-semibold text-gray-900 shadow-sm">
               Short-Let
             </span>
           ) : null}
 
           {images.length > 1 ? (
-            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5">
+            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/20 px-2 py-1 backdrop-blur-sm">
               {images.slice(0, 4).map((_, idx) => (
                 <button
                   key={idx}
