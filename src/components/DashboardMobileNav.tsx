@@ -22,19 +22,22 @@ export const DashboardMobileNav = ({
   const [isMoreOpen, setIsMoreOpen] = React.useState(false);
 
   // Get role-based navigation items for mobile (first 4 items)
-  const navigationItems = React.useMemo(
-    () => {
-      const allItems = getNavigationItems(user?.role || "landlord");
-      // Mobile nav shows first 4 items, Messages goes in More menu
-      return allItems.slice(0, 4);
-    },
-    [user?.role]
-  );
+  const navigationItems = React.useMemo(() => {
+    const allItems = getNavigationItems(user?.role || "landlord");
+    // Mobile nav shows first 4 items, remaining primary items go in More
+    return allItems.slice(0, 4);
+  }, [user?.role]);
 
-  const moreMenuItems = React.useMemo(
-    () => getMoreMenuItems(user?.role || "landlord"),
-    [user?.role]
-  );
+  const moreMenuItems = React.useMemo(() => {
+    const allItems = getNavigationItems(user?.role || "landlord");
+    const overflowPrimary = allItems.slice(4);
+    const extra = getMoreMenuItems(user?.role || "landlord");
+    const seen = new Set(overflowPrimary.map((item) => item.href));
+    return [
+      ...overflowPrimary,
+      ...extra.filter((item) => !seen.has(item.href)),
+    ];
+  }, [user?.role]);
   const isItemRestricted = React.useCallback(
     (href: string) => {
       if (!restrictForUnverifiedLandlord || user?.role !== "landlord") return false;

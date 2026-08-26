@@ -10,6 +10,7 @@ import {
   Settings,
   Megaphone,
   ArrowDownToLine,
+  KeyRound,
 } from "lucide-react";
 import type { UserRole } from "@/contexts/UserContext";
 import type { LucideIcon } from "lucide-react";
@@ -53,14 +54,23 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
         { name: "Properties", href: "/dashboard/properties", icon: Home },
         { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
+        {
+          name: "Access codes",
+          href: "/dashboard/access-security",
+          icon: KeyRound,
+        },
       ];
     case "tenant":
-      // Tenant navigation will be updated later
       return [
         ...baseItems,
         { name: "Rent", href: "/dashboard/rent", icon: CreditCard },
         { name: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
         { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
+        {
+          name: "Access codes",
+          href: "/dashboard/access-security",
+          icon: KeyRound,
+        },
       ];
     default:
       return baseItems;
@@ -90,6 +100,11 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
           icon: Megaphone,
         },
         { name: "Finance", href: "/dashboard/finance", icon: ArrowDownToLine },
+        {
+          name: "Access & Security",
+          href: "/dashboard/access-security",
+          icon: KeyRound,
+        },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
     case "super_admin":
@@ -109,7 +124,6 @@ export const getMoreMenuItems = (role: UserRole): MoreMenuItem[] => {
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ];
     case "tenant":
-      // Tenant "More" menu will be updated later
       return [
         {
           name: "Announcements",
