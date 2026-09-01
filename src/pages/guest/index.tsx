@@ -9,10 +9,8 @@ import {
 } from "@/components/landing";
 import { useUser } from "@/contexts/UserContext";
 import { loadGuestStayListings } from "@/lib/loadGuestStayListings";
-import {
-  mockShortStayListings,
-  type StayListing,
-} from "@/data/mockShortStay";
+import type { StayListing } from "@/data/mockShortStay";
+import { DataUnavailableBanner } from "@/components/DataUnavailableBanner";
 import type { NextPageWithLayout } from "../_app";
 
 const LISTINGS_PER_PAGE = 8;
@@ -34,11 +32,9 @@ const GuestDashboardPage: NextPageWithLayout = () => {
   const { user } = useUser();
   const firstName = user?.name?.trim().split(/\s+/)[0] || "there";
 
-  const [allProperties, setAllProperties] = React.useState<StayListing[]>(
-    mockShortStayListings,
-  );
+  const [allProperties, setAllProperties] = React.useState<StayListing[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const [unavailable, setUnavailable] = React.useState(false);
   const [category, setCategory] = React.useState("All");
   const [visibleCount, setVisibleCount] = React.useState(LISTINGS_PER_PAGE);
   const [searchValues, setSearchValues] = React.useState<HeroSearchValues>({
@@ -54,16 +50,16 @@ const GuestDashboardPage: NextPageWithLayout = () => {
     let cancelled = false;
     setLoading(true);
     void loadGuestStayListings()
-      .then((listings) => {
+      .then((result) => {
         if (cancelled) return;
-        setAllProperties(listings);
-        setError(null);
+        setAllProperties(result.listings);
+        setUnavailable(result.unavailable);
         setLoading(false);
       })
       .catch(() => {
         if (cancelled) return;
-        setAllProperties(mockShortStayListings);
-        setError(null);
+        setAllProperties([]);
+        setUnavailable(true);
         setLoading(false);
       });
     return () => {
@@ -143,19 +139,23 @@ const GuestDashboardPage: NextPageWithLayout = () => {
           <div className="flex min-h-[40vh] items-center justify-center py-16">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--brand-main)] border-t-transparent" />
           </div>
-        ) : error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-10 text-center text-sm text-red-700">
-            {error}
-          </div>
+        ) : unavailable ? (
+          <DataUnavailableBanner
+            title="Property listings are unavailable"
+            description="We couldn't load properties right now. Please try again later."
+          />
+        ) : allProperties.length === 0 ? (
+          <DataUnavailableBanner
+            tone="neutral"
+            title="No properties listed yet"
+            description="There are no published listings to show."
+          />
         ) : filtered.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center">
-            <h2 className="text-xl font-semibold text-gray-900">
-              No properties found
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Try adjusting your search or category filters.
-            </p>
-          </div>
+          <DataUnavailableBanner
+            tone="neutral"
+            title="No properties found"
+            description="Try adjusting your search or category filters."
+          />
         ) : (
           <>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

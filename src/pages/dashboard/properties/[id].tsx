@@ -42,19 +42,13 @@ import { AddTenantModal } from "@/components/AddTenantModal";
 import { AssignPropertyManagerModal } from "@/components/AssignPropertyManagerModal";
 import { InviteManagerModal } from "@/components/InviteManagerModal";
 import { SendAnnouncementModal } from "@/components/SendAnnouncementModal";
-import { mockMaintenanceRequests } from "@/data/mockLandlordData";
-import type { Payment, Tenant } from "@/data/mockLandlordData";
+import type { Payment, Tenant, PaymentHistory } from "@/data/mockLandlordData";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import type {
   MaintenanceRequest,
   MaintenanceRequestDetail,
   MaintenanceRequestWithDetails,
 } from "@/data/mockLandlordData";
-import {
-  mockPaymentHistory,
-  mockMaintenanceRequestDetails,
-  mockPropertyDocuments,
-} from "@/data/mockPropertyDetails";
 import { getRentPayments } from "@/api/rent-payment";
 import {
   getProperty,
@@ -513,20 +507,40 @@ const PropertyDetailPage: NextPageWithLayout = () => {
     };
   }, [id]);
 
-  const propertyPayments = React.useMemo(() => {
+  const allPropertyPayments = React.useMemo(() => {
     if (!property || !id || typeof id !== "string") return [];
     const baseName = property.name
       .split(" — ")[0]
       .split(" —")[0]
       .trim()
       .toLowerCase();
-    return overviewRentPayments
-      .filter((p) => {
-        if (p.propertyId && p.propertyId === id) return true;
-        return p.propertyName.trim().toLowerCase() === baseName;
-      })
-      .slice(0, 5);
+    return overviewRentPayments.filter((p) => {
+      if (p.propertyId && p.propertyId === id) return true;
+      return p.propertyName.trim().toLowerCase() === baseName;
+    });
   }, [overviewRentPayments, property, id]);
+
+  const paymentHistoryRows: PaymentHistory[] = React.useMemo(
+    () =>
+      allPropertyPayments.map((p) => ({
+        id: p.id,
+        transactionId: p.id,
+        propertyId: p.propertyId || (typeof id === "string" ? id : ""),
+        unitId: p.unit,
+        tenantId: "",
+        tenantName: p.tenantName,
+        amount: p.amount,
+        date: p.dueDate,
+        method: "Payment",
+        status: p.paymentReceived ? "success" : "failed",
+      })),
+    [allPropertyPayments, id],
+  );
+
+  const propertyPayments = React.useMemo(
+    () => allPropertyPayments.slice(0, 5),
+    [allPropertyPayments],
+  );
 
   // Maintenance for Overview: from API, mapped to MaintenanceRequest[]
   const propertyMaintenance = React.useMemo((): MaintenanceRequest[] => {
@@ -1390,9 +1404,7 @@ const PropertyDetailPage: NextPageWithLayout = () => {
                 transition={{ duration: 0.2 }}
               >
                 <PropertyPaymentsTab
-                  payments={mockPaymentHistory.filter(
-                    (p) => p.propertyId === id,
-                  )}
+                  payments={paymentHistoryRows}
                   propertyId={typeof id === "string" ? id : null}
                 />
               </motion.div>

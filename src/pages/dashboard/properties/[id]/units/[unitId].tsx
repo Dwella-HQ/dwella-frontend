@@ -24,9 +24,12 @@ import { ServiceApartmentOfferingPanel } from "@/components/ServiceApartmentOffe
 import { getUnit } from "@/api/units";
 import { getProperty } from "@/api/properties";
 import { mapUnitDTOToUnit } from "@/api/units/mapUnit";
-import { mockPaymentHistory } from "@/data/mockPropertyDetails";
-import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
+import { getRentPayments } from "@/api/rent-payment";
+import { getMaintenanceRequests } from "@/api/maintenance";
+import type { Payment } from "@/data/mockLandlordData";
+import type { MaintenanceRequestWithDetails } from "@/data/mockLandlordData";
 import type { Unit } from "@/data/mockLandlordData";
+import { DataUnavailableBanner } from "@/components/DataUnavailableBanner";
 
 import type { NextPageWithLayout } from "@/pages/_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
@@ -52,6 +55,11 @@ const UnitDetailPage: NextPageWithLayout = () => {
   >(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [unitPayments, setUnitPayments] = React.useState<Payment[]>([]);
+  const [unitMaintenance, setUnitMaintenance] = React.useState<
+    MaintenanceRequestWithDetails[]
+  >([]);
+  const [historyUnavailable, setHistoryUnavailable] = React.useState(false);
 
   React.useEffect(() => {
     if (
@@ -130,17 +138,42 @@ const UnitDetailPage: NextPageWithLayout = () => {
     };
   }, [unit]);
 
-  const unitPayments = React.useMemo(() => {
-    if (!unit) return [];
-    return mockPaymentHistory.filter((p) => p.unitId === unit.unitId);
-  }, [unit]);
-
-  const unitMaintenance = React.useMemo(() => {
-    if (!unit) return [];
-    return mockMaintenanceRequestDetails.filter(
-      (m) => m.unitId === unit.unitId,
-    );
-  }, [unit]);
+  React.useEffect(() => {
+    if (!unit) return;
+    let cancelled = false;
+    const propertyId = unit.propertyId || (typeof id === "string" ? id : "");
+    void Promise.all([
+      getRentPayments({ limit: 200 }),
+      getMaintenanceRequests({
+        limit: 200,
+        propertyId: propertyId || undefined,
+        unitId: unit.id,
+      }),
+    ]).then(([paymentsResult, maintenanceResult]) => {
+      if (cancelled) return;
+      const paymentsFailed = !paymentsResult.success;
+      const maintenanceFailed = !maintenanceResult.success;
+      setHistoryUnavailable(paymentsFailed && maintenanceFailed);
+      const labels = new Set(
+        [unit.unitId, unit.id]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase()),
+      );
+      setUnitPayments(
+        paymentsResult.success
+          ? paymentsResult.data.filter((p) => {
+              const unitLabel = p.unit?.trim().toLowerCase();
+              if (unitLabel && labels.has(unitLabel)) return true;
+              return false;
+            })
+          : [],
+      );
+      setUnitMaintenance(maintenanceResult.success ? maintenanceResult.data : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, unit]);
 
   const handleExportUnitPayments = React.useCallback(() => {
     if (!unit) return;
@@ -148,13 +181,10 @@ const UnitDetailPage: NextPageWithLayout = () => {
       `${safeExportFilename(`${propertyName}-${unit.unitId}-payments`)}-${todayStamp()}.csv`,
       [
         { header: "S/N", value: (_payment, index) => index + 1 },
-        { header: "Transaction ID", value: (payment) => payment.transactionId },
-        { header: "Date", value: (payment) => payment.date },
         { header: "Tenant", value: (payment) => payment.tenantName },
-        { header: "Unit ID", value: (payment) => payment.unitId },
+        { header: "Unit", value: (payment) => payment.unit },
         { header: "Amount", value: (payment) => payment.amount },
-        { header: "Method", value: (payment) => payment.method },
-        { header: "Status", value: (payment) => payment.status },
+        { header: "Due date", value: (payment) => payment.dueDate },
       ],
       unitPayments,
     );
@@ -515,7 +545,17 @@ const UnitDetailPage: NextPageWithLayout = () => {
               </button>
             </div>
             <div className="space-y-3">
-              {unitPayments.map((payment) => (
+              {historyUnavailable ? (
+                <DataUnavailableBanner
+                  title="Unit history is unavailable"
+                  description="We couldn't load payments or maintenance for this unit."
+                />
+              ) : unitPayments.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-500">
+                  No payment history for this unit yet.
+                </p>
+              ) : (
+                unitPayments.map((payment) => (
                 <div
                   key={payment.id}
                   className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
@@ -523,14 +563,16 @@ const UnitDetailPage: NextPageWithLayout = () => {
                   <CheckCircle2 className="h-5 w-5 text-brand-green flex-shrink-0" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">
-                      Rent Payment - {payment.date} • {payment.method}
+                      Rent Payment - {payment.dueDate}
+                      {payment.tenantName ? ` • ${payment.tenantName}` : ""}
                     </p>
                     <p className="text-sm text-brand-green font-semibold">
-                      ₦{payment.amount.toLocaleString()} Completed
+                      ₦{payment.amount.toLocaleString()}
                     </p>
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           </div>
 
@@ -562,7 +604,11 @@ const UnitDetailPage: NextPageWithLayout = () => {
                           maintenance.priority.slice(1)}
                       </span>
                       <span className="inline-flex rounded-full bg-brand-green px-3 py-1 text-xs font-medium text-white">
-                        Resolved
+                        {maintenance.status === "resolved"
+                          ? "Resolved"
+                          : maintenance.status === "in_progress"
+                            ? "In progress"
+                            : "New"}
                       </span>
                     </div>
                     <p className="mb-2 text-sm font-medium text-gray-900">
@@ -571,21 +617,14 @@ const UnitDetailPage: NextPageWithLayout = () => {
                     <div className="flex items-center gap-4 text-xs text-gray-600">
                       <span>
                         Reported:{" "}
-                        {formatDateTimeDisplay(maintenance.reportedDate)}
+                        {formatDateTimeDisplay(maintenance.reportedTime)}
                       </span>
-                      {maintenance.resolvedDate && (
-                        <span className="flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3 text-brand-green" />
-                          Resolved:{" "}
-                          {formatDateTimeDisplay(maintenance.resolvedDate)}
-                        </span>
-                      )}
                     </div>
-                    {maintenance.team && (
+                    {maintenance.description ? (
                       <p className="mt-2 text-xs text-gray-500">
-                        {maintenance.team}
+                        {maintenance.description}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 ))}
               </div>

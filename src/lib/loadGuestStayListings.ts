@@ -8,12 +8,7 @@ import {
   type PropertyDTO,
 } from "@/api/properties";
 import { getUnitsByProperty } from "@/api/units";
-import {
-  getMockStayById,
-  mockShortStayListings,
-  toStayListing,
-  type StayListing,
-} from "@/data/mockShortStay";
+import { toStayListing, type StayListing } from "@/data/mockShortStay";
 import { mapPropertyDTOToPublicListingProperty } from "@/api/properties/mapProperty";
 
 async function enrichPropertyUnits(dto: PropertyDTO): Promise<PropertyDTO> {
@@ -36,13 +31,17 @@ async function enrichPropertyUnits(dto: PropertyDTO): Promise<PropertyDTO> {
   return { ...dto, units: unitsResult.data };
 }
 
+export type GuestStayCatalog = {
+  listings: StayListing[];
+  /** True when both catalog queries failed — show an unavailable banner. */
+  unavailable: boolean;
+};
+
 /**
  * Guest browse: real service apartments + other active listings from the
- * backend. Mock listings are only used as a fallback when the real catalog
- * is empty (e.g. a fresh/local environment with no seed data) or the API
- * call fails — never mixed in alongside real data.
+ * backend. Never fills empty results with demo properties.
  */
-export async function loadGuestStayListings(): Promise<StayListing[]> {
+export async function loadGuestStayListings(): Promise<GuestStayCatalog> {
   const [saResult, allResult] = await Promise.all([
     getPropertiesQuery({ isOpenForServiceApartment: true }),
     getPropertiesQuery(),
@@ -86,16 +85,11 @@ export async function loadGuestStayListings(): Promise<StayListing[]> {
   }
 
   const fromApi = [...saListings, ...otherListings];
-
-  // Real catalog has data — show it, no mock filler mixed in.
-  if (fromApi.length > 0) return fromApi;
-
-  // Nothing real to show (empty catalog, or the API call failed) — fall
-  // back to demo listings so the page isn't blank.
-  return mockShortStayListings;
+  const unavailable = !saResult.success && !allResult.success;
+  return { listings: fromApi, unavailable };
 }
 
-/** Detail page: mock, or property (+ optional unit offering). */
+/** Detail page: property (+ optional unit offering). */
 export async function loadStayListingById(
   stayId: string,
   unitIdFromQuery?: string | null,
@@ -104,11 +98,6 @@ export async function loadStayListingById(
   guestPreview: boolean;
   error: string | null;
 }> {
-  const mock = getMockStayById(stayId);
-  if (mock) {
-    return { listing: mock, guestPreview: false, error: null };
-  }
-
   const propertyId = resolvePropertyIdFromStayId(stayId);
   const unitId =
     unitIdFromQuery || resolveUnitIdFromStayId(stayId) || undefined;

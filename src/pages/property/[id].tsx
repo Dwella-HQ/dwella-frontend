@@ -27,6 +27,7 @@ import {
   ShortStayPropertyCard,
 } from "@/components/landing";
 import { GuestHeader } from "@/components/guest/GuestHeader";
+import { DataUnavailableBanner } from "@/components/DataUnavailableBanner";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/components/Toast";
 import {
@@ -111,9 +112,9 @@ export default function PropertyDetailPage() {
     let cancelled = false;
     const propertyRootId = property?.propertyId || propertyId.split("__")[0];
 
-    void loadGuestStayListings().then((listings) => {
+    void loadGuestStayListings().then((result) => {
       if (cancelled) return;
-      const others = listings
+      const others = result.listings
         .filter((p) => {
           const root = p.propertyId || p.id.split("__")[0];
           return root !== propertyRootId && p.status === "active";
@@ -229,9 +230,12 @@ export default function PropertyDetailPage() {
       <>
         {isLoggedInGuest ? <GuestHeader /> : <LandingHeader />}
         <div className="flex min-h-[50vh] items-center justify-center bg-white px-4">
-          <p className="text-center text-red-600">
-            {error ?? "Property not found"}
-          </p>
+          <div className="w-full max-w-lg">
+            <DataUnavailableBanner
+              title="This property isn't available"
+              description={error ?? "We couldn't find this listing."}
+            />
+          </div>
         </div>
         {isLoggedInGuest ? null : <LandingFooter />}
       </>
@@ -486,8 +490,14 @@ export default function PropertyDetailPage() {
                 </div>
 
                 <div className="mt-10">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-bold text-gray-900">Reviews</h3>
+                  <h3 className="text-lg font-bold text-gray-900">Reviews</h3>
+                  {property.reviews.length === 0 ? (
+                    <p className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-600">
+                      Reviews aren&apos;t available for this listing yet.
+                    </p>
+                  ) : (
+                    <>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Star className="h-4 w-4 fill-[var(--brand-main)] text-[var(--brand-main)]" />
                     <span className="text-sm font-semibold text-[var(--brand-main)]">
                       {property.rating.toFixed(1)}
@@ -542,6 +552,8 @@ export default function PropertyDetailPage() {
                       Load More
                     </button>
                   ) : null}
+                    </>
+                  )}
                 </div>
               </div>
 

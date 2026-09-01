@@ -3,6 +3,7 @@ import * as React from "react";
 import { ArrowLeft, Mail, MapPin, Phone, Send } from "lucide-react";
 import type { NextPageWithLayout } from "@/pages/_app";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { DataUnavailableBanner } from "@/components/DataUnavailableBanner";
 
 const tabs = [
   "documents",
@@ -98,40 +99,11 @@ const PendingLandlordDetailPage: NextPageWithLayout = () => {
                 </div>
               </div>
             ) : (
-              <div className="overflow-auto">
-                <table className="w-full min-w-[1000px] text-xs">
-                  <thead className="text-[#64748B]">
-                    <tr>
-                      <th className="py-2 text-left">Serial Number</th>
-                      <th className="py-2 text-left">Tenant</th>
-                      <th className="py-2 text-left">Property</th>
-                      <th className="py-2 text-left">Address</th>
-                      <th className="py-2 text-left">Date</th>
-                      <th className="py-2 text-left">Type</th>
-                      <th className="py-2 text-left">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from({ length: 10 }, (_, i) => (
-                      <tr key={i} className="border-t border-[#F1F5F9]">
-                        <td className="py-2">{i + 1}</td>
-                        <td className="py-2">John Okon</td>
-                        <td className="py-2">Harmony Court — 3BR Duplex</td>
-                        <td className="py-2">12 Iroko Street, Uyo, Akwa...</td>
-                        <td className="py-2">7/7/2024</td>
-                        <td className="py-2">Maintenance</td>
-                        <td className="py-2">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[11px] ${i % 3 === 0 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}
-                          >
-                            {i % 3 === 0 ? "In Progress" : "Resolved"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataUnavailableBanner
+                tone="neutral"
+                title="This activity isn't available"
+                description="Maintenance and tenant interaction history hasn't been loaded for this landlord yet."
+              />
             )}
           </div>
         </section>

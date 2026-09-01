@@ -5,7 +5,6 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { mockProperties } from "@/data/mockLandlordData";
 import {
   getMaintenanceRequestTypes,
   type MaintenanceRequestTypeDTO,
@@ -29,7 +28,8 @@ export type NewMaintenanceRequestModalProps = {
   isOpen: boolean;
   onClose: () => void;
   propertyId?: string;
-  /** List of properties for dropdown; defaults to mock */
+  /** List of properties for dropdown */
+  properties?: Array<{ id: string; name: string }>;
   properties?: Array<{ id: string; name: string }>;
   /** When provided, modal calls this to create the request (e.g. landlord flow); unit value is unit id when units are loaded from API */
   onSubmitRequest?: (data: {
@@ -46,7 +46,7 @@ export const NewMaintenanceRequestModal = ({
   isOpen,
   onClose,
   propertyId,
-  properties = mockProperties,
+  properties = [],
   onSubmitRequest,
 }: NewMaintenanceRequestModalProps) => {
   const [units, setUnits] = React.useState<Array<{ id: string; name: string }>>(
@@ -77,6 +77,13 @@ export const NewMaintenanceRequestModal = ({
 
   const selectedPropertyId = watch("property");
   const selectedMaintenanceType = watch("maintenanceType");
+
+  const propertyOptions = React.useMemo(() => {
+    if (propertyId && !properties.some((p) => p.id === propertyId)) {
+      return [{ id: propertyId, name: "This property" }, ...properties];
+    }
+    return properties;
+  }, [properties, propertyId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -229,11 +236,17 @@ export const NewMaintenanceRequestModal = ({
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-brand-main"
                 >
                   <option value="">Select property</option>
-                  {properties.map((property) => (
-                    <option key={property.id} value={property.id}>
-                      {property.name}
+                  {propertyOptions.length === 0 ? (
+                    <option value="" disabled>
+                      No properties available
                     </option>
-                  ))}
+                  ) : (
+                    propertyOptions.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.name}
+                      </option>
+                    ))
+                  )}
                 </select>
                 {errors.property && (
                   <p className="mt-1 text-xs text-red-600">

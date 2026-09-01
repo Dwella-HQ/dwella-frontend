@@ -11,14 +11,12 @@ import {
   Calendar,
   DollarSign,
   CheckCircle2,
-  FileText,
-  MessageSquare,
   Upload,
 } from "lucide-react";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { mockTenants, mockPaymentHistory } from "@/data/mockPropertyDetails";
-import { mockMaintenanceRequestDetails } from "@/data/mockPropertyDetails";
+import { DataUnavailableBanner } from "@/components/DataUnavailableBanner";
+import type { PaymentHistory } from "@/data/mockLandlordData";
 import type { NextPageWithLayout } from "../../_app";
 import { ADMIN_STAT_BG, ADMIN_STAT_LABEL } from "@/lib/adminDesignTokens";
 import { getTenant } from "@/api/tenants";
@@ -30,73 +28,6 @@ import {
   type RentItemDTO,
 } from "@/api/rent";
 import { formatDateTimeDisplay } from "@/utils/formatDate";
-
-// Mock data for tenant documents
-const mockTenantDocuments = [
-  {
-    id: "1",
-    name: "Rent/Lease Agreement.pdf",
-    type: "Rent/Lease",
-    size: "2.3 MB",
-    date: "05 Jan 2024",
-  },
-  {
-    id: "2",
-    name: "National ID Card.pdf",
-    type: "ID",
-    size: "1.1 MB",
-    date: "05 Jan 2024",
-  },
-  {
-    id: "3",
-    name: "Employment Letter.pdf",
-    type: "Employment",
-    size: "856 KB",
-    date: "05 Jan 2024",
-  },
-  {
-    id: "4",
-    name: "Bank Statement.pdf",
-    type: "Financial",
-    size: "3.2 MB",
-    date: "05 Jan 2024",
-  },
-];
-
-// Mock data for communications
-const mockCommunications = [
-  {
-    id: "1",
-    type: "maintenance",
-    subject: "AC Issue",
-    message: "The AC in my unit is not cooling properly...",
-    date: "05 Dec 2025",
-    icon: MessageSquare,
-  },
-  {
-    id: "2",
-    type: "payment",
-    subject: "Rent Payment Confirmation",
-    message: "Thank you for your payment of ₦120,000...",
-    date: "05 Nov 2025",
-    icon: Mail,
-  },
-  {
-    id: "3",
-    type: "inquiry",
-    subject: "Parking Inquiry",
-    message: "I wanted to ask about the visitor parking...",
-    date: "20 Oct 2025",
-    icon: MessageSquare,
-  },
-];
-
-// Mock emergency contact
-const mockEmergencyContact = {
-  name: "John Emmanuel (Brother)",
-  phone: "+234 812 345 6788",
-  email: "john.emmanuel@email.com",
-};
 
 const messageTenantHref = (tenantId: string | number) =>
   `/dashboard/messages?tenantId=${encodeURIComponent(String(tenantId))}`;
@@ -189,7 +120,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
     unknown
   > | null>(null);
   const [liveTenantPayments, setLiveTenantPayments] = React.useState<
-    typeof mockPaymentHistory
+    PaymentHistory[]
   >([]);
   const [liveTenantMaintenance, setLiveTenantMaintenance] = React.useState<
     TenantMaintenanceRow[]
@@ -353,18 +284,13 @@ const TenantProfilePage: NextPageWithLayout = () => {
               : 0,
       };
     }
-    return mockTenants.find((t) => t.id === id);
+    return null;
   }, [id, tenantData]);
 
   const tenantPayments = React.useMemo(() => {
     if (!tenant) return [];
-    if (tenantData) {
-      return liveTenantPayments;
-    }
-    return liveTenantPayments.length > 0
-      ? liveTenantPayments
-      : mockPaymentHistory.filter((p) => p.tenantId === tenant.id);
-  }, [liveTenantPayments, tenant, tenantData]);
+    return liveTenantPayments;
+  }, [liveTenantPayments, tenant]);
 
   const paymentStatusDisplay = React.useMemo(() => {
     if (leaseRents === null) {
@@ -385,10 +311,7 @@ const TenantProfilePage: NextPageWithLayout = () => {
 
   const tenantMaintenance = React.useMemo(() => {
     if (!tenant) return [];
-    if (liveTenantMaintenance.length > 0) return liveTenantMaintenance;
-    return mockMaintenanceRequestDetails.filter(
-      (m) => m.tenantId === tenant.id,
-    );
+    return liveTenantMaintenance;
   }, [liveTenantMaintenance, tenant]);
 
   const rentDetails = React.useMemo(() => {
@@ -798,25 +721,11 @@ const TenantProfilePage: NextPageWithLayout = () => {
                 <h3 className="mb-4 text-lg font-semibold text-gray-900">
                   Emergency Contact
                 </h3>
-                <div className="rounded-lg border border-gray-200 bg-white p-4">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {mockEmergencyContact.name}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-6">
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">
-                        {mockEmergencyContact.phone}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">
-                        {mockEmergencyContact.email}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                <DataUnavailableBanner
+                  tone="neutral"
+                  title="Emergency contact isn't available"
+                  description="This information hasn't been provided yet."
+                />
               </div>
             </motion.div>
           )}
@@ -913,29 +822,11 @@ const TenantProfilePage: NextPageWithLayout = () => {
                   Upload Document
                 </button>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {mockTenantDocuments.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="rounded-lg border border-gray-200 bg-white p-4"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
-                        <FileText className="h-6 w-6 text-blue-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {doc.name}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {doc.type} • {doc.size}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">{doc.date}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <DataUnavailableBanner
+                tone="neutral"
+                title="Documents aren't available"
+                description="Tenant document storage isn't connected yet."
+              />
             </motion.div>
           )}
 
@@ -954,7 +845,12 @@ const TenantProfilePage: NextPageWithLayout = () => {
                 </h3>
               </div>
               <div className="space-y-3">
-                {tenantMaintenance.map((request) => (
+                {tenantMaintenance.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    No maintenance requests for this tenant yet.
+                  </p>
+                ) : (
+                tenantMaintenance.map((request) => (
                   <div
                     key={request.id}
                     className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
@@ -987,7 +883,8 @@ const TenantProfilePage: NextPageWithLayout = () => {
                       Resolved
                     </button>
                   </div>
-                ))}
+                ))
+                )}
               </div>
             </motion.div>
           )}
@@ -1013,32 +910,11 @@ const TenantProfilePage: NextPageWithLayout = () => {
                   New Message
                 </button>
               </div>
-              <div className="space-y-3">
-                {mockCommunications.map((comm) => {
-                  const Icon = comm.icon;
-                  return (
-                    <div
-                      key={comm.id}
-                      className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white p-4"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100">
-                        <Icon className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {comm.subject}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-600">
-                          {comm.message}
-                        </p>
-                        <p className="mt-2 text-xs text-gray-500">
-                          {comm.date}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <DataUnavailableBanner
+                tone="neutral"
+                title="Communication history isn't available"
+                description="Message history for this tenant isn't loaded here yet. Use New Message to open chat."
+              />
             </motion.div>
           )}
         </AnimatePresence>

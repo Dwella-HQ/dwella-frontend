@@ -8,7 +8,6 @@ import { X } from "lucide-react";
 import { LandingHeader } from "@/components/landing";
 import { GuestHeader } from "@/components/guest/GuestHeader";
 import { useUser } from "@/contexts/UserContext";
-import { getMockStayById } from "@/data/mockShortStay";
 
 function firstQueryString(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -46,9 +45,7 @@ export default function BookingConfirmationPage() {
 
   const propertyId = firstQueryString(router.query.propertyId);
   const propertyName =
-    firstQueryString(router.query.propertyName) ??
-    (propertyId ? getMockStayById(propertyId)?.name : null) ??
-    "your stay";
+    firstQueryString(router.query.propertyName) ?? "your stay";
 
   const amountLabel = React.useMemo(() => {
     const raw = firstQueryString(router.query.amount);
@@ -66,7 +63,6 @@ export default function BookingConfirmationPage() {
       : "/properties";
 
   const backdropImage =
-    (propertyId && getMockStayById(propertyId)?.image) ||
     "https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1600&q=80";
 
   return (

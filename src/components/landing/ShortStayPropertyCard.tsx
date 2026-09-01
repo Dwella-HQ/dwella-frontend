@@ -120,8 +120,12 @@ export const ShortStayPropertyCard = ({ property, href }: Props) => {
               {property.name}
             </h3>
             <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-gray-900">
-              <Star className="h-3.5 w-3.5 fill-gray-900 text-gray-900" />
-              {property.rating.toFixed(1)}
+              {property.rating > 0 ? (
+                <>
+                  <Star className="h-3.5 w-3.5 fill-gray-900 text-gray-900" />
+                  {property.rating.toFixed(1)}
+                </>
+              ) : null}
             </span>
           </div>
 
