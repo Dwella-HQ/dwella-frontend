@@ -1,15 +1,26 @@
 import * as React from "react";
 import * as Label from "@radix-ui/react-label";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import Image from "next/image";
+import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import logo from "@/assets/logo_blue_vertical.png";
+import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
+import {
+  isValidInternationalPhoneNumber,
+  normalizePhoneNumberForApi,
+} from "@/utils/phoneNumber";
 
 const securityLoginSchema = z.object({
-  username: z.string().min(1, "Username is required."),
+  phoneNumber: z
+    .string()
+    .min(1, "Phone number is required.")
+    .refine((value) => isValidInternationalPhoneNumber(value), {
+      message: "Enter a valid phone number.",
+    }),
   password: z.string().min(1, "Password is required."),
   keepLoggedIn: z.boolean().optional(),
 });
@@ -34,11 +45,12 @@ export const SecurityLoginForm = ({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<SecurityLoginFormValues>({
     resolver: zodResolver(securityLoginSchema),
     defaultValues: {
-      username: "",
+      phoneNumber: "",
       password: "",
       keepLoggedIn: false,
     },
@@ -47,7 +59,10 @@ export const SecurityLoginForm = ({
   const handleFormSubmit = handleSubmit(async (values) => {
     try {
       setIsSubmitting(true);
-      await onSubmit?.(values);
+      await onSubmit?.({
+        ...values,
+        phoneNumber: normalizePhoneNumberForApi(values.phoneNumber),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -89,24 +104,29 @@ export const SecurityLoginForm = ({
         <fieldset className="flex flex-col gap-2">
           <Label.Root
             className="text-sm font-medium text-gray-900"
-            htmlFor="security-username"
+            htmlFor="security-phone"
           >
-            Username
+            Phone number
           </Label.Root>
-          <input
-            id="security-username"
-            type="text"
-            autoComplete="username"
-            placeholder="Username"
-            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 transition focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
-            aria-required="true"
-            aria-invalid={!!errors.username}
-            aria-describedby={errors.username ? "username-error" : undefined}
-            {...register("username")}
+          <Controller
+            name="phoneNumber"
+            control={control}
+            render={({ field }) => (
+              <PhoneInputWithCountry
+                id="security-phone"
+                value={field.value || undefined}
+                onChange={(value) => field.onChange(value ?? "")}
+                placeholder="801 234 5678"
+                aria-invalid={!!errors.phoneNumber}
+                aria-describedby={
+                  errors.phoneNumber ? "phone-error" : undefined
+                }
+              />
+            )}
           />
-          {errors.username ? (
-            <p id="username-error" className="text-xs text-red-600" role="alert">
-              {errors.username.message}
+          {errors.phoneNumber ? (
+            <p id="phone-error" className="text-xs text-red-600" role="alert">
+              {errors.phoneNumber.message}
             </p>
           ) : null}
         </fieldset>
@@ -179,6 +199,16 @@ export const SecurityLoginForm = ({
             "Log In"
           )}
         </motion.button>
+
+        <div className="text-center text-sm text-gray-600">
+          Not a security officer?{" "}
+          <Link
+            href="/auth/login"
+            className="font-medium text-brand-main hover:text-brand-main/80 hover:underline"
+          >
+            Main account sign in
+          </Link>
+        </div>
       </form>
     </div>
   );

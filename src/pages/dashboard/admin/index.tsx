@@ -85,10 +85,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
     propertyDatesIso: string[];
     userDatesIso: string[];
     transactions: TransactionDTO[];
-    propertyCategoryRows: Pick<
-      PropertyDTO,
-      "propertyType" | "numberOfUnits"
-    >[];
+    propertyCategoryRows: Pick<PropertyDTO, "isOpenForServiceApartment">[];
   } | null>(null);
 
   React.useEffect(() => {
@@ -135,8 +132,7 @@ const AdminDashboardPage: NextPageWithLayout = () => {
         userDatesIso,
         transactions: txRows,
         propertyCategoryRows: propsRows.map((p) => ({
-          propertyType: p.propertyType,
-          numberOfUnits: p.numberOfUnits,
+          isOpenForServiceApartment: p.isOpenForServiceApartment,
         })),
       });
 

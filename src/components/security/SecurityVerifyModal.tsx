@@ -54,7 +54,7 @@ export const SecurityVerifyModal = ({
             </Dialog.Title>
             <Dialog.Description className="sr-only">
               {isValid
-                ? "This access code is valid. Approve or deny entry."
+                ? "This access code is valid and has been used."
                 : "This access code is invalid."}
             </Dialog.Description>
 
@@ -84,16 +84,17 @@ export const SecurityVerifyModal = ({
                   onClick={onApprove}
                   className="h-11 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white transition hover:bg-gray-800"
                 >
-                  Approve Entry
+                  Done
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={onDeny}
-                className="h-11 w-full rounded-lg border border-red-500 bg-white text-sm font-semibold text-red-600 transition hover:bg-red-50"
-              >
-                Deny Entry
-              </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onDeny}
+                  className="h-11 w-full rounded-lg border border-red-500 bg-white text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                >
+                  Close
+                </button>
+              )}
             </div>
           </motion.div>
         </Dialog.Content>

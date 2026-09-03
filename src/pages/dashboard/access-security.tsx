@@ -1,5 +1,6 @@
 import * as React from "react";
 import Head from "next/head";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2,
@@ -10,159 +11,52 @@ import {
   Clock3,
   Copy,
   Eye,
-  ImagePlus,
   KeyRound,
+  Loader2,
   Lock,
-  Mail,
   MoreVertical,
   Plus,
   Shield,
-  User,
+  Trash2,
   X,
   XCircle,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { DataUnavailableBanner } from "@/components/DataUnavailableBanner";
+import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
+import { useToast } from "@/components/Toast";
 import { useUser } from "@/contexts/UserContext";
+import { getPropertiesByLandlord } from "@/api/properties";
+import { getUnitsByProperty } from "@/api/units";
 import { getTenantByUser } from "@/api/tenants";
+import {
+  generateAccessCode,
+  getAccessCodeLogs,
+  getAccessCodes,
+  listSecurityPersonnel,
+  registerSecurityPersonnel,
+  removeSecurityPersonnel,
+  type AccessCodeLog,
+  type AccessCodeRecord,
+  type SecurityPersonnel,
+} from "@/api/security";
+import {
+  forgetSecurityAssignment,
+  rememberSecurityAssignment,
+} from "@/lib/securitySession";
+import {
+  isValidInternationalPhoneNumber,
+  normalizePhoneNumberForApi,
+} from "@/utils/phoneNumber";
 import type { NextPageWithLayout } from "../_app";
 
 type AccessCodeType = "visitor" | "resident";
 type AccessCodeStatus = "active" | "used" | "revoked";
 type AccessCodeTab = "all" | "resident" | "visitor" | "audit";
-
-type AccessCode = {
-  id: string;
-  code: string;
-  recipient: string;
-  note: string;
-  unit: string;
-  type: AccessCodeType;
-  validity: string;
-  usage: string;
-  status: AccessCodeStatus;
-  createdBy: "landlord" | "manager" | "tenant";
-};
-
 type AccessView = "full" | "simple";
 
-type ScanRecord = {
-  id: string;
-  timestamp: string;
-  person: string;
-  unit: string;
-  code: string;
-  confirmedBy: string;
-  outcome: "granted" | "denied";
-  note: string;
-};
-
-type SecurityPerson = {
-  id: string;
-  name: string;
-  email: string;
-  assignedProperty: string;
-  scans: number;
-  lastScanDate: string;
-  avatarUrl?: string;
-};
-
-const initialCodes: AccessCode[] = [
-  {
-    id: "code-1",
-    code: "849201",
-    recipient: "John Doe - Contractor",
-    note: "Maintenance",
-    unit: "Apt 4B, Lekki Haven",
-    type: "visitor",
-    validity: "Today, 11:59 PM",
-    usage: "0 / 1 Uses",
-    status: "active",
-    createdBy: "landlord",
-  },
-  {
-    id: "code-2",
-    code: "592103",
-    recipient: "Sarah Smith",
-    note: "Permanent Resident",
-    unit: "Apt 2A, Lekki Haven",
-    type: "resident",
-    validity: "90 Days Left",
-    usage: "4 / ∞ Uses",
-    status: "active",
-    createdBy: "landlord",
-  },
-  {
-    id: "code-3",
-    code: "103944",
-    recipient: "Amazon Delivery",
-    note: "Delivery",
-    unit: "Apt 4B, Lekki Haven",
-    type: "visitor",
-    validity: "Expired",
-    usage: "1 / 1 Uses",
-    status: "used",
-    createdBy: "tenant",
-  },
-  {
-    id: "code-4",
-    code: "772910",
-    recipient: "Mike (Plumber)",
-    note: "Maintenance",
-    unit: "Apt 1C, Lekki Haven",
-    type: "visitor",
-    validity: "Revoked",
-    usage: "0 / 1 Uses",
-    status: "revoked",
-    createdBy: "tenant",
-  },
-];
-
-const scanHistory: ScanRecord[] = [
-  {
-    id: "scan-1",
-    timestamp: "Aug 6, 2026 • 14:22",
-    person: "John Doe (Maintenance)",
-    unit: "Apt 4B, Lekki Haven",
-    code: "849201",
-    confirmedBy: "Mike Johnson",
-    outcome: "granted",
-    note: "Checked ID",
-  },
-  {
-    id: "scan-2",
-    timestamp: "Aug 6, 2026 • 11:05",
-    person: "Unknown",
-    unit: "Apt 1C, Lekki Haven",
-    code: "772910",
-    confirmedBy: "Sarah Connor",
-    outcome: "denied",
-    note: "Code Revoked",
-  },
-  {
-    id: "scan-3",
-    timestamp: "Aug 5, 2026 • 18:30",
-    person: "Amazon Delivery",
-    unit: "Apt 4B, Lekki Haven",
-    code: "103944",
-    confirmedBy: "Mike Johnson",
-    outcome: "granted",
-    note: "Package dropped at door",
-  },
-];
-
-const makeSecurityTeam = (): SecurityPerson[] =>
-  Array.from({ length: 20 }, (_, index) => ({
-    id: `security-${index + 1}`,
-    name: index % 3 === 1 ? "Sarah Connor" : "Mike Johnson",
-    email: index % 3 === 1 ? "sarah@dwella.com" : "mike@dwella.com",
-    assignedProperty: index % 4 === 2 ? "Apt 1C, Lekki Haven" : "Lekki Haven",
-    scans: index % 3 === 1 ? 96 : 142,
-    lastScanDate: "15 Jan 2026",
-    avatarUrl:
-      index % 3 === 1
-        ? "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=96&q=80"
-        : "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=96&q=80",
-  }));
+type PropertyOption = { id: string; name: string };
+type UnitOption = { id: string; name: string };
 
 const codeTabs: { key: AccessCodeTab; label: string }[] = [
   { key: "all", label: "All Codes" },
@@ -182,7 +76,7 @@ const typeStyles: Record<AccessCodeType, string> = {
   resident: "bg-purple-50 text-purple-700",
 };
 
-const outcomeStyles: Record<ScanRecord["outcome"], string> = {
+const outcomeStyles: Record<AccessCodeLog["outcome"], string> = {
   granted: "bg-green-50 text-green-700",
   denied: "bg-red-50 text-red-700",
 };
@@ -201,60 +95,245 @@ const formatCode = (code: string) => code.split("").join(" ");
 const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(" ");
 
+const isSameDay = (iso: string, date = new Date()) => {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return (
+    parsed.getFullYear() === date.getFullYear() &&
+    parsed.getMonth() === date.getMonth() &&
+    parsed.getDate() === date.getDate()
+  );
+};
+
+const formatLogTime = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 const AccessSecurityPage: NextPageWithLayout = () => {
   const { user } = useUser();
+  const { showToast } = useToast();
   const isSimpleView =
     user?.role === "tenant" || user?.role === "property_manager";
   const view: AccessView = isSimpleView ? "simple" : "full";
-  const creator: AccessCode["createdBy"] =
-    user?.role === "tenant"
-      ? "tenant"
-      : user?.role === "property_manager"
-        ? "manager"
-        : "landlord";
 
   const [section, setSection] = React.useState<"codes" | "personnel">("codes");
   const [activeCodeTab, setActiveCodeTab] = React.useState<AccessCodeTab>("all");
-  const [codes, setCodes] = React.useState<AccessCode[]>(initialCodes);
-  const [securityTeam, setSecurityTeam] = React.useState<SecurityPerson[]>(
-    makeSecurityTeam()
+  const [codes, setCodes] = React.useState<AccessCodeRecord[]>([]);
+  const [logs, setLogs] = React.useState<AccessCodeLog[]>([]);
+  const [securityTeam, setSecurityTeam] = React.useState<SecurityPersonnel[]>(
+    [],
   );
+  const [properties, setProperties] = React.useState<PropertyOption[]>([]);
+  const [units, setUnits] = React.useState<UnitOption[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = React.useState("");
+  const [tenantUnit, setTenantUnit] = React.useState<UnitOption | null>(null);
   const [showCodeModal, setShowCodeModal] = React.useState(false);
   const [showPersonnelModal, setShowPersonnelModal] = React.useState(false);
   const [selectedSecurity, setSelectedSecurity] =
-    React.useState<SecurityPerson | null>(null);
-  const [tenantUnitLabel, setTenantUnitLabel] = React.useState("Your unit");
+    React.useState<SecurityPersonnel | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const skipPropertyReload = React.useRef(false);
+
+  const selectedProperty = properties.find(
+    (property) => property.id === selectedPropertyId,
+  );
+
+  const loadPropertyData = React.useCallback(
+    async (propertyId: string, propertyName: string, unitId?: string) => {
+      const [codesResult, logsResult, personnelResult] = await Promise.all([
+        getAccessCodes(propertyId),
+        getAccessCodeLogs(propertyId),
+        view === "full"
+          ? listSecurityPersonnel(propertyId, propertyName)
+          : Promise.resolve({ success: true as const, data: [] }),
+      ]);
+
+      if (codesResult.success) {
+        const nextCodes = unitId
+          ? codesResult.data.filter(
+              (code) => !code.unitId || code.unitId === unitId,
+            )
+          : codesResult.data;
+        setCodes(nextCodes);
+      } else {
+        setCodes([]);
+      }
+
+      if (logsResult.success) {
+        setLogs(logsResult.data);
+      } else {
+        setLogs([]);
+      }
+
+      if (personnelResult.success) {
+        setSecurityTeam(personnelResult.data);
+        personnelResult.data.forEach((person) => {
+          if (!person.phoneNumber) return;
+          rememberSecurityAssignment(person.phoneNumber, {
+            id: propertyId,
+            name: propertyName,
+          });
+        });
+      } else if (view === "full") {
+        setSecurityTeam([]);
+      }
+    },
+    [view],
+  );
 
   React.useEffect(() => {
-    if (user?.role !== "tenant" || !user.id) return;
     let cancelled = false;
-    void getTenantByUser(String(user.id)).then((result) => {
-      if (cancelled || !result.success) return;
-      const unit = result.data.currentUnit;
-      if (!unit?.name) return;
-      const propertyName = unit.property?.name?.trim();
-      setTenantUnitLabel(
-        propertyName ? `${unit.name}, ${propertyName}` : unit.name,
+
+    const bootstrap = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+
+      if (user?.role === "tenant") {
+        if (!user.id) {
+          setLoadError("Your tenant profile is not available yet.");
+          setIsLoading(false);
+          return;
+        }
+        const tenant = await getTenantByUser(String(user.id));
+        if (cancelled) return;
+        if (!tenant.success || !tenant.data.currentUnit?.id) {
+          setLoadError(
+            "No unit is assigned to this account, so access codes cannot be generated yet.",
+          );
+          setIsLoading(false);
+          return;
+        }
+        const unit = tenant.data.currentUnit;
+        const propertyId = unit.property?.id;
+        if (!propertyId) {
+          setLoadError("This unit is not linked to a property.");
+          setIsLoading(false);
+          return;
+        }
+        const propertyName = unit.property?.name?.trim() || "Your property";
+        setTenantUnit({ id: unit.id, name: unit.name });
+        setProperties([{ id: propertyId, name: propertyName }]);
+        setSelectedPropertyId(propertyId);
+        setUnits([{ id: unit.id, name: unit.name }]);
+        await loadPropertyData(propertyId, propertyName, unit.id);
+        if (!cancelled) setIsLoading(false);
+        return;
+      }
+
+      const landlordId =
+        typeof window !== "undefined"
+          ? localStorage.getItem("landlordId")
+          : null;
+      if (!landlordId) {
+        setLoadError("Select a landlord account to manage access codes.");
+        setIsLoading(false);
+        return;
+      }
+
+      const propertiesResult = await getPropertiesByLandlord(landlordId);
+      if (cancelled) return;
+      if (!propertiesResult.success) {
+        setLoadError(
+          propertiesResult.error || "Could not load properties.",
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const nextProperties = propertiesResult.data.map((property) => ({
+        id: property.id,
+        name: property.name,
+      }));
+      setProperties(nextProperties);
+      const firstId = nextProperties[0]?.id ?? "";
+      setSelectedPropertyId(firstId);
+      if (!firstId) {
+        setLoadError("Add a property before generating access codes.");
+        setIsLoading(false);
+        return;
+      }
+
+      skipPropertyReload.current = true;
+      const unitsResult = await getUnitsByProperty(firstId);
+      if (cancelled) return;
+      setUnits(
+        unitsResult.success
+          ? unitsResult.data.map((unit) => ({
+              id: unit.id,
+              name: unit.name,
+            }))
+          : [],
       );
-    });
+      await loadPropertyData(firstId, nextProperties[0]?.name || "Property");
+      if (!cancelled) setIsLoading(false);
+    };
+
+    void bootstrap();
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.role]);
+  }, [loadPropertyData, user?.id, user?.role]);
 
-  const visibleCodes = React.useMemo(() => {
-    if (view === "simple" && creator === "tenant") {
-      return codes.filter((code) => code.createdBy === "tenant");
+  React.useEffect(() => {
+    if (!selectedPropertyId || user?.role === "tenant") return;
+    if (skipPropertyReload.current) {
+      skipPropertyReload.current = false;
+      return;
     }
-    return codes;
-  }, [codes, creator, view]);
+    let cancelled = false;
+    const refresh = async () => {
+      setIsLoading(true);
+      const unitsResult = await getUnitsByProperty(selectedPropertyId);
+      if (cancelled) return;
+      setUnits(
+        unitsResult.success
+          ? unitsResult.data.map((unit) => ({ id: unit.id, name: unit.name }))
+          : [],
+      );
+      await loadPropertyData(
+        selectedPropertyId,
+        selectedProperty?.name || "Property",
+      );
+      if (!cancelled) setIsLoading(false);
+    };
+    void refresh();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    loadPropertyData,
+    selectedProperty?.name,
+    selectedPropertyId,
+    user?.role,
+  ]);
 
+  const visibleCodes = codes;
   const activeCodes = visibleCodes.filter((code) => code.status === "active")
     .length;
   const usedCodes = visibleCodes.filter((code) => code.status === "used").length;
   const revokedCodes = visibleCodes.filter(
     (code) => code.status === "revoked",
   ).length;
+  const todaysGranted = logs.filter(
+    (log) => log.outcome === "granted" && isSameDay(log.timestamp),
+  ).length;
+  const todaysDenied = logs.filter(
+    (log) => log.outcome === "denied" && isSameDay(log.timestamp),
+  ).length;
+
+  const generateUnitId =
+    user?.role === "tenant" ? tenantUnit?.id : units[0]?.id;
+  const canCreateCode = Boolean(generateUnitId || units.length > 0);
+  const canAddPersonnel = Boolean(selectedPropertyId);
 
   return (
     <>
@@ -275,168 +354,286 @@ const AccessSecurityPage: NextPageWithLayout = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                view === "simple" || section === "codes"
-                  ? setShowCodeModal(true)
-                  : setShowPersonnelModal(true)
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-gray-800"
-            >
-              <Plus className="h-4 w-4" />
-              {view === "simple" || section === "codes"
-                ? "Create Access Code"
-                : "Add Personnel"}
-            </button>
-          </div>
-
-          {view === "full" ? (
-            <div className="inline-flex w-fit rounded-lg bg-gray-100 p-1">
-              <button
-                type="button"
-                onClick={() => setSection("codes")}
-                className={cx(
-                  "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition",
-                  section === "codes"
-                    ? "bg-white text-gray-950 shadow-sm"
-                    : "text-gray-500 hover:text-gray-900"
-                )}
-              >
-                <KeyRound className="h-4 w-4" />
-                Access Codes
-              </button>
-              <button
-                type="button"
-                onClick={() => setSection("personnel")}
-                className={cx(
-                  "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition",
-                  section === "personnel"
-                    ? "bg-white text-gray-950 shadow-sm"
-                    : "text-gray-500 hover:text-gray-900"
-                )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {view === "full" || user?.role === "property_manager" ? (
+                properties.length > 1 ? (
+                  <select
+                    value={selectedPropertyId}
+                    onChange={(event) =>
+                      setSelectedPropertyId(event.target.value)
+                    }
+                    className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 focus:border-brand-main focus:outline-none focus:ring-2 focus:ring-brand-main"
+                  >
+                    {properties.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null
+              ) : null}
+              <Link
+                href="/security"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-800 shadow-sm transition hover:border-brand-main hover:text-brand-main"
               >
                 <Shield className="h-4 w-4" />
-                Security Personnel
+                Open gate app
+              </Link>
+              <button
+                type="button"
+                disabled={
+                  isLoading ||
+                  (view === "simple" || section === "codes"
+                    ? !canCreateCode
+                    : !canAddPersonnel)
+                }
+                onClick={() =>
+                  view === "simple" || section === "codes"
+                    ? setShowCodeModal(true)
+                    : setShowPersonnelModal(true)
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-950 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Plus className="h-4 w-4" />
+                {view === "simple" || section === "codes"
+                  ? "Create Access Code"
+                  : "Add Personnel"}
               </button>
             </div>
-          ) : null}
+          </div>
 
-          <AnimatePresence mode="wait">
-            {view === "simple" || section === "codes" ? (
-              <motion.div
-                key="codes"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.18 }}
-                className="w-full space-y-6"
-              >
-                <div className="grid gap-4 md:grid-cols-3">
-                  <StatCard
-                    icon={<KeyRound className="h-6 w-6" />}
-                    label="Active Codes"
-                    value={activeCodes}
-                    tone="blue"
-                  />
-                  {view === "simple" ? (
-                    <>
-                      <StatCard
-                        icon={<CheckCircle2 className="h-6 w-6" />}
-                        label="Used"
-                        value={usedCodes}
-                        tone="green"
-                      />
-                      <StatCard
-                        icon={<XCircle className="h-6 w-6" />}
-                        label="Revoked"
-                        value={revokedCodes}
-                        tone="red"
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <StatCard
-                        icon={<CheckCircle2 className="h-6 w-6" />}
-                        label="Today's Gate Entries"
-                        value={24}
-                        tone="green"
-                      />
-                      <StatCard
-                        icon={<XCircle className="h-6 w-6" />}
-                        label="Denied Access Flag"
-                        value={3}
-                        tone="orange"
-                        caption="Last 24h"
-                      />
-                    </>
-                  )}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20 text-gray-500">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Loading access data…
+            </div>
+          ) : loadError ? (
+            <DataUnavailableBanner
+              title="Access data unavailable"
+              description={loadError}
+            />
+          ) : (
+            <>
+              {view === "full" ? (
+                <div className="inline-flex w-fit rounded-lg bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setSection("codes")}
+                    className={cx(
+                      "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition",
+                      section === "codes"
+                        ? "bg-white text-gray-950 shadow-sm"
+                        : "text-gray-500 hover:text-gray-900",
+                    )}
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Access Codes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSection("personnel")}
+                    className={cx(
+                      "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition",
+                      section === "personnel"
+                        ? "bg-white text-gray-950 shadow-sm"
+                        : "text-gray-500 hover:text-gray-900",
+                    )}
+                  >
+                    <Shield className="h-4 w-4" />
+                    Security Personnel
+                  </button>
                 </div>
+              ) : null}
 
-                <AccessCodesPanel
-                  codes={visibleCodes}
-                  activeTab={activeCodeTab}
-                  onTabChange={setActiveCodeTab}
-                  compact={view === "simple"}
-                  onRevoke={(id) =>
-                    setCodes((current) =>
-                      current.map((code) =>
-                        code.id === id
-                          ? {
-                              ...code,
-                              status: "revoked",
-                              validity: "Revoked",
-                            }
-                          : code
-                      )
-                    )
-                  }
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="personnel"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.18 }}
-                className="w-full"
-              >
-                <SecurityPersonnelPanel
-                  team={securityTeam}
-                  onViewScans={setSelectedSecurity}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+              <AnimatePresence mode="wait">
+                {view === "simple" || section === "codes" ? (
+                  <motion.div
+                    key="codes"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18 }}
+                    className="w-full space-y-6"
+                  >
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <StatCard
+                        icon={<KeyRound className="h-6 w-6" />}
+                        label="Active Codes"
+                        value={activeCodes}
+                        tone="blue"
+                      />
+                      {view === "simple" ? (
+                        <>
+                          <StatCard
+                            icon={<CheckCircle2 className="h-6 w-6" />}
+                            label="Used"
+                            value={usedCodes}
+                            tone="green"
+                          />
+                          <StatCard
+                            icon={<XCircle className="h-6 w-6" />}
+                            label="Revoked"
+                            value={revokedCodes}
+                            tone="red"
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <StatCard
+                            icon={<CheckCircle2 className="h-6 w-6" />}
+                            label="Today's Gate Entries"
+                            value={todaysGranted}
+                            tone="green"
+                          />
+                          <StatCard
+                            icon={<XCircle className="h-6 w-6" />}
+                            label="Denied Access Flag"
+                            value={todaysDenied}
+                            tone="orange"
+                            caption="Last 24h"
+                          />
+                        </>
+                      )}
+                    </div>
+
+                    <AccessCodesPanel
+                      codes={visibleCodes}
+                      logs={logs}
+                      activeTab={activeCodeTab}
+                      onTabChange={setActiveCodeTab}
+                      compact={view === "simple"}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="personnel"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18 }}
+                    className="w-full"
+                  >
+                    <SecurityPersonnelPanel
+                      team={securityTeam}
+                      logs={logs}
+                      onViewScans={setSelectedSecurity}
+                      onRemove={async (person) => {
+                        if (!selectedPropertyId) return;
+                        const result = await removeSecurityPersonnel(
+                          selectedPropertyId,
+                          person.id,
+                        );
+                        if (!result.success) {
+                          showToast(
+                            result.error || "Could not remove personnel.",
+                            "error",
+                          );
+                          return;
+                        }
+                        setSecurityTeam((current) =>
+                          current.filter((item) => item.id !== person.id),
+                        );
+                        if (person.phoneNumber) {
+                          forgetSecurityAssignment(
+                            person.phoneNumber,
+                            selectedPropertyId,
+                          );
+                        }
+                        showToast("Security personnel removed.", "success");
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
         </div>
       </div>
 
       <GenerateCodeModal
         open={showCodeModal}
-        createdBy={creator}
-        unitLabel={
-          user?.role === "tenant" ? tenantUnitLabel : "Apt 4B, Lekki Haven"
+        units={
+          user?.role === "tenant" && tenantUnit ? [tenantUnit] : units
         }
+        lockUnit={user?.role === "tenant"}
         onClose={() => setShowCodeModal(false)}
-        onGenerate={(newCode) => {
-          setCodes((current) => [newCode, ...current]);
+        onGenerate={async (name, unitId) => {
+          const result = await generateAccessCode(unitId, name);
+          if (!result.success) {
+            showToast(result.error || "Could not generate code.", "error");
+            return false;
+          }
+          setCodes((current) => [result.data, ...current]);
           setActiveCodeTab("all");
           setShowCodeModal(false);
+          showToast(
+            result.data.code && result.data.code !== "------"
+              ? `Access code ${result.data.code} created.`
+              : "Access code created.",
+            "success",
+          );
+          return true;
         }}
       />
       {view === "full" ? (
         <>
           <AddPersonnelModal
             open={showPersonnelModal}
+            properties={properties}
+            defaultPropertyId={selectedPropertyId}
             onClose={() => setShowPersonnelModal(false)}
-            onConfirm={(person) => {
-              setSecurityTeam((current) => [person, ...current]);
+            onConfirm={async (values) => {
+              const result = await registerSecurityPersonnel(
+                values.propertyId,
+                {
+                  phoneNumber: values.phoneNumber,
+                  password: values.password,
+                },
+              );
+              if (!result.success) {
+                showToast(
+                  result.error || "Could not add security personnel.",
+                  "error",
+                );
+                return false;
+              }
+              const assigned =
+                properties.find((property) => property.id === values.propertyId)
+                  ?.name ?? result.data.assignedProperty;
+              rememberSecurityAssignment(values.phoneNumber, {
+                id: values.propertyId,
+                name: assigned,
+              });
+              const created = {
+                ...result.data,
+                assignedProperty: assigned,
+              };
+              if (values.propertyId === selectedPropertyId) {
+                setSecurityTeam((current) => [created, ...current]);
+              }
               setShowPersonnelModal(false);
+              showToast("Security personnel added.", "success");
+              if (values.propertyId === selectedPropertyId) {
+                void listSecurityPersonnel(
+                  values.propertyId,
+                  assigned,
+                ).then((listed) => {
+                  if (listed.success) setSecurityTeam(listed.data);
+                });
+              }
+              return true;
             }}
           />
           <ScanHistoryModal
             person={selectedSecurity}
+            logs={logs.filter((log) => {
+              if (!selectedSecurity) return false;
+              return (
+                log.securityId === selectedSecurity.id ||
+                log.confirmedBy.toLowerCase() ===
+                  selectedSecurity.name.toLowerCase()
+              );
+            })}
             onClose={() => setSelectedSecurity(null)}
           />
         </>
@@ -469,7 +666,7 @@ const StatCard = ({
     <div
       className={cx(
         "rounded-lg border border-gray-200 p-5 shadow-sm",
-        tones[tone]
+        tones[tone],
       )}
     >
       <div className="flex items-center gap-4">
@@ -494,15 +691,15 @@ const StatCard = ({
 
 const AccessCodesPanel = ({
   codes,
+  logs,
   activeTab,
   onTabChange,
-  onRevoke,
   compact = false,
 }: {
-  codes: AccessCode[];
+  codes: AccessCodeRecord[];
+  logs: AccessCodeLog[];
   activeTab: AccessCodeTab;
   onTabChange: (tab: AccessCodeTab) => void;
-  onRevoke: (id: string) => void;
   compact?: boolean;
 }) => {
   const filteredCodes = React.useMemo(() => {
@@ -528,7 +725,7 @@ const AccessCodesPanel = ({
                 "whitespace-nowrap border-b-2 px-1 py-4 text-sm font-semibold transition",
                 activeTab === tab.key
                   ? "border-brand-main text-brand-main"
-                  : "border-transparent text-gray-500 hover:text-gray-900"
+                  : "border-transparent text-gray-500 hover:text-gray-900",
               )}
             >
               {tab.label}
@@ -538,9 +735,9 @@ const AccessCodesPanel = ({
       )}
 
       {!compact && activeTab === "audit" ? (
-        <AuditLogTable scans={scanHistory} />
+        <AuditLogTable scans={logs} />
       ) : (
-        <CodesTable codes={filteredCodes} onRevoke={onRevoke} compact={compact} />
+        <CodesTable codes={filteredCodes} compact={compact} />
       )}
     </section>
   );
@@ -548,11 +745,9 @@ const AccessCodesPanel = ({
 
 const CodesTable = ({
   codes,
-  onRevoke,
   compact = false,
 }: {
-  codes: AccessCode[];
-  onRevoke: (id: string) => void;
+  codes: AccessCodeRecord[];
   compact?: boolean;
 }) => {
   const headings = compact
@@ -560,96 +755,88 @@ const CodesTable = ({
     : ["Code", "Recipient", "Unit / Property", "Type", "Validity", "Status", "Actions"];
 
   return (
-  <div className="overflow-x-auto">
-    <table className="min-w-full divide-y divide-gray-100">
-      <thead className="bg-gray-50/80">
-        <tr>
-          {headings.map((heading) => (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-100">
+        <thead className="bg-gray-50/80">
+          <tr>
+            {headings.map((heading) => (
               <th
                 key={heading}
                 className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-gray-500"
               >
                 {heading}
               </th>
-            )
-          )}
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100 bg-white">
-        {codes.length === 0 ? (
-          <tr>
-            <td
-              colSpan={compact ? 6 : 7}
-              className="px-5 py-12 text-center text-sm text-gray-500"
-            >
-              No access codes yet. Create one to get started.
-            </td>
+            ))}
           </tr>
-        ) : (
-          codes.map((code) => (
-          <tr key={code.id} className="transition hover:bg-gray-50">
-            <td className="px-5 py-4">
-              <button
-                type="button"
-                onClick={() => void navigator.clipboard?.writeText(code.code)}
-                className="inline-flex min-w-[13rem] items-center justify-between gap-3 whitespace-nowrap rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:border-brand-main hover:text-brand-main"
+        </thead>
+        <tbody className="divide-y divide-gray-100 bg-white">
+          {codes.length === 0 ? (
+            <tr>
+              <td
+                colSpan={compact ? 6 : 7}
+                className="px-5 py-12 text-center text-sm text-gray-500"
               >
-                <span className="font-mono tracking-[0.28em]">
-                  {formatCode(code.code)}
-                </span>
-                <Copy className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-              </button>
-            </td>
-            <td className="px-5 py-4">
-              <p className="font-semibold text-gray-900">{code.recipient}</p>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-gray-500">{code.note}</span>
+                No access codes yet. Create one to get started.
+              </td>
+            </tr>
+          ) : (
+            codes.map((code) => (
+              <tr key={code.id} className="transition hover:bg-gray-50">
+                <td className="px-5 py-4">
+                  <button
+                    type="button"
+                    onClick={() => void navigator.clipboard?.writeText(code.code)}
+                    className="inline-flex min-w-[13rem] items-center justify-between gap-3 whitespace-nowrap rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:border-brand-main hover:text-brand-main"
+                  >
+                    <span className="font-mono tracking-[0.28em]">
+                      {formatCode(code.code)}
+                    </span>
+                    <Copy className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  </button>
+                </td>
+                <td className="px-5 py-4">
+                  <p className="font-semibold text-gray-900">{code.name}</p>
+                  {compact ? null : (
+                    <span className="mt-1 inline-block rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">
+                      Created by: {code.createdBy}
+                    </span>
+                  )}
+                </td>
                 {compact ? null : (
-                  <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">
-                    Created by: {code.createdBy}
+                  <td className="px-5 py-4 text-sm text-gray-600">
+                    {code.unitLabel}
+                  </td>
+                )}
+                <td className="px-5 py-4">
+                  <span
+                    className={cx(
+                      "rounded-md px-3 py-1 text-xs font-semibold uppercase",
+                      typeStyles[code.type],
+                    )}
+                  >
+                    {code.type === "resident" ? "Resident" : "Visitor"}
                   </span>
-                )}
-              </div>
-            </td>
-            {compact ? null : (
-              <td className="px-5 py-4 text-sm text-gray-600">{code.unit}</td>
-            )}
-            <td className="px-5 py-4">
-              <span
-                className={cx(
-                  "rounded-md px-3 py-1 text-xs font-semibold uppercase",
-                  typeStyles[code.type]
-                )}
-              >
-                {code.type === "resident" ? "Resident" : "Visitor"}
-              </span>
-            </td>
-            <td className="px-5 py-4">
-              <p className="text-sm text-gray-700">{code.validity}</p>
-              <p className="mt-1 text-xs text-gray-400">{code.usage}</p>
-            </td>
-            <td className="px-5 py-4">
-              <StatusPill status={code.status} />
-            </td>
-            <td className="px-5 py-4 text-right">
-              <CodeActions code={code} onRevoke={onRevoke} />
-            </td>
-          </tr>
-          ))
-        )}
-      </tbody>
-    </table>
-  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <p className="text-sm text-gray-700">{code.validity}</p>
+                  <p className="mt-1 text-xs text-gray-400">{code.usage}</p>
+                </td>
+                <td className="px-5 py-4">
+                  <StatusPill status={code.status} />
+                </td>
+                <td className="px-5 py-4 text-right">
+                  <CodeActions code={code.code} />
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 };
 
-const CodeActions = ({
-  code,
-  onRevoke,
-}: {
-  code: AccessCode;
-  onRevoke: (id: string) => void;
-}) => {
+const CodeActions = ({ code }: { code: string }) => {
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -667,7 +854,7 @@ const CodeActions = ({
           <button
             type="button"
             onClick={() => {
-              void navigator.clipboard?.writeText(code.code);
+              void navigator.clipboard?.writeText(code);
               setOpen(false);
             }}
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50"
@@ -675,19 +862,6 @@ const CodeActions = ({
             <Copy className="h-4 w-4" />
             Copy code
           </button>
-          {code.status === "active" ? (
-            <button
-              type="button"
-              onClick={() => {
-                onRevoke(code.id);
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50"
-            >
-              <XCircle className="h-4 w-4" />
-              Revoke code
-            </button>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -698,7 +872,7 @@ const StatusPill = ({ status }: { status: AccessCodeStatus }) => (
   <span
     className={cx(
       "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase",
-      statusStyles[status]
+      statusStyles[status],
     )}
   >
     <span
@@ -708,14 +882,14 @@ const StatusPill = ({ status }: { status: AccessCodeStatus }) => (
           ? "bg-green-500"
           : status === "used"
             ? "bg-orange-500"
-            : "bg-red-500"
+            : "bg-red-500",
       )}
     />
     {status}
   </span>
 );
 
-const AuditLogTable = ({ scans }: { scans: ScanRecord[] }) => (
+const AuditLogTable = ({ scans }: { scans: AccessCodeLog[] }) => (
   <div className="overflow-x-auto">
     <table className="min-w-full divide-y divide-gray-100">
       <thead className="bg-gray-50/80">
@@ -738,35 +912,50 @@ const AuditLogTable = ({ scans }: { scans: ScanRecord[] }) => (
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100 bg-white">
-        {scans.map((scan) => (
-          <tr key={scan.id} className="transition hover:bg-gray-50">
-            <td className="px-5 py-5 text-sm text-gray-600">{scan.timestamp}</td>
-            <td className="px-5 py-5 font-semibold text-gray-900">
-              {scan.person}
-            </td>
-            <td className="px-5 py-5 text-sm text-gray-600">{scan.unit}</td>
-            <td className="px-5 py-5 font-mono text-sm text-gray-700">
-              {scan.code}
-            </td>
-            <td className="px-5 py-5 text-sm text-gray-600">
-              {scan.confirmedBy}
-            </td>
-            <td className="px-5 py-5">
-              <OutcomePill outcome={scan.outcome} />
-              <p className="mt-1 text-xs text-gray-400">{scan.note}</p>
+        {scans.length === 0 ? (
+          <tr>
+            <td
+              colSpan={6}
+              className="px-5 py-12 text-center text-sm text-gray-500"
+            >
+              No gate scans recorded yet.
             </td>
           </tr>
-        ))}
+        ) : (
+          scans.map((scan) => (
+            <tr key={scan.id} className="transition hover:bg-gray-50">
+              <td className="px-5 py-5 text-sm text-gray-600">
+                {formatLogTime(scan.timestamp)}
+              </td>
+              <td className="px-5 py-5 font-semibold text-gray-900">
+                {scan.person}
+              </td>
+              <td className="px-5 py-5 text-sm text-gray-600">{scan.unit}</td>
+              <td className="px-5 py-5 font-mono text-sm text-gray-700">
+                {scan.code}
+              </td>
+              <td className="px-5 py-5 text-sm text-gray-600">
+                {scan.confirmedBy}
+              </td>
+              <td className="px-5 py-5">
+                <OutcomePill outcome={scan.outcome} />
+                {scan.note ? (
+                  <p className="mt-1 text-xs text-gray-400">{scan.note}</p>
+                ) : null}
+              </td>
+            </tr>
+          ))
+        )}
       </tbody>
     </table>
   </div>
 );
 
-const OutcomePill = ({ outcome }: { outcome: ScanRecord["outcome"] }) => (
+const OutcomePill = ({ outcome }: { outcome: AccessCodeLog["outcome"] }) => (
   <span
     className={cx(
       "inline-flex rounded-md px-3 py-1 text-xs font-bold uppercase",
-      outcomeStyles[outcome]
+      outcomeStyles[outcome],
     )}
   >
     {outcome}
@@ -775,19 +964,37 @@ const OutcomePill = ({ outcome }: { outcome: ScanRecord["outcome"] }) => (
 
 const SecurityPersonnelPanel = ({
   team,
+  logs,
   onViewScans,
+  onRemove,
 }: {
-  team: SecurityPerson[];
-  onViewScans: (person: SecurityPerson) => void;
+  team: SecurityPersonnel[];
+  logs: AccessCodeLog[];
+  onViewScans: (person: SecurityPersonnel) => void;
+  onRemove: (person: SecurityPersonnel) => Promise<void>;
 }) => {
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(12);
+  const [removingId, setRemovingId] = React.useState<string | null>(null);
   const totalPages = Math.max(1, Math.ceil(team.length / pageSize));
   const visibleRows = team.slice((page - 1) * pageSize, page * pageSize);
 
   React.useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  const statsFor = (person: SecurityPersonnel) => {
+    const matches = logs.filter(
+      (log) =>
+        log.securityId === person.id ||
+        log.confirmedBy.toLowerCase() === person.name.toLowerCase(),
+    );
+    const last = matches[0]?.timestamp;
+    return {
+      scans: matches.length,
+      lastScanDate: last ? formatLogTime(last) : "—",
+    };
+  };
 
   return (
     <section className="w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -817,45 +1024,79 @@ const SecurityPersonnelPanel = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
-            {visibleRows.map((person, index) => (
-              <tr key={person.id} className="transition hover:bg-gray-50">
-                <td className="px-5 py-4 text-sm font-semibold text-gray-600">
-                  {String((page - 1) * pageSize + index + 1).padStart(2, "0")}
-                </td>
-                <td className="px-5 py-4">
-                  <Avatar person={person} />
-                </td>
-                <td className="px-5 py-4">
-                  <p className="font-semibold text-gray-900">{person.name}</p>
-                  <p className="text-xs text-gray-500">{person.email}</p>
-                </td>
-                <td className="px-5 py-4">
-                  <span className="inline-flex items-center gap-2 text-sm text-gray-600">
-                    <Building2 className="h-4 w-4 text-gray-400" />
-                    {person.assignedProperty}
-                  </span>
-                </td>
-                <td className="px-5 py-4">
-                  <span className="inline-flex items-center gap-2 text-sm text-gray-600">
-                    <Clock3 className="h-4 w-4 text-gray-400" />
-                    {person.scans} Scans
-                  </span>
-                </td>
-                <td className="px-5 py-4 text-sm font-semibold text-gray-700">
-                  {person.lastScanDate}
-                </td>
-                <td className="px-5 py-4 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onViewScans(person)}
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-brand-main transition hover:text-blue-700"
-                  >
-                    View Scans
-                    <Eye className="h-3.5 w-3.5" />
-                  </button>
+            {visibleRows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-5 py-12 text-center text-sm text-gray-500"
+                >
+                  No security personnel assigned to this property yet.
                 </td>
               </tr>
-            ))}
+            ) : (
+              visibleRows.map((person, index) => {
+                const stats = statsFor(person);
+                return (
+                  <tr key={person.id} className="transition hover:bg-gray-50">
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-600">
+                      {String((page - 1) * pageSize + index + 1).padStart(2, "0")}
+                    </td>
+                    <td className="px-5 py-4">
+                      <Avatar person={person} />
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="font-semibold text-gray-900">{person.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {person.phoneNumber || person.email || "—"}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="inline-flex items-center gap-2 text-sm text-gray-600">
+                        <Building2 className="h-4 w-4 text-gray-400" />
+                        {person.assignedProperty}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="inline-flex items-center gap-2 text-sm text-gray-600">
+                        <Clock3 className="h-4 w-4 text-gray-400" />
+                        {stats.scans} Scans
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-700">
+                      {stats.lastScanDate}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => onViewScans(person)}
+                          className="inline-flex items-center gap-1 text-sm font-semibold text-brand-main transition hover:text-blue-700"
+                        >
+                          View Scans
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={removingId === person.id}
+                          onClick={async () => {
+                            setRemovingId(person.id);
+                            try {
+                              await onRemove(person);
+                            } finally {
+                              setRemovingId(null);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 text-sm font-semibold text-red-600 transition hover:text-red-700 disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
@@ -875,8 +1116,9 @@ const SecurityPersonnelPanel = ({
             <option value={20}>20</option>
           </select>
           <span>
-            {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, team.length)}{" "}
-            of {team.length} items
+            {team.length === 0
+              ? "0 of 0 items"
+              : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, team.length)} of ${team.length} items`}
           </span>
         </div>
         <Pagination page={page} totalPages={totalPages} onChange={setPage} />
@@ -885,7 +1127,7 @@ const SecurityPersonnelPanel = ({
   );
 };
 
-const Avatar = ({ person }: { person: SecurityPerson }) =>
+const Avatar = ({ person }: { person: SecurityPersonnel }) =>
   person.avatarUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -927,7 +1169,7 @@ const Pagination = ({
           "h-7 min-w-7 rounded-md px-2 text-sm font-semibold transition",
           number === page
             ? "bg-brand-main text-white"
-            : "text-gray-500 hover:bg-gray-100"
+            : "text-gray-500 hover:bg-gray-100",
         )}
       >
         {number}
@@ -975,7 +1217,7 @@ const ModalShell = ({
           transition={{ duration: 0.16 }}
           className={cx(
             "max-h-[90vh] w-full overflow-y-auto rounded-lg bg-white shadow-2xl",
-            size === "sm" ? "max-w-md" : "max-w-xl"
+            size === "sm" ? "max-w-md" : "max-w-xl",
           )}
         >
           <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
@@ -998,99 +1240,60 @@ const ModalShell = ({
 
 const GenerateCodeModal = ({
   open,
+  units,
+  lockUnit,
   onClose,
   onGenerate,
-  createdBy,
-  unitLabel,
 }: {
   open: boolean;
+  units: UnitOption[];
+  lockUnit: boolean;
   onClose: () => void;
-  onGenerate: (code: AccessCode) => void;
-  createdBy: AccessCode["createdBy"];
-  unitLabel: string;
+  onGenerate: (name: string, unitId: string) => Promise<boolean>;
 }) => {
-  const [type, setType] = React.useState<AccessCodeType>("visitor");
   const [recipient, setRecipient] = React.useState("");
-  const [purpose, setPurpose] = React.useState("Guest");
-  const [validity, setValidity] = React.useState("2 Days");
-  const [maxUsage, setMaxUsage] = React.useState("1");
+  const [unitId, setUnitId] = React.useState("");
+  const [isSaving, setIsSaving] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
-    setType("visitor");
     setRecipient("");
-    setPurpose("Guest");
-    setValidity("2 Days");
-    setMaxUsage("1");
-  }, [open]);
+    setUnitId(units[0]?.id ?? "");
+  }, [open, units]);
 
   return (
     <ModalShell open={open} onClose={onClose} title="Generate Access Code">
       <div className="space-y-5 p-5">
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-gray-600">
-            Code Type
-          </label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ChoiceCard
-              active={type === "visitor"}
-              title="Temporary / Visitor"
-              subtitle="Single or short-term use"
-              onClick={() => setType("visitor")}
-            />
-            <ChoiceCard
-              active={type === "resident"}
-              title="Resident"
-              subtitle="Standing or multi-use"
-              onClick={() => setType("resident")}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <InputField
-            label="Recipient Name"
-            placeholder="e.g. John Doe"
-            value={recipient}
-            onChange={setRecipient}
-          />
-          <SelectField
-            label="Purpose"
-            value={purpose}
-            onChange={setPurpose}
-            options={["Guest", "Maintenance", "Delivery", "Family", "Resident"]}
-          />
-          <SelectField
-            label="Validity Window"
-            value={validity}
-            onChange={setValidity}
-            options={["Today", "2 Days", "7 Days", "30 Days", "90 Days"]}
-          />
-          <InputField
-            label="Max Usage Count"
-            placeholder="1"
-            value={maxUsage}
-            onChange={setMaxUsage}
-          />
-        </div>
+        <InputField
+          label="Recipient Name"
+          placeholder="e.g. John Doe"
+          value={recipient}
+          onChange={setRecipient}
+        />
+        <SelectField
+          label="Unit"
+          value={unitId}
+          onChange={setUnitId}
+          disabled={lockUnit || units.length <= 1}
+          options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+        />
+        {units.length === 0 ? (
+          <p className="text-sm text-red-600">
+            Add a unit to this property before generating a code.
+          </p>
+        ) : null}
       </div>
       <ModalActions
         onCancel={onClose}
-        confirmLabel="Generate"
-        onConfirm={() => {
-          const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-          onGenerate({
-            id: `code-${Date.now()}`,
-            code: generatedCode,
-            recipient: recipient.trim() || "New Visitor",
-            note: purpose,
-            unit: unitLabel,
-            type,
-            validity: type === "resident" ? "90 Days Left" : validity,
-            usage: `0 / ${type === "resident" ? "∞" : maxUsage || "1"} Uses`,
-            status: "active",
-            createdBy,
-          });
+        confirmLabel={isSaving ? "Generating…" : "Generate"}
+        disabled={isSaving || !recipient.trim() || !unitId}
+        onConfirm={async () => {
+          setIsSaving(true);
+          try {
+            await onGenerate(recipient.trim(), unitId);
+          } finally {
+            setIsSaving(false);
+          }
         }}
       />
     </ModalShell>
@@ -1099,71 +1302,92 @@ const GenerateCodeModal = ({
 
 const AddPersonnelModal = ({
   open,
+  properties,
+  defaultPropertyId,
   onClose,
   onConfirm,
 }: {
   open: boolean;
+  properties: PropertyOption[];
+  defaultPropertyId: string;
   onClose: () => void;
-  onConfirm: (person: SecurityPerson) => void;
+  onConfirm: (values: {
+    phoneNumber: string;
+    password: string;
+    propertyId: string;
+  }) => Promise<boolean>;
 }) => {
-  const [name, setName] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [assignedProperty, setAssignedProperty] = React.useState("Lekki Haven");
+  const [phoneNumber, setPhoneNumber] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [propertyId, setPropertyId] = React.useState(defaultPropertyId);
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setPhoneNumber("");
+    setPassword("");
+    setPropertyId(defaultPropertyId || properties[0]?.id || "");
+  }, [defaultPropertyId, open, properties]);
 
   return (
     <ModalShell open={open} onClose={onClose} title="Add Security Personnel" size="sm">
       <div className="space-y-4 p-5">
-        <button
-          type="button"
-          className="mx-auto flex h-24 w-24 flex-col items-center justify-center rounded-full border border-dashed border-gray-300 text-xs font-semibold uppercase text-gray-400 transition hover:border-brand-main hover:text-brand-main"
-        >
-          <ImagePlus className="mb-1 h-5 w-5" />
-          Upload
-        </button>
-        <InputField
-          label="Full Name"
-          placeholder="e.g. John Smith"
-          value={name}
-          onChange={setName}
-          icon={<User className="h-4 w-4" />}
-        />
-        <InputField
-          label="Email Address"
-          placeholder="john@dwella.com"
-          value={email}
-          onChange={setEmail}
-          icon={<Mail className="h-4 w-4" />}
-        />
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-gray-600">
+            Phone Number
+          </span>
+          <PhoneInputWithCountry
+            id="security-personnel-phone"
+            value={phoneNumber || undefined}
+            onChange={(value) => setPhoneNumber(value ?? "")}
+            placeholder="801 234 5678"
+            aria-invalid={
+              Boolean(phoneNumber) &&
+              !isValidInternationalPhoneNumber(phoneNumber)
+            }
+          />
+        </label>
         <InputField
           label="Temporary Password"
           placeholder="••••••••"
-          value=""
-          onChange={() => undefined}
+          value={password}
+          onChange={setPassword}
           icon={<Lock className="h-4 w-4" />}
           type="password"
-          helper="They will be prompted to change this on first login."
+          helper="They will use this phone number and password to sign in at the gate."
         />
         <SelectField
           label="Assign to Building"
-          value={assignedProperty}
-          onChange={setAssignedProperty}
-          options={["Lekki Haven", "Apt 1C, Lekki Haven", "Apt 4B, Lekki Haven"]}
+          value={propertyId}
+          onChange={setPropertyId}
+          options={properties.map((property) => ({
+            value: property.id,
+            label: property.name,
+          }))}
           icon={<Building2 className="h-4 w-4" />}
         />
       </div>
       <ModalActions
         onCancel={onClose}
-        confirmLabel="Confirm"
-        onConfirm={() =>
-          onConfirm({
-            id: `security-${Date.now()}`,
-            name: name.trim() || "New Security Personnel",
-            email: email.trim() || "security@dwella.com",
-            assignedProperty,
-            scans: 0,
-            lastScanDate: "—",
-          })
+        confirmLabel={isSaving ? "Saving…" : "Confirm"}
+        disabled={
+          isSaving ||
+          !isValidInternationalPhoneNumber(phoneNumber) ||
+          password.length < 6 ||
+          !propertyId
         }
+        onConfirm={async () => {
+          setIsSaving(true);
+          try {
+            await onConfirm({
+              phoneNumber: normalizePhoneNumberForApi(phoneNumber),
+              password,
+              propertyId,
+            });
+          } finally {
+            setIsSaving(false);
+          }
+        }}
       />
     </ModalShell>
   );
@@ -1171,9 +1395,11 @@ const AddPersonnelModal = ({
 
 const ScanHistoryModal = ({
   person,
+  logs,
   onClose,
 }: {
-  person: SecurityPerson | null;
+  person: SecurityPersonnel | null;
+  logs: AccessCodeLog[];
   onClose: () => void;
 }) => (
   <ModalShell
@@ -1191,7 +1417,6 @@ const ScanHistoryModal = ({
         <div className="mt-6 rounded-lg border border-gray-200 p-4">
           <div className="mb-4">
             <h3 className="flex items-center gap-2 font-bold text-gray-900">
-              <FileIcon />
               Recent Approval History
             </h3>
             <p className="mt-1 text-sm text-gray-500">
@@ -1199,73 +1424,38 @@ const ScanHistoryModal = ({
             </p>
           </div>
           <div className="space-y-3">
-            {scanHistory.map((scan) => (
-              <div
-                key={scan.id}
-                className="rounded-lg border border-gray-100 p-3 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">
-                      {scan.confirmedBy}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-600">
-                      Scanned <strong>{scan.person}</strong> for {scan.unit}
-                    </p>
+            {logs.length === 0 ? (
+              <p className="py-6 text-center text-sm text-gray-500">
+                No scans recorded for this officer yet.
+              </p>
+            ) : (
+              logs.map((scan) => (
+                <div
+                  key={scan.id}
+                  className="rounded-lg border border-gray-100 p-3 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">
+                        {scan.person}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Scanned for {scan.unit}
+                      </p>
+                    </div>
+                    <OutcomePill outcome={scan.outcome} />
                   </div>
-                  <OutcomePill outcome={scan.outcome} />
+                  <p className="mt-2 text-xs text-gray-400">
+                    {formatLogTime(scan.timestamp)}
+                  </p>
                 </div>
-                <p className="mt-2 text-xs text-gray-400">{scan.timestamp}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
     ) : null}
   </ModalShell>
-);
-
-const FileIcon = () => (
-  <svg
-    viewBox="0 0 20 20"
-    aria-hidden="true"
-    className="h-4 w-4 text-gray-400"
-    fill="none"
-  >
-    <path
-      d="M5 3.5h6.2L15 7.3v9.2H5v-13Z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
-    />
-    <path d="M11 3.5v4h4" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-);
-
-const ChoiceCard = ({
-  active,
-  title,
-  subtitle,
-  onClick,
-}: {
-  active: boolean;
-  title: string;
-  subtitle: string;
-  onClick: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={cx(
-      "rounded-lg border p-4 text-left transition hover:-translate-y-0.5",
-      active
-        ? "border-brand-main bg-blue-50 text-brand-main"
-        : "border-gray-200 text-gray-700 hover:border-gray-300"
-    )}
-  >
-    <p className="font-semibold">{title}</p>
-    <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
-  </button>
 );
 
 const InputField = ({
@@ -1302,11 +1492,13 @@ const InputField = ({
         placeholder={placeholder}
         className={cx(
           "w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-brand-main focus:ring-2 focus:ring-brand-main/20",
-          icon ? "pl-10" : ""
+          icon ? "pl-10" : "",
         )}
       />
     </span>
-    {helper ? <span className="mt-1 block text-xs text-gray-500">{helper}</span> : null}
+    {helper ? (
+      <span className="mt-1 block text-xs text-gray-500">{helper}</span>
+    ) : null}
   </label>
 );
 
@@ -1316,12 +1508,14 @@ const SelectField = ({
   onChange,
   options,
   icon,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: string[];
+  options: Array<{ value: string; label: string }>;
   icon?: React.ReactNode;
+  disabled?: boolean;
 }) => (
   <label className="block">
     <span className="mb-2 block text-sm font-semibold text-gray-600">
@@ -1335,18 +1529,23 @@ const SelectField = ({
       ) : null}
       <select
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         className={cx(
-          "w-full appearance-none rounded-lg border border-gray-200 bg-white py-3 text-sm font-medium text-gray-900 outline-none transition hover:border-gray-300 focus:border-brand-main focus:ring-2 focus:ring-brand-main/20",
+          "w-full appearance-none rounded-lg border border-gray-200 bg-white py-3 text-sm font-medium text-gray-900 outline-none transition hover:border-gray-300 focus:border-brand-main focus:ring-2 focus:ring-brand-main/20 disabled:bg-gray-50",
           icon ? "pl-14" : "pl-4",
-          "pr-11"
+          "pr-11",
         )}
       >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
+        {options.length === 0 ? (
+          <option value="">No options</option>
+        ) : (
+          options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))
+        )}
       </select>
       <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 transition group-focus-within:text-brand-main" />
     </span>
@@ -1357,10 +1556,12 @@ const ModalActions = ({
   onCancel,
   onConfirm,
   confirmLabel,
+  disabled,
 }: {
   onCancel: () => void;
   onConfirm: () => void;
   confirmLabel: string;
+  disabled?: boolean;
 }) => (
   <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
     <button
@@ -1372,8 +1573,9 @@ const ModalActions = ({
     </button>
     <button
       type="button"
+      disabled={disabled}
       onClick={onConfirm}
-      className="rounded-lg bg-gray-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-800"
+      className="rounded-lg bg-gray-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {confirmLabel}
     </button>

@@ -197,6 +197,15 @@ export const LoginForm = ({
             Sign Up
           </Link>
         </div>
+        <div className="text-center text-sm text-gray-600">
+          Security officer?{" "}
+          <Link
+            href="/security"
+            className="font-medium text-brand-main hover:text-brand-main/80 hover:underline"
+          >
+            Sign in to the gate app
+          </Link>
+        </div>
       </form>
     </div>
   );

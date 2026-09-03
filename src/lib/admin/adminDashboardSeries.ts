@@ -161,26 +161,20 @@ export function cumulativeUsersByYearMonth(
   return out;
 }
 
-export type CategoryAggregate = { name: string; units: number };
+export type CategoryAggregate = { name: string; count: number };
 
-/** Sum `numberOfUnits` by `propertyType` (top 4 by units). */
+/** Count listings as service apartments vs long-term rentals. */
 export function aggregatePropertyCategories(
-  rows: { propertyType?: string | null; numberOfUnits?: number }[],
+  rows: { isOpenForServiceApartment?: boolean }[],
 ): CategoryAggregate[] {
-  const map = new Map<string, number>();
+  let service = 0;
+  let rented = 0;
   for (const p of rows) {
-    const label =
-      typeof p.propertyType === "string" && p.propertyType.trim()
-        ? p.propertyType.trim()
-        : "Other";
-    const u =
-      typeof p.numberOfUnits === "number" && Number.isFinite(p.numberOfUnits)
-        ? Math.max(0, p.numberOfUnits)
-        : 0;
-    map.set(label, (map.get(label) ?? 0) + u);
+    if (p.isOpenForServiceApartment === true) service += 1;
+    else rented += 1;
   }
-  return [...map.entries()]
-    .map(([name, units]) => ({ name, units }))
-    .sort((a, b) => b.units - a.units)
-    .slice(0, 4);
+  return [
+    { name: "Service apartments", count: service },
+    { name: "Rented apartments", count: rented },
+  ];
 }

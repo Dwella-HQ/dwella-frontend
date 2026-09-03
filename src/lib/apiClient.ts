@@ -11,6 +11,8 @@ import {
 type ApiClientOptions = Omit<AxiosRequestConfig, "url" | "method" | "data"> & {
   token?: string;
   skipAuth?: boolean;
+  /** Return 401 as an error instead of clearing the session and redirecting. */
+  skipExpireRedirect?: boolean;
   method?: Method;
   data?: unknown;
 };
@@ -76,24 +78,24 @@ function clearSessionAndRedirectToLogin(): void {
 
 async function handle401Response<T>(
   skipAuth: boolean | undefined,
+  skipExpireRedirect: boolean | undefined,
   isRetry: boolean,
   retryRequest: () => Promise<ApiResult<T>>,
   refreshTokenFromHeader?: string | null,
+  apiMessage?: string | null,
 ): Promise<ApiResult<T>> {
-  if (skipAuth) {
-    return {
-      success: false,
-      error: "Unauthorized",
-      statusCode: 401,
-    };
+  const unauthorized = {
+    success: false as const,
+    error: apiMessage?.trim() || "Unauthorized",
+    statusCode: 401,
+  };
+
+  if (skipAuth || skipExpireRedirect) {
+    return unauthorized;
   }
 
   if (!isProtectedAppRoute()) {
-    return {
-      success: false,
-      error: "Unauthorized",
-      statusCode: 401,
-    };
+    return unauthorized;
   }
 
   const refreshToken = refreshTokenFromHeader || getStoredRefreshToken();
@@ -103,6 +105,12 @@ async function handle401Response<T>(
     if (refreshed) {
       return retryRequest();
     }
+  }
+
+  // A retried request that is still 401 after refresh is authorization, not
+  // an expired session — keep the user signed in.
+  if (isRetry) {
+    return unauthorized;
   }
 
   clearSessionAndRedirectToLogin();
@@ -158,8 +166,15 @@ export const apiClient = async <T>(
 
   const run = async (isRetry: boolean): Promise<ApiResult<T>> => {
     try {
-      const { token, skipAuth, headers, method, data, ...axiosOptions } =
-        options;
+      const {
+        token,
+        skipAuth,
+        skipExpireRedirect,
+        headers,
+        method,
+        data,
+        ...axiosOptions
+      } = options;
 
       const url = createUrl(endpoint);
 
@@ -242,9 +257,11 @@ export const apiClient = async <T>(
       if (response.status === 401) {
         return handle401Response(
           skipAuth,
+          skipExpireRedirect,
           isRetry,
           () => run(true),
           readRefreshTokenHeader(response.headers),
+          extractApiErrorMessage(response.data),
         );
       }
 
@@ -279,9 +296,11 @@ export const apiClient = async <T>(
         if (statusCode === 401) {
           return handle401Response(
             options.skipAuth,
+            options.skipExpireRedirect,
             isRetry,
             () => run(true),
             readRefreshTokenHeader(axiosError.response.headers),
+            extractApiErrorMessage(axiosError.response.data),
           );
         }
 

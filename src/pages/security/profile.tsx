@@ -1,14 +1,20 @@
 import * as React from "react";
-import { LogOut, Pencil } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, LogOut, Pencil } from "lucide-react";
 import { SecurityLayout, useSecuritySession } from "@/components/security/SecurityLayout";
 import { useToast } from "@/components/Toast";
-import { getSecurityInitials } from "@/lib/securitySession";
+import { getMainAppPath, getSecurityInitials } from "@/lib/securitySession";
 import type { NextPageWithLayout } from "../_app";
 
 const SecurityProfilePage: NextPageWithLayout = () => {
   const { session, logout } = useSecuritySession();
   const { showToast } = useToast();
   const initials = getSecurityInitials(session.displayName);
+  const [mainAppPath, setMainAppPath] = React.useState("/auth/login");
+
+  React.useEffect(() => {
+    setMainAppPath(getMainAppPath());
+  }, []);
 
   return (
     <div className="mx-auto flex min-h-[60vh] w-full max-w-lg flex-col items-center lg:min-h-0">
@@ -21,9 +27,9 @@ const SecurityProfilePage: NextPageWithLayout = () => {
             type="button"
             onClick={() =>
               showToast(
-                "Profile editing will be available when security accounts are connected.",
-                "info",
-              )
+              "Profile editing is not available on this account yet.",
+              "info",
+            )
             }
             className="absolute -right-1 top-1 flex h-8 w-8 items-center justify-center rounded-lg bg-brand-main text-white shadow-sm transition hover:bg-brand-main/80"
             aria-label="Edit profile"
@@ -35,10 +41,28 @@ const SecurityProfilePage: NextPageWithLayout = () => {
         <h1 className="mt-5 text-2xl font-bold text-gray-900">
           {session.displayName}
         </h1>
-        <p className="mt-1 text-sm text-gray-500">{session.email}</p>
+        <p className="mt-1 text-sm text-gray-500">
+          {session.phoneNumber || session.email || "Security officer"}
+        </p>
+        {session.email && session.phoneNumber ? (
+          <p className="mt-1 text-sm text-gray-500">{session.email}</p>
+        ) : null}
         <p className="mt-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
           Security officer
         </p>
+        {session.properties.length > 0 ? (
+          <p className="mt-3 text-center text-sm text-gray-600">
+            {session.properties.map((property) => property.name).join(" · ")}
+          </p>
+        ) : null}
+
+        <Link
+          href={mainAppPath}
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-brand-main hover:underline lg:hidden"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dwelliva
+        </Link>
 
         <button
           type="button"

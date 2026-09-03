@@ -3,17 +3,21 @@ import Image from "next/image";
 import Link from "next/link";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Clock, Home, User } from "lucide-react";
+import { ArrowLeft, Clock, Home, User } from "lucide-react";
 import logoHorizontal from "@/assets/logo_blue_horizontal.png";
 import {
   clearSecuritySession,
+  getMainAppPath,
   getSecuritySession,
+  updateSecuritySession,
   type SecuritySession,
 } from "@/lib/securitySession";
+import { resolveAssignedProperties } from "@/api/security";
 
 type SecuritySessionContextValue = {
   session: SecuritySession;
   logout: () => void;
+  setSelectedPropertyId: (id: string) => void;
 };
 
 const SecuritySessionContext =
@@ -37,21 +41,52 @@ export const SecurityLayout = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const [session, setSession] = React.useState<SecuritySession | null>(null);
   const [isReady, setIsReady] = React.useState(false);
+  const [mainAppPath, setMainAppPath] = React.useState("/auth/login");
 
   React.useEffect(() => {
-    const current = getSecuritySession();
-    if (!current) {
-      void router.replace("/security");
-      return;
-    }
-    setSession(current);
-    setIsReady(true);
+    let cancelled = false;
+    const boot = async () => {
+      const current = getSecuritySession();
+      if (!current) {
+        void router.replace("/security");
+        return;
+      }
+      setMainAppPath(getMainAppPath());
+      if (current.properties.length === 0 && current.token) {
+        const properties = await resolveAssignedProperties(current.token, {
+          phoneNumber: current.phoneNumber,
+          userId: current.userId,
+        });
+        if (cancelled) return;
+        if (properties.length > 0) {
+          const next = updateSecuritySession({
+            properties,
+            selectedPropertyId: properties[0]?.id ?? null,
+          });
+          setSession(next ?? { ...current, properties, selectedPropertyId: properties[0].id });
+          setIsReady(true);
+          return;
+        }
+      }
+      if (cancelled) return;
+      setSession(current);
+      setIsReady(true);
+    };
+    void boot();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const logout = React.useCallback(() => {
     clearSecuritySession();
     void router.replace("/security");
   }, [router]);
+
+  const setSelectedPropertyId = React.useCallback((id: string) => {
+    const next = updateSecuritySession({ selectedPropertyId: id });
+    if (next) setSession(next);
+  }, []);
 
   const isActive = React.useCallback(
     (href: string) => router.pathname === href,
@@ -68,7 +103,9 @@ export const SecurityLayout = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <SecuritySessionContext.Provider value={{ session, logout }}>
+    <SecuritySessionContext.Provider
+      value={{ session, logout, setSelectedPropertyId }}
+    >
       <Head>
         <title>Dwelliva · Security</title>
       </Head>
@@ -102,14 +139,25 @@ export const SecurityLayout = ({ children }: { children: React.ReactNode }) => {
               );
             })}
           </nav>
-          <p className="mt-auto text-xs text-gray-400">
-            Gate access · mock session
-          </p>
+          <Link
+            href={mainAppPath}
+            className="mt-auto inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition hover:text-brand-main"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dwelliva
+          </Link>
         </aside>
 
         {showMobileLogo ? (
           <header className="sticky top-0 z-20 border-b border-gray-100 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-            <div className="flex justify-center">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+              <Link
+                href={mainAppPath}
+                className="inline-flex items-center gap-1 justify-self-start text-xs font-medium text-gray-500 transition hover:text-brand-main"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Dwelliva
+              </Link>
               <Image
                 src={logoHorizontal}
                 alt="Dwelliva"
@@ -118,6 +166,7 @@ export const SecurityLayout = ({ children }: { children: React.ReactNode }) => {
                 className="h-auto w-32 object-contain"
                 priority
               />
+              <span />
             </div>
           </header>
         ) : null}

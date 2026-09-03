@@ -9,6 +9,7 @@ export type RoleName =
   | "agent"
   | "maintenance_staff"
   | "tenant"
+  | "security"
   | "user";
 
 export const ROLE_NAMES: RoleName[] = [
@@ -20,6 +21,7 @@ export const ROLE_NAMES: RoleName[] = [
   "agent",
   "maintenance_staff",
   "tenant",
+  "security",
   "user",
 ];
 

@@ -24,8 +24,7 @@ export type AdminDashboardChartsProps = {
   userDatesIso: string[];
   transactions: { createdAt?: string; amount?: unknown }[];
   propertyCategoryRows: {
-    propertyType?: string | null;
-    numberOfUnits?: number;
+    isOpenForServiceApartment?: boolean;
   }[];
 };
 
@@ -132,24 +131,10 @@ export function AdminDashboardCharts({
     return dailyTransactionVolumeCurrentMonth(txEntries, now);
   }, [volRange, txEntries, year, now]);
 
-  const topCategories = React.useMemo(
+  const listingTypes = React.useMemo(
     () => aggregatePropertyCategories(propertyCategoryRows),
     [propertyCategoryRows],
   );
-
-  const defaultCategories = ["3 Bedroom", "2 Bedroom", "Self Contain", "Duplex"];
-  const displayCategories =
-    topCategories.length > 0
-      ? topCategories.map((c, i) => ({
-          rank: i + 1,
-          name: c.name,
-          units: c.units,
-        }))
-      : defaultCategories.map((name, i) => ({
-          rank: i + 1,
-          name,
-          units: 0,
-        }));
 
   return (
     <>
@@ -368,24 +353,23 @@ export function AdminDashboardCharts({
 
         <div className="rounded-[10px] border border-[#E2E8F0] bg-white p-4">
           <p className="text-lg font-semibold leading-none sm:text-xl lg:text-[24px]">
-            Top Property Category
+            Property listing type
           </p>
           <p className="mt-2 text-[12px] text-[#64748B]">
-            Total units listed by property type (from property records).
+            Properties marked as service apartments vs long-term rentals.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            {displayCategories.map((row) => (
+            {listingTypes.map((row, index) => (
               <div
-                key={`${row.rank}-${row.name}`}
+                key={row.name}
                 className="rounded-md border border-[#F1F5F9] bg-[#F8FAFC] px-3 py-2.5"
               >
                 <p className="text-[15px] font-medium text-[#0F172A]">
-                  {row.rank}. {row.name}
+                  {index + 1}. {row.name}
                 </p>
                 <p className="text-[12px] text-[#64748B]">
-                  {row.units > 0
-                    ? `${row.units.toLocaleString()} units`
-                    : "—"}
+                  {row.count.toLocaleString()}{" "}
+                  {row.count === 1 ? "property" : "properties"}
                 </p>
               </div>
             ))}
